@@ -1,10 +1,10 @@
 # Launch readiness
 
-Audit date: 2026-11-11. Source baseline: `daa221d931ef6dd1c4dd725821ecf0e80faf071c` (local `origin/main`). Evidence below is repository source, not a claim about the deployed version, real users or measured server capacity. Rows labelled “launch change” cite this branch; other source anchors remain pinned to the baseline. Missing rows cite the existing schema or handler that lacks the required behavior. The contract's older audit citations refer to a different revision.
+Audit date: 2026-11-11. Source baseline: `daa221d931ef6dd1c4dd725821ecf0e80faf071c` (local `origin/main`). Evidence below is repository source, not a claim about the deployed version, real users or measured server capacity. Stage 1 rows cite this branch and synthetic tests (2026-11-16); stages 2/3 and human/operations gates remain open. Rows labelled “launch change” cite this branch; other source anchors remain pinned to the baseline. Missing rows cite the existing schema or handler that lacks the required behavior. The contract's older audit citations refer to a different revision.
 
 The owner decided on 2026-11-11 to open an invite-only beta of roughly 25–50 groups once the launch basics pass, inside a load-tested envelope of about 100 active groups. The 2,000-character design ceiling must be proven before admission rises beyond demonstrated capacity. Public sign-up still requires her explicit OK. No release, live setting or sign-up change is authorized by this checklist.
 
-`shipped` means the cited code implements the stated row; `partial` means only part of that behavior exists; `missing` means the required operation, entity or proof is absent. A shipped source row does not pass a human or operations gate. Counts cover the 109 contract rows below, not the launch gates: **24 shipped, 42 partial, 43 missing**.
+`shipped` means the cited code implements the stated row; `partial` means only part of that behavior exists; `missing` means the required operation, entity or proof is absent. A shipped source row does not pass a human or operations gate. Counts cover the 109 contract rows below, not the launch gates: **41 shipped, 38 partial, 30 missing**.
 
 ## Launch-basics gates
 
@@ -12,11 +12,11 @@ Owners below are responsible roles; no outside tester or operator has been booke
 
 | Gate | Owner | Status and acceptance evidence still needed |
 | --- | --- | --- |
-| Account and key caps | Core implementation | Partial. Registry and key caps implemented and tested in this branch. Character-dependent caps and legacy invite sign-up authority remain open. |
-| First sign-in → invite → character switch → leave/rejoin, rosters 1–5 | Core implementation; the owner accepts the journey | Blocked. Character identity, owner invites, switcher, moves and non-duo starts are incomplete. Run the complete journey for each size with isolated synthetic data. |
+| Account and key caps | Core implementation | Partial. Registry, character and key caps implemented and tested in this branch. Legacy invite sign-up authority remains open. |
+| First sign-in → invite → character switch → leave/rejoin, rosters 1–5 | Core implementation; the owner accepts the journey | Partial. Stage 1 implements character identity, migration, provisioning and exact switching. Owner invites, moves and non-duo starts remain incomplete. Run the complete journey for each size with isolated synthetic data. |
 | Timed multi-picker restore from off-site backup | Private operations owner | Unverified. Restore an off-site capture into isolated roots, time access reclaim and gameplay recovery, verify several pickers, history, keys/tombstones and dataset closure. Record source, backup, elapsed times and failures. Public recovery proposals are not a completed drill. |
 | Verified alert delivery | Private operations owner | Unverified. Trigger a synthetic actionable failure and retain the actual delivery receipt and recovery result. Alert code alone does not prove delivery. |
-| Abuse: sign-up rate and picker creation | Core implementation; private operations configures | Partial. Existing rate buckets plus launch registry/beta refusal tests are present. No Add character or lifecycle-allocation path yet. Baseline `app/security/picker-limits.mjs:146`; launch `tests/launch-registry-caps.test.mjs:1`. |
+| Abuse: sign-up rate and picker creation | Core implementation; private operations configures | Partial. Existing rate buckets plus launch registry/beta refusal tests are present. Stage 1 Add character uses the existing provisioning budget; lifecycle-allocation paths remain later work. Baseline `app/security/picker-limits.mjs:146`; launch `tests/launch-registry-caps.test.mjs:1`. |
 | Abuse: invites and plugin keys | Core implementation | Partial. Rate/key accounting exists; seat reservations and new invite storage are absent. See `app/security/picker-limits.mjs:118`, `app/storage/invites.mjs:203`. |
 | Abuse: storage per login | Core implementation; private operations sets budget | Missing. Upload byte budgets are traffic bounds, not retained disk quotas. Define accounting for maps, history, private evidence and past maps without deleting records. See `app/security/picker-limits.mjs:159`. |
 | Beta cap on new groups/pickers | Core implementation; the owner or private operations chooses live cap | Implemented in branch. Refusal, existing sign-ins, pending recovery and lowered caps tested; live cap remains unset. Private operations sets it only in a later authorized release. |
@@ -32,14 +32,14 @@ Owners below are responsible roles; no outside tester or operator has been booke
 | --- | --- | --- | --- |
 | A01 | Discord/Google opaque provider subjects identify a login; at most one identity from each provider; conflicting logins never merge automatically | shipped | `app/storage/registry.mjs:59`, `app/storage/registry.mjs:197`, `app/signin.mjs:107`. |
 | A02 | Provider linking requires a current authenticated session; no email/name authority | shipped | `app/signin.mjs:107`, `app/signin.mjs:299`, `app/storage/registry.mjs:197`. |
-| A03 | Stable login ID; zero-character login survives explicit deletion without reprovisioning | partial | Stable IDs exist; `firstLogin` ensures a default again. No character collection: `app/storage/registry.mjs:59`, `app/storage/registry.mjs:384`. |
-| A04 | Stable opaque character ID, controlling login and exactly one live placement with inverse uniqueness; names never establish ownership | missing | Strict registry/account/member fields have no character or placement entity: `app/storage/registry.mjs:39`, `app/storage/registry.mjs:59`, `app/core/state.mjs:46`. |
+| A03 | Stable login ID; zero-character login survives explicit deletion without reprovisioning | partial | Stage 1: stable login and explicit initial-provisioning completion keep a completed empty login empty (`tests/character-registry.test.mjs`). Self-service character deletion remains stage 3. |
+| A04 | Stable opaque character ID, controlling login and exactly one live placement with inverse uniqueness; names never establish ownership | shipped | Stage 1: registry v2 character IDs, controlling login and inverse unique seat/placement validation; synthetic roster migration 1–5 in `tests/character-registry.test.mjs`. |
 | A05 | Stable group ID and isolated gameplay, roster, history and evidence | shipped | Registry-issued ID/directories and credential-selected routing: `app/storage/registry.mjs:219`, `app/storage/registry.mjs:342`, `app/picker-router.mjs:167`. |
-| A06 | Exactly one owner login through a designated character; several owned groups per login | partial | Exactly one owned default is enforced; no owner-character binding: `app/storage/registry.mjs:75`, `app/storage/registry.mjs:84`, `app/storage/registry.mjs:239`. |
-| A07 | Live slot binds one character; departed slot cannot be reassigned with its progress; reservations have no playable map | missing | Member allowlist/memberships do not express placement or historical/vacant slots: `app/storage/registry.mjs:69`, `app/storage/registry.mjs:392`, `app/storage/registry.mjs:402`. |
-| A08 | 1–5 live characters, occupied plus reserved ≤5; same-login characters can share a group with explicit acting selection | missing | No live-seat/reservation accounting or character selection: `app/storage/registry.mjs:17`, `app/storage/invites.mjs:98`. |
-| A09 | Owners control invites/handover/deletion without operator power or another login's character/key authority | partial | Owned deletion and member-key authorization exist; invite creation still requires private admin: `app/picker-router-deletion.mjs:52`, `app/game-plugin.mjs:792`, `app/picker-context.mjs:1668`. |
-| A10 | Preserve existing account/picker/member IDs and maps; review ambiguous character mappings; viewers create no characters | missing | No character migration exists; legacy import preserves IDs/access only: `app/storage/registry.mjs:420`, `app/storage/registry-legacy.mjs:1`. |
+| A06 | Exactly one owner login through a designated character; several owned groups per login | shipped | Stage 1: designated owner character and multiple owned solo pickers per login in `app/storage/registry.mjs`; Add character and exact-slot routing tests. |
+| A07 | Live slot binds one character; departed slot cannot be reassigned with its progress; reservations have no playable map | partial | Stage 1 binds occupied seats to characters and validates empty reservation fields. Departed-slot lifecycle and invite conversion remain stages 2/3. |
+| A08 | 1–5 live characters, occupied plus reserved ≤5; same-login characters can share a group with explicit acting selection | shipped | Stage 1 validates occupied plus reserved ≤5 and exact same-login selection for sizes 1–5. `tests/character-registry.test.mjs`, `tests/picker-routing.test.mjs`. Reservation operations remain stage 2. |
+| A09 | Owners control invites/handover/deletion without operator power or another login's character/key authority | partial | Member-key authorization exists. Stage 1 refuses character-affecting deletion until stage 3; owner invitations and handover remain deferred. `app/picker-router-deletion.mjs`, `app/game-plugin.mjs`, `app/picker-context.mjs`. |
+| A10 | Preserve existing account/picker/member IDs and maps; review ambiguous character mappings; viewers create no characters | shipped | Stage 1: migration keeps account/picker/member IDs and gameplay bytes; exact preimages, ambiguity report, viewer exclusion and legacy compatibility. `tests/character-registry.test.mjs`. |
 | A11 | Preserve ownerless two-slot legacy compatibility and ordinary deletion guard | shipped | `app/storage/registry.mjs:54`, `app/storage/registry.mjs:420`, `app/storage/registry.mjs:466`. Ordinary group conversion remains unimplemented. |
 | A12 | Portable gameplay excludes identities, ownership, invites and usable credentials | shipped | Recovery sanitization is explicit; gameplay member fields exclude auth: `app/storage/registry.mjs:513`, `app/core/state.mjs:46`. |
 | A13 | Per-character access/tasks/supplies/maps, goals, imports/restore and Undo work for all roster sizes 1–5 | partial | Array-based state exists, but members transition demands a duo and bank helper rejects >2: `app/core/state.mjs:2275`, `app/core/members-start.mjs:11`. Full workflow proof is missing. |
@@ -48,16 +48,16 @@ Owners below are responsible roles; no outside tester or operator has been booke
 
 | ID | Contract behavior | Status | Evidence and remaining work |
 | --- | --- | --- | --- |
-| P01 | First sign-in creates a neutral character, solo picker and owner slot without provider-profile naming | partial | Neutral `owner` slot and picker exist; character entity does not: `app/storage/registry.mjs:244`, `app/server.mjs:460`. |
-| P02 | Idempotent recoverable first provisioning; no half-created success; quota refusal preserves existing maps | partial | Picker crash recovery and admission preflight exist; no character transaction. Launch change: `app/storage/registry.mjs:398`, `tests/launch-registry-caps.test.mjs:1`; baseline crash cases: `tests/registry.test.mjs:67`. |
+| P01 | First sign-in creates a neutral character, solo picker and owner slot without provider-profile naming | shipped | Stage 1 first sign-in creates a neutral unnamed character, solo picker and owner seat without provider-profile names. Registry and HTTP routing tests. |
+| P02 | Idempotent recoverable first provisioning; no half-created success; quota refusal preserves existing maps | shipped | Stage 1 durable creation intent, caller request receipt, pending quotas and startup recovery. First-login process crashes and Add-character/migration interruption tests cover every publication seam. |
 | P03 | Invite survives sign-in; initial solo picker is created first, then reviewed retirement/move | missing | Invites use the older account path instead of first provisioning: `app/signin.mjs:299`, `app/signin.mjs:307`. |
-| P04 | Return to requested/last authorized character; Add character when empty; remembered selection is no authority | missing | Callback redirects to `/`, one default, no character menu: `app/signin.mjs:305`, `app/web/account-panel.mjs:28`. |
-| P05 | Add character creates another solo picker, or directly joins invite after first onboarding; quotas checked before publication | missing | Only `ensureDefaultPicker` exists: `app/storage/registry.mjs:401`, `app/web/account-panel.mjs:28`. |
+| P04 | Return to requested/last authorized character; Add character when empty; remembered selection is no authority | shipped | Stage 1 resolves explicit/last authorized character, otherwise the menu; completed empty login offers Add character. Explicit full document scope preserves separate tabs. Registry, routing and browser-session tests. |
+| P05 | Add character creates another solo picker, or directly joins invite after first onboarding; quotas checked before publication | partial | Stage 1 Add character creates a separate solo map with quota preflight and idempotent retries. Invitation-directed creation remains stage 2. |
 | P06 | Unnamed member can play manually; sync requires trimmed 1–12 ASCII letters/digits/spaces/hyphens/underscores; case/underscore equivalence retained | shipped | Optional name and validation/matching: `app/core/state.mjs:781`, `app/core/game-progress.mjs:21`, `app/core/game-progress.mjs:28`, `app/integrations/platform-api.mjs:86`. |
 | P07 | Public lookup validates returned names, imports nothing by itself, does not prove ownership; private/missing/rate/unavailable leaves progress intact | shipped | Fetch-only snapshot and returned-name validation: `app/integrations/platform-api.mjs:33`, `app/integrations/platform-api.mjs:85`; preview endpoint: `app/picker-context.mjs:1718`. |
-| P08 | Names never merge/claim accounts; duplicate within login needs warning and acknowledgement | partial | Login authority uses provider subjects; no character collection/duplicate-name review: `app/storage/registry.mjs:197`, `app/web/account-panel.mjs:28`. |
+| P08 | Names never merge/claim accounts; duplicate within login needs warning and acknowledgement | partial | Stage 1 Add character warns on normalized duplicates within a login and requires acknowledgement; names grant no authority. Naming metadata follows committed saves; complete rename review remains P10/P11. |
 | P09 | Sync preview/apply, revision/name checks and plugin precedence; paired fetch, 3-minute cache, 10-second deadline | shipped | `app/picker-context.mjs:1718`, `app/core/state.mjs:2026`, `app/core/game-progress.mjs:37`, `app/integrations/platform-api.mjs:97`, `app/integrations/platform-api.mjs:101`. |
-| P10 | Controlling-login rename keeps character/map/history; canonical projection and fetch/apply fencing | partial | Member name command and fetch check exist; no canonical character or placement generation: `app/core/state.mjs:2014`, `app/picker-context.mjs:1718`. |
+| P10 | Controlling-login rename keeps character/map/history; canonical projection and fetch/apply fencing | partial | Stage 1 projects committed schema-1 member names into character menu metadata, replaying on receipt retry and picker open. Complete controlling-login rename and placement-generation fencing remain follow-up work. |
 | P11 | Old-name observations remain historical; no API-driven rebind; normalized name change revokes keys/reconfirms plugin; formatting-only change invalidates previews | partial | Name-bound web/member-bound plugin provenance exists; rename does not revoke keys: `app/core/game-progress.mjs:35`, `app/core/state.mjs:2014`, `app/game-plugin.mjs:809`. |
 
 ## Invitations
@@ -88,8 +88,8 @@ Owners below are responsible roles; no outside tester or operator has been booke
 | L08 | One owner after handover, old owner operations fail, pending invites revoked; decline/cancel preserves authority | missing | Owner/default invariant exists but no handover state: `app/storage/registry.mjs:84`, `app/storage/registry.mjs:402`. |
 | L09 | Final character never leaves ownerless group; login deletion blocked until handover if others remain; provider loss is not succession | missing | Account retirement cascades owned pickers without this roster policy: `app/storage/registry.mjs:252`, `app/picker-router-deletion.mjs:46`. |
 | D01 | Character-only deletion by controlling login, handover first, revoke exact scopes, retain history; explicit final-group deletion; last deletion leaves empty login | missing | No character deletion or tombstones: `app/storage/registry.mjs:39`, `app/picker-router-deletion.mjs:23`. |
-| D02 | Group deletion owner-only and allowed only when all surviving characters belong to owner; others first handed over/removed with preserved maps | partial | Owner-only deletion exists, without character ownership check: `app/picker-router-deletion.mjs:52`. |
-| D03 | Login deletion rechecks session and complete target list, requires handovers, removes all exact scopes, preserves other logins' maps | partial | Session confirmation/tombstones/purge exist; full character/handover policy missing: `app/picker-router-deletion.mjs:31`, `app/picker-router-deletion.mjs:46`. |
+| D02 | Group deletion owner-only and allowed only when all surviving characters belong to owner; others first handed over/removed with preserved maps | partial | Stage 1 interim decision: refuse self-service deletion affecting characters and disable its control, preserving maps/access. Final group-deletion policy remains stage 3. `tests/picker-deletion.test.mjs`. |
+| D03 | Login deletion rechecks session and complete target list, requires handovers, removes all exact scopes, preserves other logins' maps | partial | Stage 1 interim decision: refuse affected login deletion, preserving all characters and owned maps. Final handover/character deletion remains stage 3; existing operator tombstone recovery stays tested. |
 | D04 | Durable external picker/account tombstones prevent resurrection/reuse; recoverable fencing/drain/revocation before success | shipped | `app/storage/registry.mjs:94`, `app/storage/registry.mjs:219`, `app/picker-router-deletion.mjs:47`, `app/picker-router-deletion.mjs:55`; restore/reuse test: `tests/registry.test.mjs:103`. |
 | D05 | Character and slot-binding tombstones survive restores; exact character revocation across streams and keys | missing | Ledger supports only pickers/accounts: `app/storage/registry.mjs:21`. |
 | D06 | Disclose actual backup retention before deletion; no promise of immediate removal from retained backups | shipped | `app/picker-router-deletion.mjs:8`, `app/web/account-panel.mjs:89`. Character-specific public recovery policy remains missing under D01/D05. |
@@ -98,15 +98,15 @@ Owners below are responsible roles; no outside tester or operator has been booke
 
 | ID | Contract behavior | Status | Evidence and remaining work |
 | --- | --- | --- | --- |
-| S01 | Account-wide character menu with labels/name/group/count/role, disambiguation/current selection/Add character, registry-only metadata | missing | Current account menu shows one account/picker/role: `app/web/account-panel.mjs:28`, `app/server.mjs:420`. |
-| S02 | Exact acting character separate from inspected map; unavailable selections explained; no silent default | missing | Principal selects first picker membership and Player 1: `app/storage/invites.mjs:98`. |
-| S03 | Stable `/characters/<id>`, `/pickers/<id>/` and explicit character links resolve authorized placement after moves/rename; old groups never follow moves | partial | Picker prefix/selector agreement exists; no character resolver: `app/picker-router.mjs:173`, `app/picker-router.mjs:176`. |
-| S04 | Same-origin authorized return target survives OAuth; mismatch/deleted/former-member links explain access and offer own menu; preserve old IDs/links | partial | Picker IDs survive, access fails clearly; validated relative return targets survive the in-memory OAuth attempt. Character menu remains missing: `app/storage/registry.mjs:219`, `app/picker-router.mjs:176`, `app/signin.mjs`, `tests/signin-provider.test.mjs`, `tests/picker-routing.test.mjs`. |
-| S05 | Each request checks current login/character/picker/member/role and agreement of path/query/header/body; URL never grants access | partial | Picker/body/credential checks exist, character scope absent: `app/picker-router.mjs:136`, `app/picker-router.mjs:176`, `app/picker-router.mjs:201`. |
-| S06 | Full document switch stops commands, reconciles uncertain receipts, scopes unsent edits and allows explicit discard without reroll | partial | Session-change admission/abort/pending guards exist; voluntary character switching missing: `app/web/screen-save-status.mjs:89`, `app/web/screen-save-status.mjs:133`. |
-| S07 | Teardown closes streams/timers/jobs/panels, aborts fetches/uploads/workers, rejects late callbacks, clears private state/dialogs/caches/outbox | partial | Existing session teardown/generation foundations exist; no character transition coverage: `app/web/screen-save-status.mjs:89`, `app/web/screen-live.mjs:8`. |
-| S08 | Browser persistence keyed by account/character/picker/member/dataset/revision; new screen never flashes old private cache; server caches stay isolated | partial | Picker prefixes and late-response checks exist; character not represented: `app/web/screen-save-status.mjs:39`, `app/web/screen-save-status.mjs:146`. |
-| S09 | Independent tabs select different same/different-group characters; affected sign-out/deletion/revocation invalidates documents | partial | Revocation guards exist; durable session is picker-bound, not independent acting-character scope: `app/storage/invites.mjs:47`, `app/storage/invites.mjs:155`, `app/web/screen-save-status.mjs:68`. |
+| S01 | Account-wide character menu with labels/name/group/count/role, disambiguation/current selection/Add character, registry-only metadata | shipped | Stage 1 registry metadata menu shows character/name/group/count/role, disambiguation, current and unavailable entries plus Add character. Account-panel and routing tests; menu opens no other picker contexts. |
+| S02 | Exact acting character separate from inspected map; unavailable selections explained; no silent default | shipped | Stage 1 exact acting character is independent of the inspected member. Ambiguous selection opens the menu; invalid explicit tuples refuse. Roster sizes 1–5 in registry/routing tests. |
+| S03 | Stable `/characters/<id>`, `/pickers/<id>/` and explicit character links resolve authorized placement after moves/rename; old groups never follow moves | partial | Stage 1 adds stable character resolution and scoped picker links; names do not select identity. Move-following behavior awaits stage 3. |
+| S04 | Same-origin authorized return target survives OAuth; mismatch/deleted/former-member links explain access and offer own menu; preserve old IDs/links | partial | Stage 1 preserves validated OAuth return targets and IDs, resolves authorized character/picker links, and explains mismatches with a character-menu destination. Former-member/move behavior remains stage 3. `tests/signin-provider.test.mjs`, `tests/picker-routing.test.mjs`. |
+| S05 | Each request checks current login/character/picker/member/role and agreement of path/query/header/body; URL never grants access | shipped | Stage 1 reauthorizes the exact character/picker/member tuple and selector agreement on requests. Conflicting/foreign query, path, header and body tests in `tests/picker-routing.test.mjs`. |
+| S06 | Full document switch stops commands, reconciles uncertain receipts, scopes unsent edits and allows explicit discard without reroll | shipped | Stage 1 full-document switch stops new commands, awaits accepted work and refuses unknown pending saves until Retry/History or explicit discard. `tests/picker-browser-session.test.mjs`. |
+| S07 | Teardown closes streams/timers/jobs/panels, aborts fetches/uploads/workers, rejects late callbacks, clears private state/dialogs/caches/outbox | shipped | Stage 1 reuses synchronous document teardown and late-response guards for voluntary character switches. `app/web/screen-save-status.mjs`, `tests/picker-browser-session.test.mjs`. |
+| S08 | Browser persistence keyed by account/character/picker/member/dataset/revision; new screen never flashes old private cache; server caches stay isolated | partial | Stage 1 adds account/character/picker/member/dataset namespaces for browser persistence and outboxes. Revision and old-view guards remain; broader private-cache proof remains open. |
+| S09 | Independent tabs select different same/different-group characters; affected sign-out/deletion/revocation invalidates documents | shipped | Stage 1 account session plus document-bound character selectors permits independent same/different-group tabs without issuing sessions on switch. Routing and browser-session tests retain revocation checks. |
 | K01 | Hash-only plugin key remains bound to original member/picker; browser selection cannot move it; request rechecks current membership | shipped | `app/plugin-keys.mjs:66`, `app/picker-router.mjs:248`, `app/picker-router.mjs:258`. No ownership verification is implied. |
 | K02 | Leave/delete/rename fence old placement keys, revoke both sidecar/index; keys never change owner; old evidence stays historical | partial | Revoke and picker deletion exist; no character placement and rename revocation: `app/game-plugin.mjs:809`, `app/picker-router.mjs:261`, `app/core/state.mjs:2014`. |
 | K03 | Beta observations cannot tick live progress; automatic live ticks retain Undo; plugin report does not authenticate RuneScape ownership | shipped | Existing plugin report/command handling: `app/game-plugin.mjs:662`, `app/integrations/game-plugin.mjs:17`. This task must preserve plugin 1.0.0 wire behavior. |
@@ -115,16 +115,16 @@ Owners below are responsible roles; no outside tester or operator has been booke
 
 | ID | Contract limit | Status | Evidence and remaining work |
 | --- | --- | --- | --- |
-| Q01 | 10 active characters/login including pending; tombstones/past maps excluded | missing | No character entity: `app/storage/registry.mjs:59`. |
-| Q02 | ≤10 distinct live player groups/login derived from characters; repeated same-group characters count seats separately; legacy viewers preserved | missing | Raw memberships are not characters/groups: `app/storage/registry.mjs:69`, `app/storage/registry.mjs:17`. |
+| Q01 | 10 active characters/login including pending; tombstones/past maps excluded | shipped | Stage 1 validates ten active characters/login including pending creations; completed retired records do not count. `tests/character-registry.test.mjs`. |
+| Q02 | ≤10 distinct live player groups/login derived from characters; repeated same-group characters count seats separately; legacy viewers preserved | shipped | Stage 1 one placement per character and ten-character quota imply at most ten live player groups/login; multiple same-group seats count separately, viewers create no characters. |
 | Q03 | 3,000 active logins service-wide; older 1,000-account store is not sign-up authority | partial | Launch change: central registry now allows 3,000 with refusal/restart tests: `app/storage/registry.mjs:17`, `app/storage/registry.mjs:202`, `tests/launch-registry-caps.test.mjs:1`. Legacy invite sign-in still uses the older 1,000-account path: baseline `app/storage/accounts.mjs:17`, `app/signin.mjs:307`. Unifying it requires the later account/invite work. |
-| Q04 | 3,000 active characters, including unnamed | missing | No durable character storage: `app/storage/registry.mjs:39`. |
+| Q04 | 3,000 active characters, including unnamed | shipped | Stage 1 enforces the 3,000 active/pending character ceiling, including unnamed characters, separately from account/picker caps. Registry cap and provisioning tests. |
 | Q05 | 3,500 non-deleted pickers, including reserved provisioning and deleting; onboarding peaks counted | shipped | Launch change: `app/storage/registry.mjs:17`, `app/storage/registry.mjs:158`, `app/storage/registry.mjs:213`; actual 3,500-record boundary and restart: `tests/launch-registry-caps.test.mjs:1`. Capacity/performance proof remains separate. |
-| Q06 | 1–5 occupied seats; occupied + reserved ≤5 | missing | Member-ID allowlist is not a live-seat model: `app/storage/registry.mjs:392`, `app/storage/invites.mjs:39`. |
+| Q06 | 1–5 occupied seats; occupied + reserved ≤5 | shipped | Stage 1 occupied-seat and reservation validation is separate from the historical member-ID allowlist. Sizes 1–5 and sixth-seat refusal: `tests/character-registry.test.mjs`. Reservation operations remain stage 2. |
 | Q07 | Retain defensive 100 member IDs/picker; refuse without dropping history | shipped | `app/storage/registry.mjs:17`, `app/storage/registry.mjs:157`, `app/storage/registry.mjs:392`. |
 | Q08 | Retain defensive 1,000 memberships/login; do not confuse it with 10 live character bindings | shipped | `app/storage/registry.mjs:17`, `app/storage/registry.mjs:157`. Character-specific bound remains Q01/Q02. |
 | Q09 | Retain 1,000,000 issued picker IDs and retired account IDs/external non-reuse ledger | shipped | `app/storage/registry.mjs:17`, `app/storage/registry.mjs:21`, `app/storage/registry.mjs:219`. |
-| Q10 | 1,000,000 issued/retired character IDs with non-resurrection | missing | No character ledger: `app/storage/registry.mjs:21`. |
+| Q10 | 1,000,000 issued/retired character IDs with non-resurrection | partial | Stage 1 ledger v2 retains issued character IDs with a separate ceiling and reserves retirement fields. Character-deletion tombstones remain stage 3. `tests/character-registry.test.mjs`. |
 | Q11 | One pending invite/vacant seat; ≤4/solo group, ≤40/login, 10,000/global, 7-day expiry | missing | No new invite reservation/expiry storage: `app/storage/invites.mjs:39`. |
 | Q12 | 20,000 new group-invite records/global, 30-day terminal retention; refuse safely without pruning memberships | missing | Existing 1,000-record store retained indefinitely: `app/storage/invites.mjs:203`. |
 | Q13 | 30-day sessions; 10 retained/login, 40,000 global including legacy; expired cleanup/oldest-login eviction; switching adds none | partial | 30-day expiry/cleanup exists; 32 per login/invite and 10,000 document bound remain: `app/storage/invites.mjs:11`, `app/storage/invites.mjs:84`, `app/storage/invites.mjs:115`. |
@@ -145,7 +145,7 @@ These rows retain every proposed runtime bound. They are separate from durable e
 | R02 | Plugin requests 4/key, 16/login, 32/group per second, proposed 256/global; 100 nominal/200 heavy/800 overload | partial | 4/16/32/128, 1-second window: `app/security/picker-limits.mjs:12`, `app/security/picker-limits.mjs:119`. |
 | R03 | Invitation creation 10/login, 20/group, 100/global per minute; expiry/consumption does not refill bucket | shipped | `app/security/picker-limits.mjs:13`, `app/security/picker-limits.mjs:118`. New durable invite quotas remain missing. |
 | R04 | Registration 3/client or identity, 30/global per minute; no nominal mass-signup burst | shipped | `app/security/picker-limits.mjs:14`, `app/security/picker-limits.mjs:146`, `app/security/picker-limits.mjs:153`. |
-| R05 | Provisioning 3/login, 30/global per minute, extend to Add character/lifecycle allocations with atomic fair batch | partial | First-login/default wrapper exists; no character lifecycle: `app/security/picker-limits.mjs:15`, `app/security/picker-limits.mjs:147`. |
+| R05 | Provisioning 3/login, 30/global per minute, extend to Add character/lifecycle allocations with atomic fair batch | partial | Stage 1 charges Add character to the existing provisioning budget. Lifecycle allocation and fair batches remain stage 3. `app/security/picker-limits.mjs`. |
 | R06 | Expensive requests 600/login, 600/group, 1,200/global per minute; measure HTTP amplification | partial | Bounds shipped, action amplification not proven: `app/security/picker-limits.mjs:9`, `app/picker-context.mjs:1009`. |
 | R07 | Outstanding jobs 4/group, waiters 64/job; later sustained miss-throughput proof | partial | Defaults exist, no 100-active-group proof here: `app/security/picker-limits.mjs:8`, `app/tasks/scheduler.mjs:103`. |
 | R08 | Cold opens 1/login; trial 4/global after memory admission | partial | 1/1 and leases: `app/security/picker-limits.mjs:16`, `app/security/picker-limits.mjs:117`. |
@@ -176,11 +176,11 @@ These rows retain every proposed runtime bound. They are separate from durable e
 
 This branch adopts the 3,000 active registry-login, 3,500 non-deleted picker and 20,000 registry-capability defaults. Flat `multiPicker` key settings are `pluginKeysPerCharacter=3` (member-slot scope until characters exist), `pluginKeysPerAccount=30`, `pluginKeysPerPicker=15` and `pluginKeysGlobal=9000`. Existing operator overrides take precedence. `multiPicker.betaPickerCap` is omitted by default and accepts a positive integer when set. Its count includes the legacy shared picker, reserved provisioning and deleting pickers; deleted tombstones do not consume it. It is an admission cap, so lowering it does not evict groups or block recovery/deletion. This task sets no live value.
 
-These are auth/registry limit changes without new record fields or schema versions. Reader/rollback review must include the older registry defaults of 1,000 accounts, 1,000 pickers and 10,000 capabilities: after growing beyond those values, an older binary needs compatible explicit registry caps before it can open the registry. Keep the higher allowances during rollback; never truncate the registry or non-reuse ledger to satisfy an old default. Session and invitation formats/limits and the 1,000-record plugin-key file bound are unchanged. No 3,000-character cap is implemented because there is no character entity.
+Stage 1 adds registry/ledger version 2, stable character records, occupied seats, empty reservation fields and durable creation intents, with a separate 3,000-character ceiling. New sign-ins issue account-scoped sessions; switching selects an exact character per document and creates no durable session. Existing authentication-sidecar retention, session limits/expiry, invitation records and the 1,000-record plugin-key bound are unchanged. Gameplay save schema 1 is unchanged. The owner approved this representation on 2026-11-16 in #301; the [design and rollback note](character-registry-stage-1.md) covers preimages, version refusal and ordered recovery.
 
-Account, picker and plugin-key quota changes ship through a normal release later. Do not flip live configuration. Preserve gameplay saves, registry/auth record shapes, external non-reuse ledger, plugin 1.0.0 wire behavior, and the raw member/membership/key-file defensive bounds. A character entity, seat reservations, past maps, lifecycle transactions or new recovery representation needs separate approval and implementation. No record may be silently pruned or ID recycled to make a cap pass.
+These changes ship through a normal release later. This PR sets no live configuration. Preserve gameplay saves, external non-reuse history, plugin 1.0.0 wire behavior and the raw member/membership/key-file defensive bounds. Owner invite operations remain stage 2; Past maps, moves, handover and character deletion remain stage 3. The separately approved interim policy refuses self-service picker/account deletion affecting characters. No record is pruned or ID recycled to make a cap pass.
 
-The largest blockers are the character/placement model, owner invitations, switching/leave/rejoin, safe handover/deletion, roster sizes 1–5, retained storage accounting, the timed off-site restore and actual alert delivery, the outside-duo test and the measured beta envelope. This checklist starts the launch track; it does not declare the beta ready.
+Remaining blockers include owner invitations, leave/rejoin, safe handover/deletion, the complete journey for rosters 1–5, retained storage accounting, the timed off-site restore and actual alert delivery, the outside-duo test and the measured beta envelope. The beta is not declared ready.
 
 ### Security follow-up: cap accounting and key churn
 
@@ -190,7 +190,7 @@ The existing fixed-window limiter also covers combined plugin-key create/revoke 
 
 The sweep found and removed the global key scan in `picker-limits.mjs`; `game-plugin.mjs` uses those indexed quotas. Its remaining key lookups, sidecar validation and per-member active-key check concern one picker's existing 1,000-record key file, independent of the global population. Registry JSON persistence still copies/serializes the existing array representation; deletion reconciliation can visit all affected memberships and keys. This follow-up removes full-registry cap/validation/index rebuilds from ordinary saves without changing save or wire formats, and makes no wall-time or measured-capacity claim. No live setting changes are made.
 
-## Focused verification for this branch
+## Earlier registry-cap verification
 
 Node.js 24.20.0, each file's complete `testRunPolicy` environment, one worker, BelowNormal priority and the shared PC `heavy.lock`. Six distinct files, synthetic data and fake OAuth only; no full suite, repeated-run stability loop, timing assertion or live load test. The final relevant runs passed all 83 cases without skips or cancellations.
 
@@ -248,3 +248,53 @@ The HTTP investigation inventoried the task route's 503 responses and found a pr
 The server's existing scheduling clock now controls cold-admission timers through an injected seam, with unchanged production defaults. The quota test uses a manual clock and a synthetic calculator, retains HTTP/session/quota assertions and includes response bodies plus admission events on assertion failure. An added regression holds a directory barrier, advances the unchanged deadline, verifies the exact admission 503 before calculator dispatch or quota consumption, then releases and observes cleanup. See [the response-path inventory and coverage map](task-quota-test-investigation.md).
 
 After that rebuild, only `tests/picker-limits-http.test.mjs` ran, once: **15 passed, zero failed/cancelled/skipped/todo**. The run used synthetic fixtures, Node 24.20.0, the shared lock, BelowNormal priority, the complete per-file environment and `--test-concurrency=1`. No deadline increase, per-test timeout, retry or repetition loop was added. The other key-management cases remain below the default 12-change login/member allowance; the explicit four-change refusal case still proves no mutation on rejected create/revoke. The historical failure and missing hosted stability/full CI receipts are not erased by this single local verification.
+
+### Character registry stage 1 verification (2026-11-16)
+
+Stage 1 uses synthetic data, Node 24.20.0, complete per-file environments, the
+shared-PC lock, BelowNormal priority and one test worker. The new character
+registry cases cover rosters 1–5, viewers, legacy migration, ambiguity reporting,
+preimages and version refusal. Child processes exit during migration and Add
+character publication; fresh processes resume the same IDs and placements.
+Existing first-login crash checks exercise the OAuth/server path separately.
+
+The isolated headless Chrome walkthrough exercised neutral first sign-in, Add
+character, duplicate-name warning and acknowledgement, the character menu,
+switching and two independently scoped tabs, and disabled deletion controls.
+It exposed an observer firing after teardown; disconnecting the observers
+fixed it, followed by an error-free switch. No personal save or live service
+was used. This is agent exploration, not the outside-user usability gate.
+
+The approved interim deletion refusal required replacing successful HTTP-delete
+expectations with unchanged-map/access assertions. Stopped operator tombstones
+still exercise revocation, purge, non-reuse and backup exclusion. The detailed
+[assertion map](character-registry-stage-1.md#assertion-map-for-the-interim-deletion-boundary)
+records the retained coverage and the successful live-deletion behavior deferred
+to stage 3. The Linux OS test adapter also needed consistent bigint inode keys
+on Windows; production ownership behavior did not change. Its separate
+`linux-ops-effects` self-test failed on this Windows host when renaming a
+directory containing an open file (`EPERM`), followed by resource-cleanup
+assertions. That run is not a pass; the native Linux assertions still need CI.
+
+Final focused receipts total **459 passing cases across 25 files**, including
+28 character-registry, 48 routing, 22 acceptance, 28 server, 1 browser-module
+graph, 32 sign-in server, 22 provider and 13 invitation/session-storage cases.
+Registry/capacity, stopped recovery, deletion refusal, account panels, independent
+browser sessions, phone layout and cache/VM checks also passed. The separate
+Linux OS-adapter failure above remains recorded; this is not an all-green suite.
+Full focused-run details are recorded in PR #302. Early audit runs exposed old
+redirect/deletion expectations and browser-storage scope fixtures; those were
+updated to the approved behavior. A later routing run hit the old five-second
+sign-out test guard, which included cold setup, OAuth and restart. The rebuilt
+case retains that five-second guard around the warmed revocation/stream phase,
+adds failure cleanup, and separately retains restart invalidation. The initial
+timeout is not credited as a pass; the rebuilt entry needs fresh stability proof.
+The P1.8 restore case similarly included cold setup, backup capture, extra
+operator retirement/restart and two reclaim flows in a 15-second guard. Its
+rebuilt case retains that guard around the stopped restore, with the remaining
+access/isolation assertions outside it. The original final batch also exhausted
+its eight-minute process budget; the rebuilt cases run in smaller leases.
+These local checks do not satisfy the complete
+hosted CI gate or the 50-first-pass stability requirement per relevant OS.
+Those receipts remain required before landing, independently of the source
+readiness rows above. No deployment, capacity or human-validation claim is made.

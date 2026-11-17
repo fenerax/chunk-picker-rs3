@@ -98,9 +98,9 @@ async function returnFixture(t, { legacy = false, issueSession = async () => 'fi
   const account = { id: 'fixture-account', memberships: [{ id: 'fixture-membership', inviteId: 'fixture-invite', memberId: 'player' }] };
   return fixture(t, {
     accounts: { findIdentity: () => legacy ? account : null },
-    pickerRegistry: { firstLogin: async () => ({ account, picker: { id: 'fixture-picker' } }) },
+    pickerRegistry: { selectCharacter: () => null, firstLogin: async () => ({ account, picker: { id: 'fixture-picker' } }) },
     invites: { get: () => ({ memberId: 'player', claimedAccountId: account.id }),
-      issueAccountSession: issueSession, issuePickerSession: issueSession, cookie: token => `duo_access=${token}` },
+      issueAccountSession: issueSession, issueRegistrySession: issueSession, cookie: token => `duo_access=${token}` },
     provider: { fetch: async url => new Response(JSON.stringify(url.endsWith('/token') ? { access_token: 'fixture-access' } : { id: '123456789' })), ...provider },
   });
 }
@@ -137,7 +137,7 @@ test('return targets reject open redirects, encoded ambiguities and auth loops',
     for (const direct of [false, true]) {
       const { started, callback } = await startReturn(flow, target, direct), completed = response();
       await flow.handle(request(callback, pendingCookie(started)), completed, { route: '/auth/discord/callback', security });
-      assert.equal(completed.getHeader('location'), '/', target);
+      assert.equal(completed.getHeader('location'), '/characters', target);
     }
   }
 });
@@ -189,7 +189,7 @@ test('return targets remain browser-bound, survive cancellation, and expire with
   await flow.handle(request('/auth/discord', pendingCookie(expired.started)), fresh, { route: '/auth/discord', security });
   const done = response();
   await flow.handle(request(`/auth/discord/callback?state=${new URL(fresh.getHeader('location')).searchParams.get('state')}&code=fresh-code`, pendingCookie(fresh)), done, { route: '/auth/discord/callback', security });
-  assert.equal(done.getHeader('location'), '/');
+  assert.equal(done.getHeader('location'), '/characters');
 });
 test('session overload keeps the return target for a fresh OAuth attempt', async t => {
   let busy = true;
@@ -208,9 +208,9 @@ test('session overload keeps the return target for a fresh OAuth attempt', async
 });
 test('reclaim replaces an old return target and still opens its confirmation page', async t => {
   const account = { id: 'fixture-account' }, picker = { id: 'fixture-picker' };
-  const { flow } = await fixture(t, { accounts: {}, pickerRegistry: { ensureDefaultPicker: async () => picker },
+  const { flow } = await fixture(t, { accounts: {}, pickerRegistry: { selectCharacter: () => null, ensureDefaultPicker: async () => picker },
     reclaimIdentity: async () => account,
-    invites: { issuePickerSession: async () => 'fixture-session', cookie: token => `duo_access=${token}` },
+    invites: { issueRegistrySession: async () => 'fixture-session', cookie: token => `duo_access=${token}` },
     provider: { fetch: async url => new Response(JSON.stringify(url.endsWith('/token') ? { access_token: 'fixture-access' } : { id: '123456789' })) } });
   const old = response();
   await flow.handle(request('/auth/signin?returnTo=%2F%3Fview%3Dtasks'), old, { route: '/auth/signin', security });
@@ -282,9 +282,9 @@ test('session overload after an account claim retries sign-in without reusing th
   let busy = true, claims = 0;
   const account = { id: randomUUID() }, picker = { id: `p_${randomBytes(16).toString('hex')}` };
   const { flow } = await fixture(t, { accounts: { findIdentity: () => null },
-    pickerRegistry: { ensureDefaultPicker: async () => picker, firstLogin: async () => ({ account, picker }) },
+    pickerRegistry: { selectCharacter: () => null, ensureDefaultPicker: async () => picker, firstLogin: async () => ({ account, picker }) },
     reclaimIdentity: async () => { assert.equal(++claims, 1); return account; },
-    invites: { issuePickerSession: async () => {
+    invites: { issueRegistrySession: async () => {
       if (busy) throw Object.assign(new Error('Temporarily busy'), { status: 429, code: 'SESSION_BUSY', retryAfter: 60 });
       return 'fixture-session';
     }, cookie: token => `duo_access=${token}` },

@@ -249,8 +249,9 @@ recovery families also read/copy the applicable files as described later.
 
 **1. `registryDir/registry.json`**
 
-Owner: `app/storage/registry.mjs`. JSON schemaVersion 1 with accounts,
-identities, memberships, default-picker links, picker lifecycle/provisioning, and
+Owner: `app/storage/registry.mjs`. Stage 1 uses JSON schemaVersion 2 with accounts,
+characters, occupied/reserved seats, designated owner characters, durable creation
+intents, remembered selection, identities, memberships, default-picker links, picker lifecycle/provisioning, and
 hash-only capability indexes (`:38`). All owner writes converge at `:154`:
 startup/reconcile `:247`, `:276`; provisioning `:227`, `:238`; identity,
 membership, legacy import, and capability mutations `:297`, `:303`, `:309`,
@@ -265,17 +266,25 @@ deploy also read JSON directly (`service-recovery.mjs:338`;
 **Live bypass:** `scripts/linux/service-recovery.mjs:329` installs a sanitized
 checkpoint with F after journaling old/new hashes at `:328`; service must be
 stopped. Scratch/backup registry writers are listed below.
-Relied-on recovery: one default per identity, unique provider subjects and scoped
+Relied-on recovery: one placement per live character, unique provider subjects and scoped
 capabilities, no resurrection after ledger reconciliation.
+The stage-1 writer migrates schema 1 under both locks, retaining exact
+`registry.pre-characters-v1.json` and `ledger.pre-characters-v1.json` preimages
+in registryDir. `characters-migration.json` binds source digests to complete
+targets and resumes ledger then registry publication. Ambiguous mappings write
+`characters-mapping-review.json` and refuse admission without publishing either
+document. These recovery artifacts have no new automatic retention or pruning.
+See [the approved design and rollback](character-registry-stage-1.md).
 Evidence: `tests/registry.test.mjs:39`, `:56`, `:69`, `:86`, `:209`,
 `:229`, `:294`; real OAuth process exits
 `tests/picker-routing-crash.test.mjs:71`.
 
 **2. `tombstoneDir/ledger.json`**
 
-Owner/writer: `app/storage/registry.mjs:159`; JSON schemaVersion 1,
+Owner/writer: `app/storage/registry.mjs`; JSON schemaVersion 2,
 `issuedPickerIds`, picker deletion records, retired-account records and optional
-purgeProgress (`:21`). Call sites: reserve before registry allocation (`:210`),
+purgeProgress, plus issued character IDs and reserved character-retirement fields.
+Stage 1 implements no character-deletion operation. Call sites: reserve before registry allocation (`:210`),
 startup (`:276`), begin/complete picker deletion (`:374`, `:387`), account
 deletion (`:396`), purge checkpoints (`:408`). Uses R, the same queue, and its
 own lifetime root lock, also excluding registries that share this ledger.
@@ -516,7 +525,12 @@ Evidence: `tests/accounts-storage.test.mjs:37`, `:68`, `:97`, `:209`
 schemaVersion 1 with invitations and hashed sessions; all mutations, expiry,
 touches, session issuance/sign-out/revocation converge at `:87` inside
 queue/barrier `:83`. Authorization additionally checks current account/registry
-membership and tombstones; an old session alone grants nothing. Legacy import
+membership and tombstones; an old session alone grants nothing. Stage-1
+account-scoped sessions use this same sidecar. The new `accountScope`
+field denotes login authentication; each gameplay request separately authorizes
+its exact character/picker/member binding. Older slot-bound sessions retain their
+scope. Session expiry, per-login/global bounds and all existing sidecar retention
+remain unchanged. Legacy import
 reads the file. Stopped recovery uses owner revoke APIs (`service-recovery.mjs:48`,
 `:50`, `:53`), not a restored issuer image. Evidence:
 `tests/invites-storage.test.mjs:35`, `:92`, `:121`, `:147`;

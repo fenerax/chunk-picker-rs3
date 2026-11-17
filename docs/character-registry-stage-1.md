@@ -1,13 +1,17 @@
 # Character registry: stage 1 design
 
-Proposed implementation for [issue #301](https://github.com/fenerax/chunk-picker-rs3/issues/301).
+Stage 1 implementation for [issue #301](https://github.com/fenerax/chunk-picker-rs3/issues/301).
 The issue records owner approval of the registry/authentication representation
 change on 2026-11-16. Gameplay save schema 1 and existing authentication-sidecar
 retention stay unchanged. Owner invitations belong to stage 2; moves, Past maps,
 handover and character deletion belong to stage 3.
 
-This PR currently contains design only. Implementation is paused on the deletion
-question below. No launch-readiness row is complete as a result of this note.
+The owner separately approved the interim deletion refusal on 2026-11-16:
+picker/account deletion affecting characters is unavailable until stage 3.
+The HTTP boundary (including private account administration) refuses it and the
+account panels disable those controls.
+Existing operator tombstones and recovery still reconcile; this adds no
+character-deletion operation.
 
 ## Registry representation and reader version
 
@@ -15,6 +19,11 @@ Use `registry.json` schemaVersion 2. Keep account, picker and gameplay member
 IDs. Add a character collection with opaque, randomly generated character IDs,
 controlling account ID, optional declared RuneScape name, lifecycle and one
 placement `{ pickerId, memberId }`. Keep bindings outside gameplay exports.
+Keep the original creation name separately for immutable request-ID replay.
+A post-commit roster projection updates the displayed name before responding,
+retries on receipt replay and reconciles on picker open, preserving schema 1.
+The complete rename, plugin-key reconfirmation and cache-fencing workflow
+remains P10/P11 follow-up.
 Each live occupied seat references exactly one character, and both directions
 of the binding must agree before publication or request authorization.
 
@@ -61,7 +70,8 @@ intent so retries reuse the same character IDs.
 Map each unambiguous established player slot to its controlling login. Preserve
 viewer memberships without creating characters. Preserve the legacy picker's
 IDs, maps and permissions without assigning an ordinary owner. Read established
-gameplay roster/name metadata through the storage reader; the registry member
+inline gameplay `state.members` roster/name metadata from the durable document;
+the storage codecs keep that field inline. The registry member
 allowlist alone cannot distinguish an active imported member from an unused
 historical ID. Names, source map codes and matching progress never establish
 ownership. Unnamed characters remain valid.
@@ -122,6 +132,12 @@ owner invite or implement a move as a shortcut.
    of the pre-migration registry and its matching gameplay/bindings. Keep all
    post-migration groups and metadata in retained recovery storage. Do not
    downgrade the live JSON in place or copy only an old registry over new state.
+   Older authentication readers also refuse the new `accountScope` session
+   field. Revoke these incompatible sessions with the new reader before the
+   rollback, retaining a current sidecar checkpoint. Keep current invitation
+   revocations and all compatible sessions and expiry dates; never restore an
+   old authentication sidecar that could revive access. This is explicit session
+   revocation during rollback, with no change to ordinary sidecar retention.
 4. Keep every current picker/account tombstone and issued picker ID authoritative.
    An operator must produce and validate a schema-1 ledger projection containing
    those entries before the old reader starts; retain the full version-2 ledger
@@ -132,31 +148,20 @@ owner invite or implement a move as a shortcut.
    isolation before restoring admission. Gameplay schema and authentication
    retention do not change during rollback.
 
-## Contract question: deletion during stages 1 and 2
+## Interim deletion decision (approved 2026-11-16)
 
-**Should stage 1 temporarily refuse existing picker/account deletion whenever
-it would affect a character, until stage 3 supplies character deletion and its
-recovery rules?** If existing deletion must remain available, which interim
-character and placement behavior is approved?
+Refuse picker/account deletion whenever it would affect a character until stage
+3 supplies character deletion and its recovery rules. The response explains
+that maps and access are unchanged; the account panel disables affected controls.
+This separate product approval resolves the question originally recorded in PR
+#302. Format approval alone did not authorize the interim behavior.
 
-The final deletion contract is explicit, but the interim behavior is not.
-`app/picker-router-deletion.mjs` currently gathers every active owned picker for
-account deletion; `app/storage/registry.mjs` retires them together. After Add
-character allows several owned groups, keeping that cascade without character
-handling can leave surviving character records without a live placement or
-remove a group containing another login's character. The account panel also
-describes a single owned picker. Even deleting a solo picker now requires a
-decision about its character, since active characters must always have a group.
+The existing low-level tombstone APIs remain for operator recovery, including
+reconciliation of deletions begun by previous releases and sanitized restores.
+They are not new self-service character lifecycle endpoints. Character deletion,
+moves, handover, Past maps and owner invitations remain deferred.
 
-The proposed interim behavior is a server-side refusal with a clear explanation
-and matching unavailable controls. It would preserve existing maps, memberships,
-keys and sessions. It would temporarily remove an existing self-service action,
-so this note asks for that product decision instead of inferring it from the
-format approval. Implementing character deletion, moves or handover here would
-cross the explicitly deferred stage-3 boundary. No deletion behavior has changed
-in this PR.
-
-## Planned verification after the question is settled
+## Verification
 
 Use synthetic rosters of sizes 1, 2, 3, 4 and 5, including several same-login
 characters in one group. Cover exact selection, invalid/mismatched targets,
@@ -171,3 +176,24 @@ checks with each file's `testRunPolicy`, one worker and the shared-PC lease.
 New browser modules/routes also require the server and browser-module-graph
 checks. Explore the UI against an isolated synthetic server. Update only the
 launch-readiness rows actually completed; full CI remains required for landing.
+
+### Assertion map for the interim deletion boundary
+
+The former successful self-service deletion assertions cannot describe stage 1:
+the approved behavior is now refusal before fencing or mutation. Their coverage
+is carried as follows; this does not claim the stage-3 deletion workflow exists.
+
+| Earlier assertion | Stage-1 coverage |
+| --- | --- |
+| Session/origin/field/target validation; option absent | `picker-deletion.test.mjs` retains those assertions, including refusing a foreign picker without opening it. |
+| Picker/account deletion, stream closure, key revocation and unrelated picker isolation | Refusal cases assert unchanged registry/gameplay/key bytes, live streams and usable credentials; `phase1-acceptance` P1.4 covers overlay delivery. Existing operator tombstones still revoke and purge through `picker-deletion-crash.test.mjs`. |
+| Account subjects, all owned pickers and old credentials removed | Self-service now preserves them. Operator account retirement and non-reuse remain in registry, crash and stopped recovery tests. |
+| Retained backups/checkpoints cannot resurrect deleted maps or credentials | Stopped operator tombstones drive `phase1-acceptance` P1.8, `picker-audit-c1` restore cases and `linux-multi-picker` recovery tests, instead of calling the paused HTTP endpoint. |
+| Legacy account deletion preserves the shared game | The refusal preserves shared gameplay bytes and access in `picker-deletion.test.mjs`; operator retirement remains covered separately. |
+| Accepted writes drain, active calculator cancels, late delivery is discarded, streams fence before registry cleanup | Refused deletion must do none of these. Routing tests retain accepted writes; P1.5 retains worker-crash/late-delivery isolation; browser-session tests retain queue/stream teardown on switching. Successful live character-deletion fencing/drain must return with stage 3. |
+| Key quota releases after deletion | `picker-limits-http` proves refusal preserves quotas, then stopped operator tombstones release them. |
+| Logout/rotation and OAuth across deletion | Audit B retains token rotation/logout and proves refusal preserves other sessions; audit C1 proves an in-progress sign-in retains the same principal after refusal. |
+
+New/rebuilt timing-sensitive entrypoints still require the hosted 50-first-pass
+proof per relevant OS, and the complete CI gate, before landing. Local focused
+runs and browser exploration do not replace those receipts.

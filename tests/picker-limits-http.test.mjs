@@ -16,6 +16,7 @@ for (const key of ['RS3_PACKS_DIR', 'RS3_PACK_SELECTION', 'RS3_PUBLIC_ORIGIN', '
 const { createServer } = await import('../app/server.mjs');
 const { createGroupState } = await import('../app/core/state.mjs');
 const { selectedDataset } = await import('../app/dataset-runtime.mjs');
+const { openRegistry } = await import('../app/storage/registry.mjs');
 const origin = 'https://picker.example';
 const proxy = { Host: 'picker.example', 'X-Forwarded-For': '203.0.113.7', 'X-Forwarded-Proto': 'https' };
 const definitions = { challenges: {}, chunks: { '12341': {}, '12342': {} }, walkableChunks: ['12341', '12342'], walkableChunksF2P: ['12341', '12342'] };
@@ -308,16 +309,31 @@ test('provider-linking starts share the sign-in start budget', async t => {
   }
 });
 
-test('deleting a picker or an account releases its plugin key quota', async t => {
+test('refused character deletion preserves key quotas; operator retirement releases them', async t => {
   const f = await fixture(t, { pluginKeysPerAccount: 1, pluginKeysGlobal: 2, registrationsPerAccount: 20, registrationsGlobal: 20 });
   const create = cookie => f.send('/api/game-plugin/keys', cookie, { body: { memberId: 'owner', label: 'Synthetic' } });
   let a = await f.login('101');
   assert.equal((await create(a)).status, 201); assert.equal((await create(a)).status, 429);
-  assert.equal((await f.send('/api/picker/delete', a, { body: {} })).status, 200);
+  assert.equal((await f.send('/api/picker/delete', a, { body: {} })).status, 409);
+  assert.equal((await create(a)).status, 429);
+  const retire = async (cookie, kind) => {
+    const session = (await f.send('/api/session', cookie)).json();
+    await f.restart(async () => {
+      const registry = await openRegistry(f.multiPicker);
+      try {
+        if (kind === 'account') await registry.deleteAccount(session.accountId, { runtimePurge: true });
+        else await registry.beginPickerDeletion(session.pickerId);
+      } finally { await registry.close(); }
+    });
+  };
+  await retire(a, 'picker');
   a = await f.login('101');
+  assert.equal((await f.send('/api/characters', a, { body: { requestId: 'replacement' } })).status, 200);
   assert.equal((await create(a)).status, 201);
   const b = await f.login('102'); assert.equal((await create(b)).status, 201);
   assert.equal((await create(await f.login('103'))).status, 429);
-  assert.equal((await f.send('/api/account/delete', b, { body: { accountDeletionToken: (await f.send('/api/session', b, { headers: { 'X-Account-Action': 'delete' } })).json().accountDeletionToken } })).status, 200);
+  assert.equal((await f.send('/api/account/delete', b, { body: { accountDeletionToken: (await f.send('/api/session', b, { headers: { 'X-Account-Action': 'delete' } })).json().accountDeletionToken } })).status, 409);
+  assert.equal((await create(await f.login('103'))).status, 429);
+  await retire(b, 'account');
   assert.equal((await create(await f.login('103'))).status, 201);
 });

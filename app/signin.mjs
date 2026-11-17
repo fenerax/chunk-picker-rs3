@@ -171,6 +171,15 @@ export async function openSignIn({ publicOrigin, mode = 'off', accounts, invites
     });
   }
   async function issue(response, account, security, name, membership, returnTo) {
+    if (pickerRegistry) {
+      const character = membership
+        ? pickerRegistry.listCharacters(account.id).find(c => c.placement.memberId === membership.memberId && pickerRegistry.getPicker(c.placement.pickerId)?.kind === 'legacy-shared')
+        : pickerRegistry.selectCharacter(account.id);
+      const token = await invites.issueRegistrySession(account.id, name);
+      addCookie(response, invites.cookie(token, security));
+      redirect(response, returnTo && returnTo !== '/' ? returnTo : character ? `/characters/${character.id}` : '/characters');
+      return;
+    }
     const selected = membership ?? availableMembership(account);
     if (!selected) {
       inviteRequired(response);
@@ -322,20 +331,24 @@ export async function openSignIn({ publicOrigin, mode = 'off', accounts, invites
               const account = await reclaimIdentity(entry.reclaimCode, name, subject);
               delete entry.reclaimCode; // A completed claim must not reuse its one-time link.
               const picker = await pickerRegistry.ensureDefaultPicker(account.id);
-              const token = await invites.issuePickerSession(account.id, picker.id, name);
+              const token = await invites.issueRegistrySession(account.id, name);
               addCookie(response, invites.cookie(token, security)); redirect(response, '/auth/reclaim/done'); return;
             }
             // Explicit duo invites and established live memberships keep the invite path.
             // Otherwise provisioning belongs to the recoverable registry transaction.
             const legacy = accounts.findIdentity(name, subject);
             const active = entry.accountId ? invites.authenticate(request, security) : null;
-            if (pickerRegistry && !entry.inviteId && (active?.pickerId || !entry.accountId && !availableMembership(legacy ?? { memberships: [] }))) {
+            const linkedLegacy = entry.accountId && accounts.get(entry.accountId);
+            if (pickerRegistry && !entry.inviteId && (entry.accountId
+              ? (active?.accountScope || active?.pickerId) && !availableMembership(linkedLegacy ?? { memberships: [] })
+              : !availableMembership(legacy ?? { memberships: [] }))) {
               if (entry.accountId && (active?.accountId !== entry.accountId || !equal(active.sessionId, entry.sessionId))) throw failure(401, 'Sign in again before linking an account.');
               const result = entry.accountId
                 ? { account: await pickerRegistry.linkIdentity(entry.accountId, name, subject), picker: await pickerRegistry.ensureDefaultPicker(entry.accountId) }
                 : await pickerRegistry.firstLogin(name, subject);
-              const token = await invites.issuePickerSession(result.account.id, result.picker.id, name);
-              addCookie(response, invites.cookie(token, security)); redirect(response, entry.returnTo); return;
+              const token = await invites.issueRegistrySession(result.account.id, name);
+              const character = pickerRegistry.selectCharacter(result.account.id);
+              addCookie(response, invites.cookie(token, security)); redirect(response, entry.returnTo && entry.returnTo !== '/' ? entry.returnTo : character ? `/characters/${character.id}` : '/characters'); return;
             }
             let account, claimed = false;
             if (entry.accountId) {
@@ -387,7 +400,7 @@ export async function openSignIn({ publicOrigin, mode = 'off', accounts, invites
       if (mode === 'off' || invite?.admin || invite?.viewer) return false;
       ingress(security);
       if (invite) {
-        if (identity?.pickerId) {
+        if (identity?.pickerId && pickerRegistry?.getPicker(identity.pickerId)?.kind !== 'legacy-shared') {
           page(response, { providers, heading: 'Unable to join', message: sharedIdentityConflict }, 409); return true;
         }
         if (invite.revoked) { take(request, response); throw failure(409, 'This player invite is no longer available.'); }
@@ -408,7 +421,7 @@ export async function openSignIn({ publicOrigin, mode = 'off', accounts, invites
     },
     sessionView(identity, security) {
       if (mode === 'off' || security?.ingressRole !== 'public' || !security.secure || security.origin !== publicOrigin) return {};
-      const account = identity?.kind === 'account' ? (identity.pickerId ? pickerRegistry?.getAccount(identity.accountId) : accounts.get(identity.accountId)) : null;
+      const account = identity?.kind === 'account' ? (identity.accountScope || identity.pickerId ? pickerRegistry?.getAccount(identity.accountId) : accounts.get(identity.accountId)) : null;
       return { signIn: { mode, providers }, ...(account ? { account: { id: account.id, providers: account.identities.map(item => item.provider), provider: identity.provider } } : {}) };
     },
     errorPage(request, response, security, error, status) {

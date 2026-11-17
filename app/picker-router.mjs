@@ -6,7 +6,8 @@ import { createPickerCheckpoint } from './picker-router-checkpoint.mjs';
 import { createHash } from 'node:crypto';
 import { isImportRoute, readBackupRequest, receiveBackupRequest } from './backup-transfer.mjs';
 import { reserveImportUser } from './import-jobs.mjs';
-import { routedBody, rememberRoutedBody, httpError, json } from './picker-context-http.mjs';
+import { routedBody, rememberRoutedBody, httpError, json, bodyJSON } from './picker-context-http.mjs';
+import { characterMenuPage } from './character-menu.mjs';
 import { checkBodyWith } from './security/json.mjs';
 import { createPickerDeletion } from './picker-router-deletion.mjs';
 import { requestContext, checkRequestOrigin } from './security/request.mjs';
@@ -140,7 +141,8 @@ export function createPickerRouter({ registry, legacy, openContext, publicOrigin
     // Auth endpoints live on legacy so OAuth pending state and session issuance
     // have one owner, including explicit provider linking and sign-out.
     const auth = pickerId === 'legacy' && (request.url ?? '').startsWith('/auth/');
-    if (identity && !auth && (identity.pickerId ?? 'legacy') !== pickerId) throw httpError(403, 'Picker access denied.');
+    const physical = registry.getPicker(identity?.pickerId)?.kind === 'legacy-shared' ? 'legacy' : identity?.pickerId ?? 'legacy';
+    if (identity && !auth && physical !== pickerId) throw httpError(403, 'Picker access denied.');
     return identity;
   }
   async function contextFor(request, security, bindBody, receiveBackup, signal) {
@@ -148,7 +150,7 @@ export function createPickerRouter({ registry, legacy, openContext, publicOrigin
     try { identity = legacy.authenticate(request, security); } catch (error) {
       let page;
       try { page = decodeURIComponent(new URL(request.url, 'http://localhost').pathname); } catch { throw error; }
-      if (error.status === 403 && security.publicRequest && !request.headers.authorization && !page.startsWith('/api/') && ['GET', 'HEAD'].includes(request.method)) return { context: legacy };
+      if (error.status === 403 && error.message === 'Administrator access requires a private connection.' && security.publicRequest && !request.headers.authorization && !page.startsWith('/api/') && ['GET', 'HEAD'].includes(request.method)) return { context: legacy };
       throw error;
     }
     if (request.headers.authorization && request.headers.cookie) {
@@ -166,18 +168,27 @@ export function createPickerRouter({ registry, legacy, openContext, publicOrigin
     if (['GET', 'HEAD'].includes(request.method) && (Number(request.headers['content-length']) > 0 || request.headers['transfer-encoding'])) throw httpError(400, 'Reads take no request body.');
     const keyPicker = capability?.pickerId ?? 'legacy';
     if (key && identity && keyPicker !== (identity.pickerId ?? 'legacy')) throw httpError(403, 'Conflicting credentials.');
-    const pickerId = key ? keyPicker : identity?.pickerId ?? 'legacy';
+    const pickerId = key ? keyPicker : registry.getPicker(identity?.pickerId)?.kind === 'legacy-shared' ? 'legacy' : identity?.pickerId ?? 'legacy';
     const url = new URL(request.url, 'http://localhost');
     const selectors = [...url.searchParams].filter(([name]) => selectorKeys.has(name)).map(([, value]) => value);
     for (const name of ['x-picker-id', 'x-picker']) if (request.headers[name] !== undefined) selectors.push(request.headers[name]);
     let pathname;
     try { pathname = decodeURIComponent(url.pathname); } catch { throw httpError(400, 'Invalid URL.'); }
     const pathScope = /^(?:\/api)?\/pickers\/([^/]+)(\/.*|$)/.exec(pathname);
-    if (pathScope) selectors.push(pathScope[1]);
+    if (identity?.accountScope && !identity.characterId && !identity.pickerId && pathname.startsWith('/api/') && pathname !== '/api/session') throw httpError(409, 'Select a character from your character menu before opening gameplay.');
+    if (identity?.accountScope && !identity.characterId && !identity.pickerId && request.method === 'GET' && (pathname === '/' || pathScope && (!pathScope[2] || pathScope[2] === '/'))) return { redirect: '/characters' };
+    if (pathScope) selectors.push(pathScope[1] === identity?.pickerId ? pickerId : pathScope[1]);
+    if (identity?.characterId && !pathname.startsWith('/auth/') && !pathname.startsWith('/join/')) request.registryCharacterId = identity.characterId;
     const checkSelectors = () => {
-      if (selectors.some(value => typeof value !== 'string' || value !== pickerId) || new Set(selectors).size > 1) throw httpError(403, 'Picker access denied.');
+      if (selectors.some(value => typeof value !== 'string' || value !== pickerId && !(pickerId === 'legacy' && value === identity?.pickerId))) throw httpError(403, 'Picker access denied.');
     };
     checkSelectors();
+    if (identity?.accountScope && request.method === 'GET' && (pathname === '/' || pathScope && (!pathScope[2] || pathScope[2] === '/')) && !url.searchParams.has('character')) {
+      if (!identity.characterId) return { redirect: '/characters' };
+      for (const name of selectorKeys) url.searchParams.delete(name);
+      url.searchParams.set('character', identity.characterId);
+      return { redirect: `/pickers/${identity.pickerId}/${url.search}` };
+    }
     const checkBody = body => {
       const pending = [body];
       while (pending.length) {
@@ -190,6 +201,10 @@ export function createPickerRouter({ registry, legacy, openContext, publicOrigin
       }
       checkSelectors();
       for (const name of selectorKeys) delete body[name];
+      const characterSelectors = [];
+      const visit = value => { if (value && typeof value === 'object') for (const [name, item] of Object.entries(value)) { if (name === 'characterId') characterSelectors.push(item); else if (item && typeof item === 'object') visit(item); } };
+      visit(body);
+      if (characterSelectors.some(id => id !== identity?.characterId)) throw httpError(403, 'Conflicting character selection.');
     };
     const route = pathScope ? (pathname.startsWith('/api/') ? '/api' : '') + (pathScope[2] || '/') : pathname;
     const backup = isImportRoute(route) && request.method === 'POST';
@@ -213,6 +228,7 @@ export function createPickerRouter({ registry, legacy, openContext, publicOrigin
     }
     if (pathScope) url.pathname = (pathname.startsWith('/api/') ? '/api' : '') + (pathScope[2] || '/');
     for (const name of selectorKeys) url.searchParams.delete(name);
+    url.searchParams.delete('character');
     request.url = url.pathname + url.search;
     // Pending OAuth callbacks and sign-out always use the one session issuer.
     bindBody?.(legacyCredential ? pickerLimits.pluginScope(request, pickerId, legacyCredential.player) : pickerLimits.scope(capability ?? identity, pickerId));
@@ -281,6 +297,33 @@ export function createPickerRouter({ registry, legacy, openContext, publicOrigin
         const options = { ...listener, publicOrigin };
         const security = listener.ingressRole === 'public' ? requestContext(request, options) : requestContextFor(request, options);
         bindBody = pickerLimits?.body(request);
+        const target = new URL(request.url, 'http://localhost');
+        if (target.pathname === '/characters' || /^\/characters\/[^/]+$/.test(target.pathname) || target.pathname === '/api/characters') {
+          const identity = legacy.authenticate(request, security);
+          if (identity?.kind !== 'account') {
+            if (request.method === 'GET' && target.pathname.startsWith('/characters')) {
+              response.writeHead(303, { Location: `/auth/signin?returnTo=${encodeURIComponent(target.pathname + target.search)}`, 'Cache-Control': 'private, no-store' }); response.end(); return;
+            }
+            throw httpError(401, 'Sign in to open your characters.');
+          }
+          bindBody?.({ accountId: identity.accountId, pickerId: identity.pickerId ?? 'legacy' });
+          if (target.pathname === '/api/characters') {
+            if (request.method === 'GET') { await json(request, response, 200, { accountId: identity.accountId, characters: registry.listCharacters(identity.accountId) }); return; }
+            if (request.method !== 'POST') throw httpError(405, 'Use GET or POST.');
+            checkRequestOrigin(request, security);
+            const body = await bodyJSON(request, 4096);
+            if (Object.keys(body).some(name => !['requestId', 'runescapeName', 'acknowledgeDuplicate'].includes(name)) || body.acknowledgeDuplicate !== undefined && typeof body.acknowledgeDuplicate !== 'boolean') throw httpError(400, 'Invalid character creation request.');
+            const result = await pickerLimits.provisioningRegistry(registry).addCharacter(identity.accountId, body);
+            await json(request, response, 200, { character: { ...result.character, href: `/characters/${result.character.id}` } }); return;
+          }
+          if (request.method !== 'GET') throw httpError(405, 'Use GET.');
+          if (target.pathname === '/characters') {
+            response.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'private, no-store', 'Referrer-Policy': 'no-referrer' }); response.end(characterMenuPage()); return;
+          }
+          const character = registry.selectCharacter(identity.accountId, target.pathname.slice('/characters/'.length));
+          await registry.rememberCharacter(identity.accountId, character.id);
+          response.writeHead(303, { Location: `/pickers/${character.placement.pickerId}/?character=${character.id}`, 'Cache-Control': 'private, no-store' }); response.end(); return;
+        }
         // Mirrors the context's admitImport checks that need no context, so no
         // body is buffered for a request admitImport would refuse.
         const receiveBackup = async (pickerId, identity) => {
@@ -294,6 +337,7 @@ export function createPickerRouter({ registry, legacy, openContext, publicOrigin
           upload = await receiveBackupRequest(request, { idleTimeoutMs: pickerLimits.config.importBodyIdleMs, totalTimeoutMs: pickerLimits.config.importBodyTotalMs });
         };
         const selected = await contextFor(request, security, bindBody, receiveBackup, controller.signal); entry = selected.entry;
+        if (selected.redirect) { response.writeHead(303, { Location: selected.redirect, 'Cache-Control': 'private, no-store' }); response.end(); return; }
         controller.signal.throwIfAborted();
         // Match the route exactly as the sign-in handler decodes it, after any
         // /pickers/<id> prefix is rewritten away.
@@ -321,7 +365,7 @@ export function createPickerRouter({ registry, legacy, openContext, publicOrigin
           if (!request.complete) response.setHeader('Connection', 'close');
           if (error.retryAfter) response.setHeader('Retry-After', error.retryAfter);
           const badInput = error instanceof SyntaxError || error instanceof TypeError || error instanceof RangeError;
-          await json(request, response, error.status ?? (badInput ? 400 : 503), { message: error.status ? error.message : badInput ? 'Invalid request.' : 'The picker is unavailable. Retry in a moment.' });
+          await json(request, response, error.status ?? (badInput ? 400 : 503), { message: error.status ? error.message : badInput ? 'Invalid request.' : 'The picker is unavailable. Retry in a moment.', ...(error.code === 'DUPLICATE_CHARACTER_NAME' ? { code: error.code } : {}) });
         }
       } finally { request.off('aborted', disconnected); response.off('close', disconnected); if (receiving.get(receivingId) === request) receiving.delete(receivingId); bindBody?.release(); releaseCheckpoint?.(); releaseImport?.(); releaseImportUser?.(); if (entry) { entry.active--; if (entries.get(entry.id) === entry) idle(entry); } }
     },

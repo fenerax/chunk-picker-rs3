@@ -24,10 +24,10 @@ For example, one login contains Character A, Character B and Character C. Each c
 
 ## Entities and invariants
 
-The [stage 1 registry design](character-registry-stage-1.md) proposes the
+The [stage 1 registry design](character-registry-stage-1.md) records the
 representation, migration, provisioning recovery and rollback for issue #301.
-Implementation is paused on its question about existing deletion controls;
-the design note does not mark any launch-readiness behavior complete.
+The owner approved interim refusal of picker/account deletion affecting
+characters on 2026-11-16. Final character deletion remains stage 3.
 
 | Entity | Meaning and exact relationship |
 | --- | --- |

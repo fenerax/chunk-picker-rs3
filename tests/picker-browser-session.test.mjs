@@ -21,6 +21,31 @@ function storage() {
 }
 const response = (value = {}, status = 200) => ({ ok: status < 400, status, json: async () => value });
 const deferred = () => { let resolve; const promise = new Promise(done => { resolve = done; }); return { promise, resolve }; };
+
+test('independent character documents use different storage and exact headers even in the same picker', async () => {
+  const local = storage(), initial = { ...session(), characterId: 'c_' + 'a'.repeat(32), datasetId: 'open-f2p', datasetDigest: 'sample' };
+  const a = fixture({ local, initial }), b = fixture({ local, initial: { ...initial, characterId: 'c_' + 'b'.repeat(32), memberId: 'second' } });
+  assert.notEqual(a.c.panelContext.pickerSession.storageScope, b.c.panelContext.pickerSession.storageScope);
+  a.gameStorage().setItem('duo-member', 'owner'); b.gameStorage().setItem('duo-member', 'second');
+  assert.equal(a.gameStorage().getItem('duo-member'), 'owner'); assert.equal(b.gameStorage().getItem('duo-member'), 'second');
+  await a.c.panelContext.pickerSession.fetch('/api/state'); await b.c.panelContext.pickerSession.fetch('/api/state');
+  assert.ok(a.calls.every(call => new Headers(call.options.headers).get('X-Character-Id') === initial.characterId));
+  assert.match(b.c.panelContext.pickerSession.streamPath(), /character=c_b+/);
+  await a.c.panelContext.pickerSession.beforeSwitch();
+  assert.equal(b.gameStorage().getItem('duo-member'), 'second'); await b.c.panelContext.pickerSession.check(); assert.equal(b.reloads, 0);
+});
+
+test('voluntary switching waits for accepted commands and refuses unresolved receipts without teardown', async () => {
+  const f = fixture(), held = deferred(); f.c.queue = held.promise;
+  let pending = true, finished = false;
+  f.c.panelContext.pickerSession.registerCommands({ pending: () => pending, stop() {} });
+  const switchAttempt = f.c.panelContext.pickerSession.beforeSwitch();
+  const rejected = assert.rejects(switchAttempt, /save is not confirmed/).then(() => { finished = true; });
+  assert.throws(() => f.c.panelContext.pickerSession.queueCommand(), /switch is in progress/);
+  assert.equal(finished, false); held.resolve(); await rejected;
+  assert.equal(f.c.panelContext.pickerSession.stopped, false); assert.ok(f.c.state);
+  pending = false; await f.c.panelContext.pickerSession.beforeSwitch(); assert.equal(f.c.panelContext.pickerSession.stopped, true);
+});
 function fixture({ local = storage(), tab = storage(), initial = session(), transport, sessionTransport } = {}) {
   const notices = [], calls = [], listeners = {}, timers = [], disposed = [], rendered = { text: 'old view', replaceChildren() { this.text = ''; } };
   let current = initial, status = 200, reloads = 0, offline = false;
@@ -31,7 +56,7 @@ function fixture({ local = storage(), tab = storage(), initial = session(), tran
     usage: { stop: () => disposed.push('usage'), refreshPreference() {} }, backupStatus: { dispose: () => disposed.push('backup') },
     closeDialog: () => disposed.push('dialog'), refreshSaveRecovery: () => disposed.push('recovery'), taskController: { abort: () => disposed.push('tasks') },
   };
-  const context = vm.createContext({ Headers, AbortController, Map, Set, clearTimeout, console, withStartupTimeout, startupRetryAfter,
+  const context = vm.createContext({ URL, Headers, AbortController, Map, Set, clearTimeout, console, withStartupTimeout, startupRetryAfter,
     document: { querySelectorAll: () => [rendered], addEventListener: (type, listener) => { listeners[`document:${type}`] = listener; } },
     localStorage: local, sessionStorage: tab, addEventListener: (type, listener) => { listeners[type] = listener; },
   });

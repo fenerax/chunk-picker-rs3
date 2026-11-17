@@ -78,6 +78,8 @@ export function createAccountsPanel({ api, el, button, openDialog, dialogCurrent
           });
           confirm.classList?.add('account-danger'); controls.append(cancel, confirm); confirmation.append(controls, error); row.append(confirmation); cancel.focus();
         });
+        remove.disabled = account.deletionPaused === true;
+        if (remove.disabled) row.append(el('p', 'Deletion affecting characters is unavailable until character deletion is supported.', 'field-help'));
         remove.classList?.add('account-danger'); actions.append(remove); row.append(actions); rows.append(row);
       }
     }

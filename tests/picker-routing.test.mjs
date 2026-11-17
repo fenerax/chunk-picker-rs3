@@ -162,7 +162,12 @@ test('signed-out deep links survive both providers and still enforce picker acce
       const completed = await (await f.begin(provider === 'discord' ? '101' : '201', undefined, link))();
       assert.equal(completed.status, 303, completed.text); assert.equal(completed.headers.location, target);
       const cookie = completed.headers['set-cookie'].find(value => value.startsWith('duo_access=')).split(';')[0];
-      const returned = await f.send(completed.headers.location, cookie);
+      let returned = await f.send(completed.headers.location, cookie);
+      if (returned.status === 303) {
+        const resolved = new URL(returned.headers.location, origin);
+        assert.equal(resolved.searchParams.get('view'), new URL(target, origin).searchParams.get('view'));
+        returned = await f.send(returned.headers.location, cookie);
+      }
       const allowed = target.includes(own);
       assert.equal(returned.status, allowed ? 200 : 403, returned.text);
       if (!allowed) assert.match(returned.text, /Picker access denied/);
@@ -264,14 +269,21 @@ test('an owner has ordinary writes and export without operator, invitation or gl
   assert.equal((await f.note(cookie, 'Player 1', 0)).status, 200);
 });
 
-test('sign-out invalidates a picker-bound session before later stream delivery and cannot expose legacy', { timeout: 5000 }, async t => {
+test('sign-out invalidates an exact-character session before later stream delivery and cannot expose legacy', async t => {
   const f = await fixture(t), cookie = await f.login('101'), otherSession = await f.login('101');
   const stream = await f.send('/api/events', cookie, { stream: true });
+  assert.equal(stream.status, 200, stream.text);
+  t.after(() => { stream.req.destroy(); stream.res.destroy(); });
   const ended = new Promise(resolve => stream.res.once('end', resolve));
-  assert.equal((await f.send('/auth/signout', cookie, { method: 'POST', headers: { Origin: origin } })).status, 303);
-  assert.equal((await f.send('/api/state', cookie)).status, 401);
-  assert.equal((await f.send('/api/game-plugin/keys', otherSession, { body: { memberId: 'owner', label: 'Player 1' } })).status, 201);
-  await ended; assert.equal(Buffer.concat(stream.chunks).toString().includes('event: game-plugin'), false);
+  // This guard detects a stuck revocation/delivery operation. Cold server,
+  // OAuth and filesystem recovery work belong outside that hot-path guard.
+  await t.test('warm sign-out prevents later events reaching the revoked stream', { timeout: 5000 }, async () => {
+    assert.equal((await f.send('/auth/signout', cookie, { method: 'POST', headers: { Origin: origin } })).status, 303);
+    assert.equal((await f.send('/api/state', cookie)).status, 401);
+    assert.equal((await f.send('/api/game-plugin/keys', otherSession, { body: { memberId: 'owner', label: 'Player 1' } })).status, 201);
+    await ended;
+    assert.equal(Buffer.concat(stream.chunks).toString().includes('event: game-plugin'), false);
+  });
   await f.restart(); assert.equal((await f.send('/api/state', cookie)).status, 401);
 });
 
@@ -394,6 +406,58 @@ const legacyAccounts = async f => {
   catch (error) { if (error.code === 'ENOENT') return []; throw error; }
 };
 
+test('Add character keeps the login session, scopes old tabs and persists gameplay name metadata', async t => {
+  const f = await fixture(t, { provisioningPerAccount: 10 }), cookie = await f.login('101');
+  const first = (await f.send('/api/characters', cookie)).json().characters[0];
+  const issuerFile = path.join(f.root, 'legacy', 'invites.json'), sessions = JSON.parse(await readFile(issuerFile)).sessions;
+  const added = await f.send('/api/characters', cookie, { body: { requestId: 'new-character', runescapeName: 'Sample' } });
+  assert.equal(added.status, 200, added.text); const second = added.json().character;
+  assert.notEqual(first.placement.pickerId, second.placement.pickerId);
+  assert.deepEqual(JSON.parse(await readFile(issuerFile)).sessions, sessions);
+  assert.equal((await f.send('/api/characters', cookie, { body: { requestId: 'new-character', runescapeName: 'Sample' } })).json().character.id, second.id);
+  const selected = await f.send(second.href, cookie); assert.equal(selected.status, 303); assert.match(selected.headers.location, new RegExp(second.id));
+  for (const character of [first, second]) {
+    const headers = { 'X-Character-Id': character.id, 'X-Picker-Id': character.placement.pickerId };
+    assert.equal((await f.send('/api/session', cookie, { headers })).json().characterId, character.id);
+    const state = await f.send('/api/state', cookie, { headers }); assert.equal(state.status, 200, state.text);
+    assert.equal(state.json().state.members[0].runescapeName ?? null, character.runescapeName);
+  }
+  const headers = { 'X-Character-Id': second.id, 'X-Picker-Id': second.placement.pickerId };
+  assert.equal((await f.send('/api/command', cookie, { headers, body: { characterId: first.id, command: { type: 'set-note', memberId: 'owner', chunkId: '12341', note: 'refused' }, expectedRevision: 0 } })).status, 403);
+  const backup = (await f.send('/api/backup', cookie, { headers })).json(); backup.state.members[0].runescapeName = 'New name';
+  const review = await f.send('/api/restore/preview', cookie, { headers, body: { backup } }); assert.equal(review.status, 200, review.text);
+  const renamed = await f.send('/api/restore', cookie, { headers, body: { backup, expectedRevision: 0, previewToken: review.json().previewToken } });
+  assert.equal(renamed.status, 200, renamed.text);
+  assert.equal((await f.send('/api/characters', cookie)).json().characters.find(c => c.id === second.id).runescapeName, 'New name');
+  assert.equal((await f.send('/api/characters', cookie, { body: { requestId: 'new-character', runescapeName: 'Sample' } })).json().character.id, second.id);
+  assert.equal((await f.send('/api/characters', cookie, { body: { requestId: 'duplicate-name', runescapeName: 'new_name' } })).json().code, 'DUPLICATE_CHARACTER_NAME');
+});
+
+for (const size of [1, 2, 3, 4, 5]) test(`exact character selection and no arbitrary fallback for a ${size}-seat roster`, async t => {
+  const f = await fixture(t), cookie = await f.login('101'); const original = (await f.send('/api/characters', cookie)).json().characters[0];
+  await f.app().close();
+  const { openRegistry } = await import('../app/storage/registry.mjs'); const registry = await openRegistry(f.multiPicker);
+  const members = ['owner', ...Array.from({ length: size - 1 }, (_, n) => `member${n}`)];
+  await registry.reserveTransferMembers(original.placement.pickerId, members);
+  for (const memberId of members.slice(1)) await registry.attachMembership(original.accountId, { pickerId: original.placement.pickerId, memberId, role: 'player' });
+  await registry.close();
+  await f.restart(async () => {
+    const file = path.join(f.multiPicker.registryDir, 'registry.json'), document = JSON.parse(await readFile(file)); document.accounts[0].lastCharacterId = null; await writeFile(file, JSON.stringify(document));
+  });
+  const characters = (await f.send('/api/characters', cookie)).json().characters; assert.equal(characters.length, size);
+  for (const character of characters) {
+    const headers = { 'X-Character-Id': character.id, 'X-Picker-Id': original.placement.pickerId };
+    const current = await f.send('/api/session', cookie, { headers }); assert.equal(current.status, 200, current.text);
+    assert.equal(current.json().memberId, character.placement.memberId); assert.equal(current.json().characterId, character.id);
+  }
+  if (size > 1) {
+    assert.equal((await f.send('/api/state?picker=' + original.placement.pickerId, cookie)).status, 409);
+    assert.equal((await f.send('/pickers/' + original.placement.pickerId + '/', cookie)).headers.location, '/characters');
+  }
+  assert.equal((await f.send('/api/state?character=' + characters[0].id, cookie, { headers: { 'X-Character-Id': 'c_' + 'f'.repeat(32) } })).status, 403);
+  assert.equal((await f.send('/characters/c_' + 'f'.repeat(32), cookie)).status, 403);
+});
+
 test('an explicit duo invite provisions a shared membership immediately and no default picker', async t => {
   const f = await fixture(t), invitation = await duoInvite(f);
   const callback = await (await f.begin('101', await invitePending(f, invitation)))();
@@ -406,6 +470,39 @@ test('an explicit duo invite provisions a shared membership immediately and no d
   for (const active of [cookie, await f.login('101')]) assert.deepEqual((await f.send('/api/state', active)).json().state.members.map(m => m.id), ['one', 'two']);
   await f.restart();
   assert.deepEqual((await f.send('/api/state', await f.login('101'))).json().state.members.map(m => m.id), ['one', 'two']);
+});
+
+test('legacy slot sessions keep their scope after migration while a fresh sign-in can switch', async t => {
+  const f = await fixture(t, { initiallyEnabled: false }), first = await duoInvite(f, 'one');
+  const joined = await (await f.begin('101', await invitePending(f, first)))();
+  const oldCookie = sessionCookie(joined);
+  await f.restart();
+  const second = await duoInvite(f, 'two');
+  const claimed = await (await f.begin('101', await invitePending(f, second)))();
+  const fresh = sessionCookie(claimed), characters = (await f.send('/api/characters', fresh)).json().characters;
+  assert.equal(characters.length, 2);
+  for (const character of characters) {
+    const headers = { 'X-Character-Id': character.id };
+    assert.equal((await f.send('/api/session', oldCookie, { headers })).status, character.placement.memberId === 'one' ? 200 : 403);
+    assert.equal((await f.send('/api/session', fresh, { headers })).status, 200);
+  }
+});
+
+test('returning shared-game sign-in requires a character choice when the login controls both slots', async t => {
+  const f = await fixture(t), first = await duoInvite(f, 'one');
+  const joined = await (await f.begin('101', await invitePending(f, first)))();
+  const second = await duoInvite(f, 'two');
+  const claimed = await (await f.begin('101', await invitePending(f, second)))();
+  assert.equal(joined.status, 303); assert.equal(claimed.status, 303, claimed.text);
+  const returned = await (await f.begin('101'))();
+  assert.equal(returned.status, 303); assert.equal(returned.headers.location, '/characters');
+  const cookie = sessionCookie(returned), characters = (await f.send('/api/characters', cookie)).json().characters;
+  assert.equal(characters.length, 2);
+  assert.equal((await f.send('/api/state', cookie)).status, 409);
+  for (const character of characters) {
+    const response = await f.send('/api/session', cookie, { headers: { 'X-Character-Id': character.id } });
+    assert.equal(response.status, 200, response.text); assert.equal(response.json().memberId, character.placement.memberId);
+  }
 });
 
 test('a revoked duo member returning through a fresh invite rejoins legacy without a default picker', async t => {
@@ -656,19 +753,19 @@ test('startup reconciles identities of a legacy account imported with no active 
 });
 
 
-test('a deleted duo account frees its subject to rejoin through a fresh invite, live and across restart', async t => {
+test('admin deletion of a duo character account is refused live and preserves access across restart', async t => {
   const f = await fixture(t), solo = await f.login('301', undefined, '/auth/google'), invitation = await duoInvite(f);
   const joined = await (await f.begin('101', await invitePending(f, invitation)))(); assert.equal(joined.status, 303);
   const native = (await f.registry()).accounts.find(a => a.defaultPickerId);
   const deleted = (await f.registry()).accounts.find(a => !a.defaultPickerId).id;
-  assert.equal((await f.private('/api/accounts/' + deleted + '/delete', { body: {} })).status, 200);
-  assert.equal((await f.registry()).accounts.some(a => a.id === deleted), false);
-  const rejoined = await (await f.begin('101', await invitePending(f, await duoInvite(f))))(); assert.equal(rejoined.status, 303, rejoined.text);
-  assert.deepEqual((await f.send('/api/state', sessionCookie(rejoined))).json().state.members.map(m => m.id), ['one', 'two']);
-  const replacement = (await legacyAccounts(f))[0].id; assert.notEqual(replacement, deleted);
+  const before = await f.registry(), issuer = await readFile(path.join(f.root, 'legacy/invites.json'));
+  assert.equal((await f.private('/api/accounts')).json().accounts.find(a => a.id === deleted).deletionPaused, true);
+  assert.equal((await f.private('/api/accounts/' + deleted + '/delete', { body: {} })).status, 409);
+  assert.deepEqual(await f.registry(), before); assert.deepEqual(await readFile(path.join(f.root, 'legacy/invites.json')), issuer);
+  assert.deepEqual((await f.send('/api/state', sessionCookie(joined))).json().state.members.map(m => m.id), ['one', 'two']);
   await f.restart();
   const doc = await f.registry();
-  assert.deepEqual(doc.accounts.find(a => a.id === replacement).identities, [{ provider: 'discord', subject: '101' }]);
+  assert.deepEqual(doc.accounts.find(a => a.id === deleted).identities, [{ provider: 'discord', subject: '101' }]);
   assert.deepEqual(doc.accounts.find(a => a.defaultPickerId), native);
   assert.equal((await f.send('/api/state', solo)).status, 200);
 });
@@ -729,34 +826,19 @@ test('a slow backup upload is received outside residency; another picker is serv
   } finally { if (!slow.readableEnded) slow.push(null); }
 });
 
-test('MP14: a fenced picker drains outside residency and cannot be chosen as a capacity victim', { timeout: 10000 }, async t => {
+test('MP14: refused deletion leaves an accepted write and independent residency usable', async t => {
   const accepted = Promise.withResolvers(), release = Promise.withResolvers(); let armed = false;
   const f = await fixture(t, { maxOpenContexts: 3, beforeCommit: async () => {
     if (armed) { armed = false; accepted.resolve(); await release.promise; }
   } });
-  const a = await f.login(String(101)), b = await f.login(String(102)), c = await f.login(String(103));
+  const a = await f.login('101'), b = await f.login('102'), c = await f.login('103');
   for (const cookie of [a, b]) assert.equal((await f.send('/api/state', cookie)).status, 200);
-  const id = (await f.send('/api/session', a)).json().pickerId;
-  const stream = await f.send('/api/events', a, { stream: true });
-  const fenced = new Promise(resolve => stream.res.once('end', resolve));
-  armed = true;
-  const write = f.note(a, 'Player 1', 0); await accepted.promise;
-  const deletion = f.send('/api/picker/delete', a, { body: {} });
+  armed = true; const write = f.note(a, 'Player 1', 0); await accepted.promise;
   try {
-    await fenced;
-    // The ledger stays at revoked while close drains the accepted write.
-    // Observe that phase before probing residency, rather than racing revoke.
-    let draining = false;
-    for (let attempt = 0; attempt < 100; attempt++) {
-      const ledger = JSON.parse(await readFile(path.join(f.multiPicker.tombstoneDir, 'ledger.json')));
-      if (ledger.pickers.find(row => row.pickerId === id)?.purgeProgress === 'revoked') { draining = true; break; }
-      await new Promise(resolve => setTimeout(resolve, 10));
-    }
-    assert.equal(draining, true, 'deletion reached the local close drain');
-    assert.equal((await f.send('/api/state', b)).status, 200, 'resident reads proceed during the drain');
-    // B is idle and may be evicted; the closing A must never be selected.
-    assert.equal((await f.send('/api/state', c)).status, 200, 'capacity acquisition does not wait on the closing picker');
-    release.resolve(); assert.equal((await write).status, 200); assert.equal((await deletion).status, 200);
-    assert.equal((await f.send('/api/state', a)).status, 401);
-  } finally { release.resolve(); stream.req.destroy(); }
+    assert.equal((await f.send('/api/picker/delete', a, { body: {} })).status, 409);
+    assert.equal((await f.send('/api/state', b)).status, 200);
+    assert.equal((await f.send('/api/state', c)).status, 200);
+  } finally { release.resolve(); }
+  assert.equal((await write).status, 200);
+  assert.equal((await f.send('/api/state', a)).json().state.members[0].notes['12341'], 'Player 1');
 });

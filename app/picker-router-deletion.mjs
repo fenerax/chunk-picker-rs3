@@ -2,6 +2,7 @@ import { generateToken } from './security/tokens.mjs';
 import { reconcileTombstones, backupDeletionDisclosure } from './storage/tombstones.mjs';
 import { bodyJSON, httpError, json } from './picker-context-http.mjs';
 import { checkRequestOrigin } from './security/request.mjs';
+import { DELETION_PAUSED } from './storage/registry-characters.mjs';
 
 /** Session-derived self-service operations only. No caller-supplied target. */
 export function createPickerDeletion({ registry, legacy, backupRetentionMs, fencePicker, fenceSessions, drainPicker, afterPurge, now = Date.now }) {
@@ -31,6 +32,9 @@ export function createPickerDeletion({ registry, legacy, backupRetentionMs, fenc
       // Reauthenticate after the body and again inside the deletion queue.
       const identity = legacy.authenticate(request, selected.security);
       if (!identity || identity.kind !== 'account' || identity.accountId !== selected.identity.accountId || identity.sessionId !== selected.identity.sessionId) throw httpError(401, 'Access required.');
+      const affected = accountDeletion ? registry.listCharacters(identity.accountId).length > 0 || registry.listPickers().some(p => p.ownerAccountId === identity.accountId && p.seats.length > 0)
+        : registry.getPicker(identity.pickerId)?.seats.length > 0;
+      if (affected) throw httpError(409, DELETION_PAUSED);
       const fence = ids => {
         for (const id of ids) fencePicker(id);
         fenceSessions();

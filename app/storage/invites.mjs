@@ -45,9 +45,10 @@ export function validateInviteStore(document) {
   }
   const sessionHashes = new Set();
   for (const session of document.sessions) {
-    if (Object.keys(session).some(key => !['tokenHash', 'inviteId', 'expiresAt', 'accountId', 'membershipId', 'provider', 'pickerId'].includes(key)) || !HASH.test(session.tokenHash) || sessionHashes.has(session.tokenHash) ||
+    if (Object.keys(session).some(key => !['tokenHash', 'inviteId', 'expiresAt', 'accountId', 'membershipId', 'provider', 'pickerId', 'accountScope'].includes(key)) || !HASH.test(session.tokenHash) || sessionHashes.has(session.tokenHash) ||
       !(session.inviteId === null || ids.has(session.inviteId)) || !validDate(session.expiresAt) ||
-      (session.pickerId !== undefined ? !/^p_[0-9a-f]{32}$/.test(session.pickerId) || !UUID.test(session.accountId) || session.inviteId !== null || session.membershipId !== undefined || !PROVIDERS.has(session.provider) : session.accountId !== undefined ? !UUID.test(session.accountId) || session.membershipId !== session.inviteId || !UUID.test(session.membershipId) || !PROVIDERS.has(session.provider) : session.membershipId !== undefined || session.provider !== undefined)) throw new TypeError('Invalid invite session.');
+      (session.accountScope !== undefined && session.accountScope !== true) ||
+      (session.accountScope === true ? !UUID.test(session.accountId) || session.inviteId !== null || session.membershipId !== undefined || session.pickerId !== undefined || !PROVIDERS.has(session.provider) : session.pickerId !== undefined ? !/^p_[0-9a-f]{32}$/.test(session.pickerId) || !UUID.test(session.accountId) || session.inviteId !== null || session.membershipId !== undefined || !PROVIDERS.has(session.provider) : session.accountId !== undefined ? !UUID.test(session.accountId) || session.membershipId !== session.inviteId || !UUID.test(session.membershipId) || !PROVIDERS.has(session.provider) : session.membershipId !== undefined || session.provider !== undefined)) throw new TypeError('Invalid invite session.');
     sessionHashes.add(session.tokenHash);
   }
   return document;
@@ -92,23 +93,63 @@ export async function openInviteStore({ dataDir, masterToken, masterLabel, now =
     return invite ? { kind: 'invite', label: safeText(invite.label), inviteId, admin: invite.admin, readOnly: invite.viewer ?? false, capabilities: { canWrite: !invite.viewer }, memberId: invite.memberId ?? null,
       actor: { kind: 'invite', inviteId, label: safeText(invite.label), ...(invite.memberId ? { memberId: invite.memberId } : {}) } } : null;
   }
-  function accountPrincipal(session) {
+  function accountPrincipal(session, request) {
     if (pickerRegistry?.isAccountDeleted(session.accountId)) return null;
-    if (session.pickerId) {
-      const account = pickerRegistry?.getAccount(session.accountId), picker = pickerRegistry?.getPicker(session.pickerId);
-      const membership = account?.memberships.find(item => item.pickerId === session.pickerId);
-      if (!membership || picker?.kind !== 'default' || picker.lifecycle !== 'active' || picker.provisioning !== 'ready'
-        || !account.identities.some(item => item.provider === session.provider)) return null;
-      const readOnly = membership.role === 'viewer', label = 'Player 1';
+    if (session.accountScope || session.pickerId) {
+      const account = pickerRegistry?.getAccount(session.accountId);
+      if (!account?.identities.some(item => item.provider === session.provider)) return null;
+      const url = new URL(request?.url ?? '/', 'http://localhost');
+      const accountOnly = ['/characters', '/api/characters'].includes(url.pathname) || url.pathname.startsWith('/auth/');
+      if (accountOnly) return { kind: 'account', accountId: account.id, provider: session.provider, accountScope: true, label: 'Account', admin: false, readOnly: true, memberId: null, capabilities: { canWrite: false } };
+      const values = url.searchParams.getAll('character');
+      if (request?.headers['x-character-id'] !== undefined) values.push(request.headers['x-character-id']);
+      const personal = /^\/characters\/(c_[0-9a-f]{32})$/.exec(url.pathname);
+      if (personal) values.push(personal[1]);
+      if (request?.registryCharacterId) values.push(request.registryCharacterId);
+      if (!request && session.characterId) values.push(session.characterId);
+      if (values.some(id => typeof id !== 'string' || !/^c_[0-9a-f]{32}$/.test(id)) || new Set(values).size > 1) throw error(403, 'Conflicting character selections. Open your character menu.');
+      const group = /^(?:\/api)?\/pickers\/(p_[0-9a-f]{32})(?:\/|$)/.exec(url.pathname)?.[1];
+      const pickerValues = [...url.searchParams.getAll('picker'), ...url.searchParams.getAll('pickerId'), ...(group ? [group] : [])];
+      for (const name of ['x-picker-id', 'x-picker']) if (request?.headers[name] !== undefined) pickerValues.push(request.headers[name]);
+      const legacyId = pickerValues.includes('legacy') ? pickerRegistry.listPickers().find(p => p.kind === 'legacy-shared')?.id : null;
+      const pickerSelections = pickerValues.map(id => id === 'legacy' ? legacyId : id);
+      if (pickerSelections.some(id => typeof id !== 'string' || !/^p_[0-9a-f]{32}$/.test(id)) || new Set(pickerSelections).size > 1) throw error(403, 'Conflicting picker selections.');
+      const requestedPicker = pickerSelections[0] ?? (!session.accountScope ? session.pickerId : undefined);
+      if (!session.accountScope && requestedPicker !== session.pickerId) throw error(403, 'Sign in again to switch groups.');
+      const character = pickerRegistry.selectCharacter(account.id, values[0], requestedPicker);
+      if (!character) {
+        const viewer = account.memberships.find(m => m.pickerId === requestedPicker && m.role === 'viewer');
+        if (requestedPicker && !account.memberships.some(m => m.pickerId === requestedPicker)) throw error(403, 'Picker access denied. Open your character menu.');
+        return { kind: 'account', accountId: account.id, provider: session.provider, accountScope: true, ...(viewer ? { pickerId: viewer.pickerId, role: 'viewer' } : {}), label: 'Account', admin: false, readOnly: true, memberId: null, capabilities: { canWrite: false } };
+      }
+      const picker = pickerRegistry.getPicker(character.placement.pickerId);
+      if (!session.accountScope && picker.id !== session.pickerId) throw error(403, 'Sign in again to switch groups.');
+      const membership = account.memberships.find(item => item.pickerId === picker.id && item.memberId === character.placement.memberId && item.role !== 'viewer');
+      if (!membership || picker.lifecycle !== 'active' || picker.provisioning !== 'ready') return null;
+      let legacyInviteId;
+      if (picker.kind === 'legacy-shared') {
+        const legacy = accounts?.get(account.id);
+        legacyInviteId = legacy?.memberships.find(m => m.memberId === membership.memberId && current.invites.some(i => i.id === m.inviteId && !i.revoked && i.claimedAccountId === account.id))?.inviteId;
+        if (!legacyInviteId) throw error(403, 'Shared-game access is unavailable. Open your character menu.');
+      }
+      const readOnly = false, label = character.runescapeName ?? 'Unnamed character';
       return { kind: 'account', accountId: account.id, pickerId: picker.id, provider: session.provider,
-        memberId: membership.memberId, role: membership.role, label, admin: false, readOnly,
-        capabilities: { canWrite: !readOnly }, actor: { kind: 'invite', inviteId: account.id, memberId: membership.memberId, label } };
+        accountScope: session.accountScope, characterId: character.id, memberId: membership.memberId, role: membership.role, label, admin: false, readOnly,
+        capabilities: { canWrite: !readOnly }, actor: { kind: 'invite', inviteId: legacyInviteId ?? account.id, memberId: membership.memberId, label } };
     }
     const account = accounts?.get(session.accountId);
     const membership = account?.memberships.find(item => item.id === session.membershipId && item.inviteId === session.inviteId);
     const invite = current.invites.find(item => item.id === session.inviteId && !item.revoked);
     if (!membership || !invite || invite.admin || invite.claimedAccountId !== account.id || membership.memberId !== (invite.memberId ?? null) || membership.role !== (invite.viewer ? 'viewer' : 'player') || !account.identities.some(identity => identity.provider === session.provider)) return null;
-    return { ...principal(invite.id), kind: 'account', admin: false, readOnly: membership.role === 'viewer', capabilities: { canWrite: membership.role !== 'viewer' }, accountId: account.id, membershipId: membership.id, provider: session.provider, account: { id: account.id, providers: account.identities.map(identity => identity.provider) } };
+    if (pickerRegistry && request && (request.registryCharacterId || request.headers['x-character-id'] || new URL(request.url, 'http://localhost').searchParams.has('character') || /^\/characters\//.test(request.url))) {
+      const selected = accountPrincipal({ accountId: account.id, provider: session.provider, accountScope: true }, request);
+      if (selected?.memberId !== membership.memberId || pickerRegistry.getPicker(selected?.pickerId)?.kind !== 'legacy-shared') {
+        throw error(403, 'Sign in again to switch characters.');
+      }
+      return selected;
+    }
+    const character = pickerRegistry?.listCharacters(account.id).find(c => c.placement.memberId === membership.memberId && pickerRegistry.getPicker(c.placement.pickerId)?.kind === 'legacy-shared');
+    return { ...principal(invite.id), ...(character ? { characterId: character.id } : {}), kind: 'account', admin: false, readOnly: membership.role === 'viewer', capabilities: { canWrite: membership.role !== 'viewer' }, accountId: account.id, membershipId: membership.id, provider: session.provider, account: { id: account.id, providers: account.identities.map(identity => identity.provider) } };
   }
   function cookieToken(request) {
     return (request.headers.cookie ?? '').split(';').map(item => item.trim()).find(item => item.startsWith(`${COOKIE}=`))?.slice(COOKIE.length + 1);
@@ -161,6 +202,13 @@ export async function openInviteStore({ dataDir, masterToken, masterLabel, now =
         return addSession(next, source);
       });
     },
+    issueRegistrySession(accountId, provider) {
+      return mutate(next => {
+        const source = { accountId, provider, inviteId: null, accountScope: true };
+        if (!accountPrincipal(source)) throw error(403, 'Account access required.');
+        return addSession(next, source);
+      });
+    },
     issueAccountSession(accountId, membershipId, provider) {
       return mutate(next => {
         const membership = accounts?.get(accountId)?.memberships.find(item => item.id === membershipId);
@@ -185,7 +233,7 @@ export async function openInviteStore({ dataDir, masterToken, masterLabel, now =
     revokeAccountSessions(accountId) { return mutate(next => { next.sessions = next.sessions.filter(session => session.accountId !== accountId); }); },
     async touch(identity) {
       if (!['invite', 'account'].includes(identity?.kind)) return Promise.resolve();
-      if (identity.kind === 'account' && accountPrincipal(identity)) await accounts.touch(identity.accountId, identity.provider);
+      if (identity.kind === 'account' && !identity.accountScope && !identity.pickerId && accountPrincipal(identity)) await accounts.touch(identity.accountId, identity.provider);
       const invite = current.invites.find(invite => invite.id === identity.inviteId && !invite.revoked);
       if (!invite || (invite.lastUsedAt && now() - Date.parse(invite.lastUsedAt) < 60000)) return Promise.resolve();
       if (uses.has(invite.id)) return uses.get(invite.id);
@@ -257,10 +305,10 @@ export async function openInviteStore({ dataDir, masterToken, masterLabel, now =
       const digest = hash(cookie);
       const session = current.sessions.find(session => equals(session.tokenHash, digest) && Date.parse(session.expiresAt) > now());
       if (!session) return null;
-      if (session.inviteId === null && !session.pickerId && !context.masterAllowed) throw error(403, 'Administrator access requires a private connection.');
+      if (session.inviteId === null && !session.pickerId && !session.accountScope && !context.masterAllowed) throw error(403, 'Administrator access requires a private connection.');
       const invite = current.invites.find(item => item.id === session.inviteId);
       if (!session.accountId && invite && (invite.claimedAccountId || (signInMode === 'required' && !invite.admin && !invite.viewer))) return null;
-      const identity = session.accountId ? accountPrincipal(session) : principal(session.inviteId);
+      const identity = session.accountId ? accountPrincipal(session, request) : principal(session.inviteId);
       if (identity?.admin && context.publicRequest) throw error(403, 'Administrator access requires a private connection.');
       return identity ? { ...identity, sessionId: session.tokenHash, expiresAt: session.expiresAt } : null;
     },

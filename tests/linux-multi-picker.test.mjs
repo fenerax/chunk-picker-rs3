@@ -585,7 +585,7 @@ test('recovery refuses invalid ledgers and never infers tombstones from checkpoi
   const checkpoint = await json(path.join(f.settings.multiPicker.registryDir, 'registry.json'));
   const file = path.join(f.settings.multiPicker.tombstoneDir, 'ledger.json'), ledger = await readFile(file);
   await atomic(file, '{}');
-  await assert.rejects(reconcileServiceRecoveryTombstones({ settings: f.settings, checkpoint }), /Invalid registry/);
+  await assert.rejects(reconcileServiceRecoveryTombstones({ settings: f.settings, checkpoint }), /Invalid (?:character )?registry/);
   assert.equal(await readFile(file, 'utf8'), '{}');
   await atomic(file, ledger);
   const blocked = f.pickers[1]; checkpoint.pickers.find(p => p.id === blocked.id).lifecycle = 'deleted';
@@ -593,7 +593,7 @@ test('recovery refuses invalid ledgers and never infers tombstones from checkpoi
     account.memberships = account.memberships.filter(m => m.pickerId !== blocked.id);
     if (account.defaultPickerId === blocked.id) account.defaultPickerId = null;
   }
-  await assert.rejects(reconcileServiceRecoveryTombstones({ settings: f.settings, checkpoint }), /Invalid registry/);
+  await assert.rejects(reconcileServiceRecoveryTombstones({ settings: f.settings, checkpoint }), /Invalid (?:character )?registry/);
   assert.deepEqual(await readFile(file), ledger);
   assert(await readFile(path.join(f.dir(blocked), 'state.json')));
 });

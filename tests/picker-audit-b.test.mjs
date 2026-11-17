@@ -169,7 +169,7 @@ test('MP12B: OAuth callbacks bind cookie, state and provider, consume attempts, 
   assert.match(cookiePair(legitimate.started, '__Host-rs3_preauth'), /^__Host-rs3_preauth=[A-Za-z0-9_-]{43}$/);
   assert.match(legitimate.started.headers['set-cookie'][0], /HttpOnly; Secure; SameSite=Lax/);
   const completed = await legitimate.finish(); assert.equal(completed.status, 303, completed.text);
-  assert.equal(completed.headers.location, '/');
+  assert.match(completed.headers.location, /^\/characters\/c_[0-9a-f]{32}$/);
   assert.equal((await legitimate.finish()).status, 400); assert.equal(f.exchanges, 1);
 });
 
@@ -195,7 +195,7 @@ test('MP12B: logout during a provider exchange prevents linking even if another 
   assert.equal((await f.send('/api/session', first)).status, 401);
 });
 
-test('MP12B: issued sessions rotate, logout revokes its token, and account deletion invalidates all its old tokens', async t => {
+test('MP12B: sessions rotate, logout revokes its token, and refused character deletion preserves other sessions', async t => {
   const f = await fixture(t), first = await f.login(FIRST), rotated = await f.login(FIRST), other = await f.login(SECOND);
   assert.notEqual(first, rotated); assert.notEqual(rotated, other);
   const session = (await f.send('/api/session', rotated, { headers: { 'X-Account-Action': 'delete' } })).json();
@@ -203,11 +203,12 @@ test('MP12B: issued sessions rotate, logout revokes its token, and account delet
   assert.equal((await f.send('/api/session', first)).status, 401);
   assert.equal((await f.send('/api/session', rotated)).status, 200);
   const another = await f.login(FIRST);
-  assert.equal((await f.send('/api/account/delete', rotated, { body: { accountDeletionToken: session.accountDeletionToken }, headers: { 'X-Picker-Id': session.pickerRoute } })).status, 200);
-  for (const cookie of [first, rotated, another]) {
-    assert.equal((await f.send('/api/session', cookie)).status, 401);
-    assert.equal((await f.send('/api/state', cookie)).status, 401);
-    assert.equal((await f.send('/auth/link/google', cookie)).status, 401);
+  assert.equal((await f.send('/api/account/delete', rotated, { body: { accountDeletionToken: session.accountDeletionToken }, headers: { 'X-Picker-Id': session.pickerRoute } })).status, 409);
+  assert.equal((await f.send('/api/session', first)).status, 401);
+  for (const cookie of [rotated, another]) {
+    assert.equal((await f.send('/api/session', cookie)).status, 200);
+    assert.equal((await f.send('/api/state', cookie)).status, 200);
+    assert.equal((await f.send('/auth/link/google', cookie)).status, 303);
   }
   assert.equal((await f.send('/api/session', other)).status, 200);
 });
@@ -262,7 +263,7 @@ test('MP12B: a forged shared-picker owner UI cannot delete the shared picker', a
     return new Response(refused.text, { status: refused.status });
   });
   click(ui.instance.rows(), 'Delete picker'); await click(ui.dialog.node, 'Delete picker');
-  assert.equal(refused.status, 403); assert.equal((await f.send('/api/state', cookie)).status, 200);
+  assert.equal(refused.status, 409); assert.equal((await f.send('/api/state', cookie)).status, 200);
 });
 
 test('MP12B: a cookie switch between distinct owned pickers cannot redirect a stale deletion', async t => {
@@ -307,7 +308,7 @@ test('MP13: the deletion queue checks expiry and consumes confirmations once', a
   const entered = Promise.withResolvers(), release = Promise.withResolvers(), deleted = [];
   const identities = [FIRST, SECOND].map(accountId => ({ kind: 'account', accountId, sessionId: randomUUID() }));
   const service = createPickerDeletion({ now: () => time, legacy: { authenticate: request => request.identity },
-    registry: { listPickers: () => [], deletionRecords: () => ({ accounts: [] }),
+    registry: { listCharacters: () => [], listPickers: () => [], deletionRecords: () => ({ accounts: [] }),
       reconcileTombstones: async () => ({ blockedPickerIds: [], deletedAccountIds: [] }),
       deleteAccount: async id => { deleted.push(id); if (id === FIRST) { entered.resolve(); await release.promise; } } } });
   const invoke = (identity, token) => {

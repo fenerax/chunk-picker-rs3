@@ -207,7 +207,7 @@ test('MP14: trickled owned uploads do not pin picker residency against cold pick
   for (const upload of uploads) assert.equal(await within(upload.result, 10), pending, 'the held uploads are still receiving');
 });
 
-test('MP12C2-2: deleting a picker with an unfinished upload must not block unrelated picker reads',
+test('MP12C2-2: refused character deletion with an unfinished upload leaves unrelated reads available',
   async t => {
     const f = await fixture(t), a = await f.login(subjects[0]), b = await f.login(subjects[1]);
     const id = (await f.send('/api/session', a)).json().pickerId;
@@ -215,14 +215,13 @@ test('MP12C2-2: deleting a picker with an unfinished upload must not block unrel
     const beforeMs = performance.now() - beforeAt; assert.equal(baseline.status, 200);
     const upload = await slowImport(f, a, b);
     const deletion = f.send('/api/picker/delete', a, { body: {} });
-    await waitFor(async () => (await f.registry()).pickers.find(p => p.id === id)?.lifecycle !== 'active', 'deletion must be durably fenced');
-    // Deletion must finish without the attacker voluntarily ending the upload.
-    assert.equal((await within(deletion, 1000)).status, 200);
-    assert.equal(await upload.result.then(() => false, () => true), true, 'the fenced picker upload is cancelled');
+    assert.equal((await within(deletion, 1000)).status, 409);
+    assert.equal((await f.registry()).pickers.find(p => p.id === id)?.lifecycle, 'active');
+    assert.equal(await within(upload.result, 10), pending, 'refusal leaves the upload unchanged');
     const started = performance.now(), reading = f.send('/api/state', b);
     const during = await within(reading), abortedAt = performance.now();
     upload.req.destroy();
-    assert.equal((await deletion).status, 200);
+    assert.equal((await deletion).status, 409);
     const recovered = await reading, recoveryMs = performance.now() - abortedAt; assert.equal(recovered.status, 200);
     assert.equal((await f.send('/api/state', b)).status, 200);
     t.diagnostic(JSON.stringify({ bytesSent: 1, blocked: during === pending, recovered: recovered.status,
