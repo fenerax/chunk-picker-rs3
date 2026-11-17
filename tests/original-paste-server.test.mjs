@@ -12,7 +12,7 @@ const { createOriginalPasteUpload } = await import('../app/web/backup-transfer.m
 const { createOriginalMapCodeUpload } = await import('../app/web/original-map-code.mjs');
 const { createScreenDialogs } = await import('../app/web/screen-dialogs.mjs');
 
-async function fixture(t, enabled, codeEnabled = false) {
+async function fixture(t, enabled, codeEnabled = false, state) {
   const previous = process.env.RS3_ORIGINAL_IMPORT_PASTE;
   const previousCode = process.env.RS3_ORIGINAL_IMPORT_MAP_CODE;
   if (codeEnabled) process.env.RS3_ORIGINAL_IMPORT_MAP_CODE = '1'; else delete process.env.RS3_ORIGINAL_IMPORT_MAP_CODE;
@@ -20,11 +20,11 @@ async function fixture(t, enabled, codeEnabled = false) {
   if (enabled) process.env.RS3_ORIGINAL_IMPORT_PASTE = '1'; else delete process.env.RS3_ORIGINAL_IMPORT_PASTE;
   const root = await mkdtemp(path.join(tmpdir(), 'synthetic-original-paste-http-'));
   // Synthetic metadata provider, with the exact legacy coordinate contract.
-  const dataset = { ...selectedDataset, datasetId: 'duo-legacy', coordinateSystem: 'surface-grid-v1',
+  const dataset = { ...selectedDataset, datasetId: 'duo-legacy', datasetContractVersion: 1, identityNamespace: 'rs3', coordinateSystem: 'surface-grid-v1',
     capabilities: { ...selectedDataset.capabilities, independent: false } };
   const app = await createServer({ dataDir: path.join(root, 'data'), dataset,
     definitions: { chunks: { '12850': {}, '12594': {} }, walkableChunks: ['12850', '12594'], walkableChunksF2P: ['12850', '12594'] }, taskMap: {},
-    initialState: createGroupState([{ id: 'destination', name: 'Synthetic destination' }, { id: 'other', name: 'Synthetic other' }]),
+    initialState: state ?? createGroupState([{ id: 'destination', name: 'Synthetic destination' }, { id: 'other', name: 'Synthetic other' }]),
     port: 0, predictionPrewarm: false, shutdownDeadlineMs: 500 });
   t.after(async () => { await app.close(); await rm(root, { recursive: true, force: true }); if (previous === undefined) delete process.env.RS3_ORIGINAL_IMPORT_PASTE; else process.env.RS3_ORIGINAL_IMPORT_PASTE = previous; });
   await app.listen();
@@ -48,6 +48,21 @@ test('flag defaults off on the session and rejects paste on the existing import 
   const response = await f.upload('/api/member-restore/preview');
   assert.equal(response.status, 404, await response.clone().text());
   assert.equal(f.app.store.getInfo().revision, 0);
+});
+
+test('guided original export is read-only, includes selected chunks and journal, and enforces player access', async t => {
+  const state = createGroupState([{ id: 'destination', name: 'Synthetic destination', unlocked: ['12850'], selected: ['12594'] }, { id: 'other', name: 'Synthetic other' }]);
+  state.members[0].journal = 'Synthetic transferable journal';
+  const f = await fixture(t, false, false, state);
+  const response = await f.request('/api/export/original-chunks?memberId=destination');
+  assert.equal(response.status, 200, await response.clone().text());
+  const result = await response.json();
+  assert.match(result.url, /;[0-9a-zA-Z]+$/); assert.equal(result.journal, state.members[0].journal);
+  assert.equal(JSON.parse(result.rulesJSON).Extra, true);
+  assert.equal(f.app.store.getInfo().revision, 0);
+  const invite = await f.json('/api/invites', { label: 'Synthetic original export invite', memberId: 'other' });
+  const joined = await fetch((await invite.json()).link, { redirect: 'manual' });
+  assert.equal((await f.request('/api/export/original-chunks?memberId=destination', {}, joined.headers.get('set-cookie').split(';')[0])).status, 403);
 });
 
 test('map-code flag works independently of paste and still requires review, mapping and Undo', async t => {
@@ -146,6 +161,16 @@ test('original entry is absent when off; flag-on UI labels fields and defaults b
   assert.ok(labels.some(node => node.text.startsWith('Rules JSON')));
   for (const node of labels.filter(node => node.text.startsWith('Import '))) assert.equal(node.control.checked, false);
   assert.equal(nodes.find(node => node.tag === 'input' && node.type === 'file').disabled, true);
+});
+
+test('move dialog offers ordered backup, chunk, rules and journal controls with selectable copy fallbacks', async () => {
+  const { nodes, c } = dialogFixture(false, {
+    api: async () => ({ url: 'https://gitgeddes.github.io/ChunkPicker/?fv', rulesJSON: '{"Extra":true}', journal: 'Synthetic journal', message: 'Synthetic replacement warning', resetRules: [], appOnlyRules: [] }) });
+  c.beginDialogRequest = () => 1; c.dialogCurrent = () => true;
+  await nodes.find(node => node.text === 'Move to the original picker').click();
+  assert.deepEqual(nodes.filter(node => node.tag === 'h3' && /^\d\./.test(node.text)).map(node => node.text), ['1. Keep a full backup', '2. Import the chunk link', '3. Import the rules', '4. Paste the journal', '5. Review before playing']);
+  assert.equal(nodes.filter(node => node.tag === 'textarea' && node.readOnly).length, 3);
+  assert.ok(nodes.filter(node => node.tag === 'summary' && node.text === 'What transfers each way').length >= 2);
 });
 
 test('map-code entry is separately gated and can switch back to backup import', () => {

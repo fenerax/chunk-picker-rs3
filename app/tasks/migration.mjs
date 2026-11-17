@@ -472,7 +472,7 @@ function migrateNotes(member, map, warnings, counts) {
   }
 }
 
-function migrateJournal(member, map, warnings, counts) {
+export function migrateJournal(member, map, warnings, counts) {
   if (typeof map.chunkNotes !== 'string' || Object.hasOwn(member, 'journal')) return;
   const journal = decodeLegacyText(map.chunkNotes);
   if (journal.length > 10_000) {
