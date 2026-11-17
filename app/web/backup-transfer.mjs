@@ -126,7 +126,7 @@ export async function createOriginalPasteUpload(texts, metadata, options = {}) {
   const cap = 8 * 1024 * 1024, parts = [];
   let bytes = 0, wireBytes = 0, turn = performance.now();
   const append = text => { const part = encoder.encode(text); parts.push(part); wireBytes += part.byteLength; };
-  append('{"format":"rs3-original-paste"');
+  append(`{"format":${JSON.stringify(options.format ?? 'rs3-original-paste')}`);
   for (const field of ['chunksText', 'rulesText', 'gameplayText']) {
     const value = texts[field] ?? '';
     if (typeof value !== 'string' || value.length > cap) throw new Error('The total paste limit is 8 MiB of UTF-8 text.');

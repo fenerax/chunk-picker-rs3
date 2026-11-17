@@ -14,11 +14,18 @@ const bindings = new Map([
   ['../tasks/migration.mjs', 'core.migration'], ['../tasks/collection.mjs', 'core.collection'],
   ['../data/settings.mjs', 'core.settings'], ['../tasks/identity.mjs', 'core.identity'],
   ['./original-local-changes.mjs', 'localChanges'], ['./original-tasks.mjs', 'taskReview'],
+  ['./web/original-public.mjs', 'originalPublic'],
 ]);
 
-/** Small explicit linker for these four reviewed modules, never a general executable pack loader. */
+/** Small explicit linker for these reviewed modules, never a general executable pack loader. */
 export function linkPrivateModule(source, name) {
   const exports = [...source.matchAll(/^export (?:async )?(?:function|const|class) (\w+)/gm)].map(match => match[1]);
+  source = source.replace(/^export \{ ([\w\s,]+) \};\r?\n/gm, (line, names) => {
+    const identifiers = names.split(',').map(value => value.trim());
+    if (!identifiers.every(value => /^\w+$/.test(value))) throw new Error('Private module export needs review.');
+    exports.push(...identifiers);
+    return '';
+  });
   const builtins = [];
   source = source.replace(/^import (.+?) from ['"]([^'"]+)['"];\r?\n/gm, (line, names, specifier) => {
     if (specifier.startsWith('node:')) { builtins.push(line.trim()); return ''; }
@@ -47,7 +54,8 @@ export async function buildPrivateAddon({ sourceRoot = root, output } = {}) {
   await safeArtFile(path.dirname(output));
   try { await lstat(output); throw new Error('Add-on output exists.'); } catch (error) { if (error.code !== 'ENOENT') throw error; }
   const modules = [];
-  for (const [filename, name] of [['app/integrations/original-local-changes.mjs', 'localChanges'],
+  for (const [filename, name] of [['app/web/original-public.mjs', 'originalPublic'],
+    ['app/integrations/original-local-changes.mjs', 'localChanges'],
     ['app/integrations/original-tasks.mjs', 'taskReview'], ['app/capture-maps.mjs', 'captureMaps'],
     ['app/integrations/original-sync.mjs', 'sync']]) {
     modules.push(linkPrivateModule(await readFile(await safeArtFile(sourceRoot, filename), 'utf8'), name));

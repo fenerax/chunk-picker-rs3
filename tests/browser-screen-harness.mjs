@@ -19,6 +19,7 @@ import { appendPreviewTasks } from '../app/web/preview-additions.mjs';
 import { createProfileView } from '../app/web/profile-view.mjs';
 import { BACKUP_LIMIT_LABEL } from '../app/web/backup-limits.mjs';
 import { createBackupUpload, createOriginalPasteUpload, downloadFullBackup, originalTransferList } from '../app/web/backup-transfer.mjs';
+import { createOriginalMapCodeUpload } from '../app/web/original-map-code.mjs';
 import { createFinishLineView } from '../app/web/finish-line-view.mjs';
 import { createPartnerSupplyView } from '../app/web/partner-supply-view.mjs';
 import { createBossGatesView } from '../app/web/boss-gates-view.mjs';
@@ -88,6 +89,7 @@ export function runScreenGraph(context, modules) {
   context.createBackupUpload ??= createBackupUpload;
   context.createOriginalPasteUpload ??= createOriginalPasteUpload;
   context.originalTransferList ??= originalTransferList;
+  context.createOriginalMapCodeUpload ??= createOriginalMapCodeUpload;
   context.downloadFullBackup ??= downloadFullBackup;
   context.createFinishLineView ??= createFinishLineView;
   context.createPartnerSupplyView ??= createPartnerSupplyView;
