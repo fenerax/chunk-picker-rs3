@@ -14,6 +14,8 @@ import { createQuestMap } from '../app/web/quest-map.mjs';
 import { selectDuoTaskLists } from '../app/web/duo-task-lists.mjs';
 import { createDuoBacklogView } from '../app/web/duo-backlog-view.mjs';
 import { createMembersStart } from '../app/web/members-start.mjs';
+import { createMembersPreview } from '../app/web/members-preview.mjs';
+import { appendPreviewTasks } from '../app/web/preview-additions.mjs';
 import { createProfileView } from '../app/web/profile-view.mjs';
 import { BACKUP_LIMIT_LABEL } from '../app/web/backup-limits.mjs';
 import { createBackupUpload, createOriginalPasteUpload, downloadFullBackup } from '../app/web/backup-transfer.mjs';
@@ -79,6 +81,8 @@ export function runScreenGraph(context, modules) {
   context.selectDuoTaskLists ??= selectDuoTaskLists;
   context.createDuoBacklogView ??= createDuoBacklogView;
   context.createMembersStart ??= createMembersStart;
+  context.createMembersPreview ??= createMembersPreview;
+  context.appendPreviewTasks ??= appendPreviewTasks;
   context.createProfileView ??= createProfileView;
   context.BACKUP_LIMIT_LABEL ??= BACKUP_LIMIT_LABEL;
   context.createBackupUpload ??= createBackupUpload;

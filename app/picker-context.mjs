@@ -1628,6 +1628,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
               const state = captured.state;
               const draft = normalizeSandboxRequest(body, { state, world: indexedWorld,
                 catalogue: sandboxCatalogue, taskIndex: captured.sandboxTaskIndex });
+              if (draft.changes.members && !ruleRegistry.get('content.f2p')) throw httpError(400, 'This dataset does not support membership comparisons.');
               const sandboxValidationMs = performance.now() - started, controller = new AbortController();
               const disconnected = () => { if (!response.writableEnded) controller.abort(); };
               request.once('aborted', disconnected); response.once('close', disconnected);
@@ -1941,7 +1942,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
       else if (['/chunk-colour-picker.mjs', '/map-chunk-colours.mjs', '/chunk-colours.css'].includes(route)) file = await containedFile(webRoot, route.slice(1));
       else if (['/lamp-choices.mjs', '/lamp-choices.css'].includes(route)) file = await containedFile(webRoot, route.slice(1));
       else if (route === '/core/xp-choices.mjs') file = await containedFile(path.join(ROOT, 'app', 'core'), 'xp-choices.mjs');
-      else if (['/members-start.mjs', '/members-start.css'].includes(route)) file = await containedFile(webRoot, route.slice(1));
+      else if (['/members-start.mjs', '/members-start.css', '/members-preview.mjs', '/preview-additions.mjs'].includes(route)) file = await containedFile(webRoot, route.slice(1));
       else if (route === '/core/members-start.mjs') file = await containedFile(path.join(ROOT, 'app', 'core'), 'members-start.mjs');
       else if (route === '/mining-settings.mjs') file = await containedFile(webRoot, 'mining-settings.mjs');
       else if (route === '/woodcutting-settings.mjs') file = await containedFile(webRoot, 'woodcutting-settings.mjs');

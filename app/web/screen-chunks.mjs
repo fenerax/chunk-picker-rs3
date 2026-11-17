@@ -8,6 +8,7 @@ import { CACHE_SECTION_OFFSET } from './data/surface-grid.mjs';
 import { itemIcon } from './icons.mjs';
 import { createChunkQuestList } from './chunk-quest-filters.mjs';
 import { travelIntoChunk } from './teleports.mjs';
+import { appendPreviewTasks } from './preview-additions.mjs';
 
 // Main-screen chunks; shared values and callbacks live in the explicit screen context.
 export function createScreenChunks(c) {
@@ -335,27 +336,7 @@ export function createScreenChunks(c) {
     const hint = c.el('p', '', 'status-detail'); hint.setAttribute('role', 'status'); hint.setAttribute('aria-live', 'polite');
     hint.hidden = true; box.prepend(hint);
     const display = value => {
-      const added = value.delta.tasksAdded, groups = new Map();
-      for (const task of added) { if (!groups.has(task.category)) groups.set(task.category, []); groups.get(task.category).push(task); }
-      outcome.replaceChildren(c.el('p', added.length ? `${added.length} new possible task${added.length === 1 ? '' : 's'}` : 'No new possible tasks', 'unlock-count'));
-      for (const [category, tasks] of groups) {
-        const rows = [], clues = new Map(), list = c.el('ul');
-        for (const task of tasks) {
-          const tier = String(task.record?.ClueTier ?? '').trim().toLowerCase(), type = String(task.record?.ClueType ?? '').trim().toLowerCase();
-          if (!tier || !type) { rows.push(task); continue; }
-          const key = JSON.stringify([tier, type]);
-          if (!clues.has(key)) { const group = { tier, type, tasks: [] }; clues.set(key, group); rows.push(group); }
-          clues.get(key).tasks.push(task);
-        }
-        for (const row of rows) {
-          if (!row.tasks) { list.append(c.el('li', c.plain(row.label))); continue; }
-          const entry = c.el('li'), tier = row.tier.charAt(0).toUpperCase() + row.tier.slice(1);
-          const kind = row.type === 'scan' || row.type === 'compass' ? 'spots' : 'steps';
-          entry.append(c.details(`${tier} ${row.type} clue ${kind} (${row.tasks.length})`, c.list(row.tasks.map(task => c.plain(task.label)))));
-          list.append(entry);
-        }
-        outcome.append(c.el('h4', `${category} (${tasks.length})`, 'content-heading'), list);
-      }
+      appendPreviewTasks(c, outcome, value.delta.tasksAdded);
       if (value.delta.itemsAdded?.length || value.delta.areasAdded?.length) { const additions = c.el('div'); if (value.delta.itemsAdded?.length) additions.append(c.el('h4', 'Items'), c.list(value.delta.itemsAdded.map(item => c.plain(typeof item === 'string' ? item : item.name ?? item.label)))); if (value.delta.areasAdded?.length) additions.append(c.el('h4', 'Areas'), c.list(value.delta.areasAdded.map(area => c.plain(c.world.areas.get(typeof area === 'string' ? area : area.id)?.name ?? (typeof area === 'string' ? area : area.name ?? area.label))))); if (c.advanced()) additions.append(c.jsonPreview({ items: value.delta.itemsAdded, areas: value.delta.areasAdded })); outcome.append(c.details('New items and areas', additions)); }
     };
     const cached = !c.sandbox.active && c.viewCache?.peek('preview', key, revision);

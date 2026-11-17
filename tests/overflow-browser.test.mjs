@@ -249,7 +249,7 @@ test('permanent native overflow gate', { timeout: 120000 }, async t => {
       await load('main',width,height,coarse);
       await browser.evaluate("overflowFixture.topBar.apply(['helper','search','info','sync']); if(overflowFixture.c.phoneLayout)document.querySelector('#phone-tab-more').click(); document.querySelector('#more-tools').open=true");
       const items = await browser.evaluate("[...document.querySelectorAll('#more-tools .more-tools-menu button')].filter(n=>!n.hidden).map(n=>n.id)");
-      assert.deepEqual(items, ['helper-open','search-open','runemetrics-open','bis-open','profile-open','finish-line-open','activity-open','teleports-open','partner-supply-open','boss-gates-open','rules-open','completed-open','journal-open','history-open','help-open','settings-open','game-plugin-open','map-display-open','screenshot-open','map-image-open','stream-safe-toggle','backup-open','original-sync-open','whats-new-open','roadmap-open','map-sources-open','theme-dark','theme-gray','theme-light']);
+      assert.deepEqual(items, ['helper-open','search-open','runemetrics-open','bis-open','profile-open','finish-line-open','members-preview-open','activity-open','teleports-open','partner-supply-open','boss-gates-open','rules-open','completed-open','journal-open','history-open','help-open','settings-open','game-plugin-open','map-display-open','screenshot-open','map-image-open','stream-safe-toggle','backup-open','original-sync-open','whats-new-open','roadmap-open','map-sources-open','theme-dark','theme-gray','theme-light']);
       await scan('more-' + width, '#more-tools .more-tools-menu');
       for (const id of items) {
         await browser.evaluate(`document.getElementById(${JSON.stringify(id)}).scrollIntoView({block:'nearest'})`);
