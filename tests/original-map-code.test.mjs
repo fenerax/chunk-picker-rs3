@@ -1,13 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { originalMapCode, readOriginalMapCode, createOriginalMapCodeUpload } from '../app/web/original-map-code.mjs';
+import { originalMapCode, readOriginalMapCode, originalMapCodeTexts, createOriginalMapCodeUpload } from '../app/web/original-map-code.mjs';
 import { PUBLIC_GAMEPLAY_FIELDS, PUBLIC_FIREBASE_URL } from '../app/web/original-public.mjs';
 
 const map = { chunks: { unlocked: { '*fb*_12850': '12850' }, selected: { '12594': 1 } }, rules: { Quests: true }, chunkinfo: { checkedAllTasks: { Mining: { t_synthetic: true } } } };
-const syntheticFetch = calls => async (url, options) => {
+const syntheticFetch = (calls, source = map) => async (url, options) => {
   calls.push({ url, options });
   const field = new URL(url).pathname.split('/').at(-1).replace('.json', '');
-  return Response.json(map[field] ?? null);
+  return Response.json(source[field] ?? null);
 };
 test('map codes are normalized and reject URLs, paths and oversized input before fetching', async () => {
   assert.equal(originalMapCode(' Synthetic_303-A '), 'synthetic_303-a');
@@ -32,6 +32,15 @@ test('map-code upload reuses paste wire data under its independent feature forma
   assert.equal(wire.file.chunksText.join(''), '12850');
   assert.deepEqual(JSON.parse(wire.file.gameplayText.join('')), map);
   assert.equal(wire.file.includeTasks, true); assert.equal(wire.file.includeRules, false);
+});
+
+test('subsections stay in captured gameplay without blocking the whole-chunk paste parser', async () => {
+  const source = structuredClone(map);
+  source.chunks.unlocked['*fb*_12850-1'] = '12850-1';
+  source.chunks.unlocked['12594-2'] = '12594-2';
+  const texts = await originalMapCodeTexts('synthetic303', { fetchImpl: syntheticFetch([], source) });
+  assert.equal(texts.chunksText, '12850');
+  assert.deepEqual(JSON.parse(texts.gameplayText), source);
 });
 test('missing, denied, malformed, oversized and cancelled reads never produce an import', async () => {
   for (const response of [() => Response.json(null), () => new Response('', { status: 403 }), () => new Response('{'), () => new Response('x'.repeat(8 * 1024 * 1024 + 1))]) {

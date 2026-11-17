@@ -9,6 +9,7 @@ const { createServer } = await import('../app/server.mjs');
 const { selectedDataset } = await import('../app/dataset-runtime.mjs');
 const { createGroupState } = await import('../app/core/state.mjs');
 const { createOriginalPasteUpload } = await import('../app/web/backup-transfer.mjs');
+const { createOriginalMapCodeUpload } = await import('../app/web/original-map-code.mjs');
 const { createScreenDialogs } = await import('../app/web/screen-dialogs.mjs');
 
 async function fixture(t, enabled, codeEnabled = false) {
@@ -76,6 +77,22 @@ test('paste flag cannot enable map-code imports and flag-off policy stays same-o
   assert.match((await f.request('/')).headers.get('content-security-policy'), /connect-src 'self';/);
   const payload = await createOriginalPasteUpload({ chunksText: '12850', rulesText: '{}' }, { memberId: 'destination' }, { format: 'rs3-original-map-code' });
   assert.equal((await f.request('/api/member-restore/preview', await payload.toBackupRequest())).status, 404);
+});
+
+test('map-code capture with unlocked subsections previews and applies whole cells with exact archive evidence', async t => {
+  const f = await fixture(t, false, true);
+  const source = { chunks: { unlocked: { '*fb*_12850': '12850', '*fb*_12850-1': '12850-1' } }, rules: { F2P: true } };
+  const payload = await createOriginalMapCodeUpload('synthetic303', {}, { memberId: 'destination', sourceMemberId: 'original_paste' }, {
+    fetchImpl: async url => Response.json(source[new URL(url).pathname.split('/').at(-1).replace('.json', '')] ?? null),
+  });
+  const preview = await f.request('/api/member-restore/preview', await payload.toBackupRequest());
+  assert.equal(preview.status, 200, await preview.clone().text());
+  payload.previewToken = (await preview.json()).previewToken; payload.expectedRevision = 0;
+  const applied = await f.request('/api/member-restore', await payload.toBackupRequest());
+  assert.equal(applied.status, 200, await applied.clone().text());
+  assert.deepEqual(f.app.store.getState().members[0].unlocked, ['12850']);
+  const backup = await (await f.request('/api/backup')).json();
+  assert.deepEqual(JSON.parse(backup.state.provenance.originalPasteImports[0].gameplayText), source);
 });
 
 test('flag-on HTTP preview/apply requires reviewed bytes and destination, retains evidence, and supports Undo', async t => {

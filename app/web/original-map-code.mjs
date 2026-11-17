@@ -50,7 +50,9 @@ export async function originalMapCodeTexts(code, options = {}) {
   if (!unlocked || typeof unlocked !== 'object' || Array.isArray(unlocked)) throw new Error('The original map has invalid unlocked chunks.');
   // Reuse the paste adapter's Firebase decoding, trusted task mapping, rule
   // decisions, provenance and upload/review flow. Captured chunks are authoritative.
-  const chunksText = Object.keys(unlocked).map(key => key.replace(/^\*fb\*_/, '')).join(',');
+  // Subsections stay exact in gameplayText and never become whole cells.
+  const chunksText = Object.keys(unlocked).map(key => key.replace(/^\*fb\*_/, ''))
+    .filter(key => !/^\d+-\d+$/.test(key)).join(',');
   return { chunksText, rulesText: JSON.stringify(map.rules ?? {}), gameplayText: JSON.stringify(map) };
 }
 
