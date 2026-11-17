@@ -36,8 +36,10 @@ registerHooks({ load(url, context, next) {
       globalThis.__planningGC.read = () => ({ transfers: stateSnapshots.size,
         indexes: [...snapshots.keys()].filter(key => snapshots.get(key).planningIndex).length });`);
   replace('const isCurrent = () => !abandoned()', 'globalThis.__planningGC.state = new WeakRef(state);\n  const isCurrent = () => !abandoned()');
-  replace('snapshot.revision = state.revision;\n  completeCache.set(key, snapshot, state, pickerId);',
-    'snapshot.revision = state.revision;\n  globalThis.__planningGC.baseline ??= new WeakRef(snapshot.baseline);\n  completeCache.set(key, snapshot, state, pickerId);');
+  // Capture the same baseline before admission, even when lazy map locations
+  // are constructed between the revision assignment and cache publication.
+  replace('snapshot.revision = state.revision;',
+    'snapshot.revision = state.revision;\n  globalThis.__planningGC.baseline ??= new WeakRef(snapshot.baseline);');
   return { ...result, source };
 } });
 const ready = once(port, 'ready');

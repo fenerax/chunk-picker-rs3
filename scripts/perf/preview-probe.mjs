@@ -5,8 +5,8 @@ registerHooks({ load(url, context, next) {
   if (!url.endsWith('/tasks/worker.mjs')) return result;
   let source = String(result.source);
   const replace = (from, to) => { if (!source.includes(from)) throw Error('ProbeAnchorError'); source = source.replace(from, to); };
-  replace("const { snapshot } = snapshotFor(state, memberId, timingMs, input, type !== 'predict' && type !== 'chunk-planning' && !compact, pickerId);",
-    "const { snapshot } = timed(timingMs, 'baselineMs', () => snapshotFor(state, memberId, timingMs, input, type !== 'predict' && type !== 'chunk-planning' && !compact, pickerId));");
+  const baseline = "snapshotFor(state, memberId, timingMs, input, type !== 'predict' && type !== 'chunk-planning' && !compact, pickerId,\n        type === 'evaluate' && resultTransport === 'json-shared-v1')";
+  replace(`const { snapshot } = ${baseline};`, `const { snapshot } = timed(timingMs, 'baselineMs', () => ${baseline});`);
   replace('evaluateFull(input, member, { includeViews: false, timingMs, pickerId })', "timed(timingMs, 'hypotheticalMs', () => evaluateFull(input, member, { includeViews: false, timingMs, pickerId }))");
   replace('evaluateFull(prediction.state, partner.id, { includeViews: false, timingMs, pickerId })', "timed(timingMs, 'partnerMs', () => evaluateFull(prediction.state, partner.id, { includeViews: false, timingMs, pickerId }))");
   replace('const play = mapPlayResult(prediction.result);', "const play = timed(timingMs, 'projectionMs', () => mapPlayResult(prediction.result));");

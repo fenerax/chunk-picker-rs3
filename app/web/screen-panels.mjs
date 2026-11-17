@@ -1,6 +1,7 @@
 import { skillIcon, itemIcon } from './icons.mjs';
 import { createSettingsPanel } from './settings-panel.mjs';
 import { createMembersStart } from './members-start.mjs';
+import { createMembersPreview } from './members-preview.mjs';
 import { createInfoPanels } from './info-panels.mjs';
 import { createMapTools } from './map-tools.mjs';
 import { createChunkPlanning } from './chunk-planning.mjs';
@@ -18,6 +19,8 @@ import { createGamePlugin } from './game-plugin.mjs';
 
 // Main-screen panels; shared values and callbacks live in the explicit screen context.
 export function createScreenPanels(c) {
+  const membersPreview = createMembersPreview(c);
+  c.$('members-preview-open')?.addEventListener('click', () => { c.closeTopMenus(); return membersPreview.open(); });
   c.mapDisplay = createMapDisplay(c);
   c.panelContext = { ...c.panelContext, viewCache: c.viewCache, $: c.$, onTravelRoutes: rows => { c.travelRouteNames ??= new Map(); for (const row of rows) if (row.name) c.travelRouteNames.set(row.id, row.name); }, canWrite: c.canWrite, advanced: c.advanced, skillIcon, itemIcon, state: () => c.state, compatibleTaskRevision: revision => c.compatibleTaskRevision(revision), result: () => c.result, memberId: () => c.memberId, world: () => c.world, definitions: () => c.definitions, selectedChunkId: () => c.chunkId, isChunkOpen: () => !c.$('chunk-info').hidden,
     dialogGeneration: () => c.dialogGeneration, beginDialogRequest: c.beginDialogRequest, dialogCurrent: c.dialogCurrent, isDialogOpen: () => c.$('tool-dialog').open, closeDialog: c.closeDialog,

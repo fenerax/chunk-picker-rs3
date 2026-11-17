@@ -139,7 +139,7 @@ test('MP13: browser startup renders the owned roster with neutral dataset defaul
     applySession: noop, taskIconPainter: { settle: noop }, categoryIconPainter: { settle: noop },
     gamePlugin: { refresh: noop }, bindControls: noop, connectEvents: () => { connected = true; },
     saved: noop, loadTasks: noop, paintStartupView: noop, supportsFeature: () => false, applyDatasetControls: noop,
-    adopt: state => { c.state = state; rendered = true; assert.equal(c.owners[0].id, state.members[0].id); assert.equal(c.owners[0].name, 'Player 1'); } });
+    adopt: state => { c.state = state; rendered = true; assert.equal(c.owners[0].id, state.members[0].id); assert.equal(c.owners[0].name, 'Unnamed character'); } });
   runInNewContext(await source('screen-startup.mjs') + '\ncreateScreenStartup(c);', { c, document: {}, globalThis: {}, AbortController, retryStartupRead, setStartupSession,
     createFeedback: panel, createUpdates: panel, createBackupStatus: panel, createAccountPanel: panel,
     createAccountsPanel: panel, createOverlayPanel: panel,

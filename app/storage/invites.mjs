@@ -113,13 +113,13 @@ export async function openInviteStore({ dataDir, masterToken, masterLabel, now =
       for (const name of ['x-picker-id', 'x-picker']) if (request?.headers[name] !== undefined) pickerValues.push(request.headers[name]);
       const legacyId = pickerValues.includes('legacy') ? pickerRegistry.listPickers().find(p => p.kind === 'legacy-shared')?.id : null;
       const pickerSelections = pickerValues.map(id => id === 'legacy' ? legacyId : id);
-      if (pickerSelections.some(id => typeof id !== 'string' || !/^p_[0-9a-f]{32}$/.test(id)) || new Set(pickerSelections).size > 1) throw error(403, 'Conflicting picker selections.');
+      if (pickerSelections.some(id => typeof id !== 'string' || !/^p_[0-9a-f]{32}$/.test(id)) || new Set(pickerSelections).size > 1) throw error(403, 'Picker access denied.');
       const requestedPicker = pickerSelections[0] ?? (!session.accountScope ? session.pickerId : undefined);
       if (!session.accountScope && requestedPicker !== session.pickerId) throw error(403, 'Sign in again to switch groups.');
       const character = pickerRegistry.selectCharacter(account.id, values[0], requestedPicker);
       if (!character) {
         const viewer = account.memberships.find(m => m.pickerId === requestedPicker && m.role === 'viewer');
-        if (requestedPicker && !account.memberships.some(m => m.pickerId === requestedPicker)) throw error(403, 'Picker access denied. Open your character menu.');
+        if (requestedPicker && !account.memberships.some(m => m.pickerId === requestedPicker)) throw error(403, 'Picker access denied.');
         return { kind: 'account', accountId: account.id, provider: session.provider, accountScope: true, ...(viewer ? { pickerId: viewer.pickerId, role: 'viewer' } : {}), label: 'Account', admin: false, readOnly: true, memberId: null, capabilities: { canWrite: false } };
       }
       const picker = pickerRegistry.getPicker(character.placement.pickerId);

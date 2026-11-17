@@ -13,6 +13,10 @@ Active Tasks uses the hypothetical calculation, marks added active goals **new**
 
 Drafts exist only in browser memory. Closing/reloading the page discards them. Another browser has its own draft.
 
+**Info → What would membership add?**, beside **F2P finish line**, compares the selected player's saved map with membership. It calculates only when opened and shows a loading message, expandable task categories (including grouped clue steps), and added items and chunk content. Counts follow chunk Preview: unfinished, available goals with completed and backlogged tasks excluded. This is limited to content supported by the current dataset. An already members group sees a short message instead of a calculation.
+
+The members preview uses the sandbox projection without entering Sandbox or starting a members transition. It keeps the existing chunks, progress, saved rules and Undo history; it never resets maps or creates an F2P snapshot. Datasets without a membership rule explain that comparisons are unsupported without starting a calculation.
+
 ## API
 
 Authenticated same-origin `POST /api/sandbox/evaluate` accepts:
@@ -31,6 +35,8 @@ Authenticated same-origin `POST /api/sandbox/evaluate` accepts:
   "planningChunkId": "12342"
 }
 ```
+
+The members preview sends `changes: { "members": true }` with the selected `memberId` and current `baseRevision`. This optional draft flag temporarily sets the shared `content.f2p` rule to false for evaluation only. It is never a saved field; other values are rejected. Normal sandbox drafts omit it.
 
 Both optional location fields can be omitted. Chunk arrays and `doneTasks` describe the whole accumulated draft, rather than just the last step; omitted arrays default to empty. IDs must be known, duplicate-free and exact; unlock/lock arrays cannot overlap. Limits are 40 changed surface chunks, 500 challenge checks, 128 scalar rules and 64 KiB. Unknown fields and invalid rule values are rejected. A stale revision returns HTTP 409, including if a real save arrives during calculation.
 

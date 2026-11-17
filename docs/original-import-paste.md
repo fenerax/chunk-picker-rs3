@@ -1,8 +1,8 @@
 # Import from the original RS3 chunk picker by paste
 
 This is the backup route for importing from [Source Chunk's original RS3 chunk
-picker](https://github.com/source-chunk/chunk-picker-rs3). Map-code reads belong
-to a later change. This adapter parses text locally in our import workers. It
+picker](https://github.com/source-chunk/chunk-picker-rs3). [Map-code import](original-map-code.md)
+is the main route when separately enabled. This adapter parses text locally in our import workers. It
 does not contact the original service, write to it, collect credentials or ask
 players to paste scripts into a console.
 

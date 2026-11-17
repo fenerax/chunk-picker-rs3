@@ -32,7 +32,8 @@ test('prewarm timeout kills a real child and SIGTERM-ignoring grandchild within 
   const result = prewarmCandidate({ settings: { dataDir: path.join(directory, 'live') },
     candidate: { config: { coreRoot: directory, datasetId: 'open-f2p' } }, dataDir: path.join(directory, 'copy'), timeoutMs });
   while (!tree && performance.now() - started < 1500) {
-    try { tree = JSON.parse(await readFile(marker, 'utf8')); } catch (error) { if (error.code !== 'ENOENT') throw error; }
+    // writeFileSync truncates before writing, so a poll can see an empty or partial marker.
+    try { tree = JSON.parse(await readFile(marker, 'utf8')); } catch (error) { if (error.code !== 'ENOENT' && !(error instanceof SyntaxError)) throw error; }
     if (!tree) await delay(20);
   }
   assert(tree, 'The real child and grandchild must be ready before timeout.');

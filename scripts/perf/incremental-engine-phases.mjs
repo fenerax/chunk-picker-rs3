@@ -14,7 +14,8 @@ export function instrumentEngine(source) {
   replace('      updatePoints();\n      setWinners = new Map();', "      __iePhase('processingSelectionMs');\n      updatePoints();\n      setWinners = new Map();");
   replace('      const continuation = yield processing;', "      __iePhase(null);\n      const continuation = yield processing;\n      __iePhase('fixedPointMs');");
   replace('    let disconnectedDetail;', "    __iePhase('projectionMs');\n    let disconnectedDetail;");
-  replace('    return result;\n  }\n  function computeEligibility', '    __iePhase(null);\n    return result;\n  }\n  function computeEligibility');
+  const end = '      processingRawAccessEvaluations: { value: replay.rawAccessEvaluations } });';
+  replace(end, `${end}\n    __iePhase(null);`);
   replace('  function evaluate(state, memberId, options) {', `  function evaluate(state, memberId, options) {\n    const __ieEnd = ${recorder}.evaluation();\n    try {`);
   replace('    return result;\n  }\n  function how', '    __ieEnd(result);\n    return result;\n    } finally { __ieEnd(); }\n  }\n  function how');
   return source;

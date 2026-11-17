@@ -3,6 +3,7 @@ import { DELETION_PAUSED } from './storage/registry-characters.mjs';
 import { reserveImportUser } from './import-jobs.mjs';
 import { boundedOutput, displayText } from './import-output.mjs';
 import { originalChunkURL } from './original-chunk-url.mjs';
+import { PUBLIC_FIREBASE_URL } from './web/original-public.mjs';
 import { noteTiming } from './live-timings.mjs';
 import { serveLiveTimings, isLiveTimingsRoute } from './live-timings-route.mjs';
 const PROFILE_ENABLED = process.env.RS3_PROFILE === '1';
@@ -110,6 +111,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
   // Uploaded gameplay (whole-save restore, member restore and import) is never
   // authority to use the operator's source integration. Only legacy owns it.
   const originalPasteEnabled = process.env.RS3_ORIGINAL_IMPORT_PASTE === '1';
+  const originalMapCodeEnabled = process.env.RS3_ORIGINAL_IMPORT_MAP_CODE === '1';
   const originalSyncIntegration = pickerId === 'legacy' ? configuredOriginalSync : null;
   const browserDataset = pickerId === 'legacy' || !sharedBrowserDataset ? sharedBrowserDataset : {
     ...sharedBrowserDataset,
@@ -912,7 +914,8 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
     response.setHeader('X-Frame-Options', 'DENY');
     response.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
     if (security.secure) response.setHeader('Strict-Transport-Security', 'max-age=31536000');
-    response.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'");
+    const originalConnect = originalMapCodeEnabled && dataset.datasetId === 'duo-legacy' && dataset.coordinateSystem === 'surface-grid-v1' ? ` ${PUBLIC_FIREBASE_URL}` : '';
+    response.setHeader('Content-Security-Policy', `default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'${originalConnect}; object-src 'none'; base-uri 'none'; frame-ancestors 'none'`);
     let savingSocket, ownsImport, releaseImportUser, route;
     function saveFinished() {
       if (!savingSocket) return;
@@ -1027,7 +1030,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
             if ([...query.keys()].some(key => key !== 'memberId') || query.getAll('memberId').length !== 1) throw httpError(400, 'Choose a player for game progress review.');
             await json(request, response, 200, gamePlugin.review(identity, query.get('memberId'))); return;
           }
-          if (route === '/api/session') { await json(request, response, 200, { ...(pickerRouting ? { multiPicker: true, pickerId: identity.pickerId ?? pickerRouting.registry?.listPickers().find(p => p.kind === 'legacy-shared')?.id ?? pickerId, pickerRoute: pickerId } : {}), originalPasteEnabled: originalPasteEnabled && dataset.datasetId === 'duo-legacy' && dataset.coordinateSystem === 'surface-grid-v1', admin: identity.admin, ...(security.publicRequest ? { adminAvailable: false } : {}), readOnly: identity.readOnly, capabilities: identity.capabilities, label: identity.label, kind: identity.kind, memberId: identity.memberId ?? null, actor: identity.actor, ...(identity.pickerId ? { accountId: identity.accountId, pickerId: identity.pickerId } : {}), ...(pickerRouting?.sessionView ?? signInFlow.sessionView)(identity, security, request) }); return; }
+          if (route === '/api/session') { await json(request, response, 200, { ...(pickerRouting ? { multiPicker: true, pickerId: identity.pickerId ?? pickerRouting.registry?.listPickers().find(p => p.kind === 'legacy-shared')?.id ?? pickerId, pickerRoute: pickerId } : {}), originalMapCodeEnabled: originalMapCodeEnabled && dataset.datasetId === 'duo-legacy' && dataset.coordinateSystem === 'surface-grid-v1', originalPasteEnabled: originalPasteEnabled && dataset.datasetId === 'duo-legacy' && dataset.coordinateSystem === 'surface-grid-v1', admin: identity.admin, ...(security.publicRequest ? { adminAvailable: false } : {}), readOnly: identity.readOnly, capabilities: identity.capabilities, label: identity.label, kind: identity.kind, memberId: identity.memberId ?? null, actor: identity.actor, ...(identity.pickerId ? { accountId: identity.accountId, pickerId: identity.pickerId } : {}), ...(pickerRouting?.sessionView ?? signInFlow.sessionView)(identity, security, request) }); return; }
           if (route === '/api/accounts') {
             requireAdmin();
             const listed = accounts.list().map(account => ({ ...account, ...(pickerRouting?.registry ? { deletionPaused: pickerRouting.registry.listCharacters(account.id).length > 0 } : {}) }));
@@ -1634,6 +1637,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
               const state = captured.state;
               const draft = normalizeSandboxRequest(body, { state, world: indexedWorld,
                 catalogue: sandboxCatalogue, taskIndex: captured.sandboxTaskIndex });
+              if (draft.changes.members && !ruleRegistry.get('content.f2p')) throw httpError(400, 'This dataset does not support membership comparisons.');
               const sandboxValidationMs = performance.now() - started, controller = new AbortController();
               const disconnected = () => { if (!response.writableEnded) controller.abort(); };
               request.once('aborted', disconnected); response.once('close', disconnected);
@@ -1867,13 +1871,14 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
             }
             if (isImportRoute(route)) {
               if (body.originalPaste && !originalPasteEnabled) throw httpError(404, 'Original picker paste import is unavailable.');
+              if (body.originalMapCode && !originalMapCodeEnabled) throw httpError(404, 'Original picker map-code import is unavailable.');
               const currentRevision = store.getInfo().revision;
               const memberRestore = route.startsWith('/api/member-restore');
               if (memberRestore) {
-                if (!identity.admin && (!identity.memberId || identity.memberId !== body.memberId)) throw httpError(403, 'This link can only restore its own player’s map.');
+                if (!identity.admin && identity.role !== 'owner' && (!identity.memberId || identity.memberId !== body.memberId)) throw httpError(403, 'This link can only restore its own player’s map.');
               } else if (!(ownerRestore && identity.role === 'owner')) requireAdmin();
               const result = await store.prepareTransfer(importedFile.input, {
-                route, pickerId, originalPasteEnabled, uploaded: importedFile.uploaded, importBudget: importedFile.budget, dataset: { datasetId: dataset.datasetId, datasetContractVersion: dataset.datasetContractVersion,
+                route, pickerId, originalPasteEnabled, originalMapCodeEnabled, uploaded: importedFile.uploaded, importBudget: importedFile.budget, dataset: { datasetId: dataset.datasetId, datasetContractVersion: dataset.datasetContractVersion,
                   digest: dataset.digest, coordinateSystem: dataset.coordinateSystem, identityNamespace: dataset.identityNamespace,
                   capabilities: dataset.capabilities },
                 world: indexedWorld,
@@ -1890,14 +1895,14 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
               identity = invites.authenticate(request, security);
               if (!identity) throw httpError(401, 'Access required.');
               requirePermission();
-              if (memberRestore && !identity.admin && identity.memberId !== body.memberId) throw httpError(403, 'This link can only restore its own player’s map.');
+              if (memberRestore && !identity.admin && identity.role !== 'owner' && identity.memberId !== body.memberId) throw httpError(403, 'This link can only restore its own player’s map.');
               if (store.getInfo().revision !== currentRevision) throw httpError(409, 'The destination changed. Preview the backup again.');
               if (route.endsWith('/preview')) {
                 await json(request, response, 200, { ...result.response,
                   ...(!result.response.mappingRequired ? { previewToken: transferReviews.preview(body, identity, currentRevision) } : {}) });
                 return;
               }
-              if (body.originalPaste || pickerId !== 'legacy' || body.previewToken) transferReviews.check(body, identity, currentRevision);
+              if (body.originalPaste || body.originalMapCode || pickerId !== 'legacy' || body.previewToken) transferReviews.check(body, identity, currentRevision);
               const applied = await store.applyTransfer(result.ticket, body.expectedRevision);
               if (applied.reply.bytes) {
                 await jsonBytes(request, response, 200, applied.reply.bytes, {}, { identityETag: applied.reply.etag });
@@ -1948,7 +1953,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
       else if (['/chunk-colour-picker.mjs', '/map-chunk-colours.mjs', '/chunk-colours.css'].includes(route)) file = await containedFile(webRoot, route.slice(1));
       else if (['/lamp-choices.mjs', '/lamp-choices.css'].includes(route)) file = await containedFile(webRoot, route.slice(1));
       else if (route === '/core/xp-choices.mjs') file = await containedFile(path.join(ROOT, 'app', 'core'), 'xp-choices.mjs');
-      else if (['/members-start.mjs', '/members-start.css'].includes(route)) file = await containedFile(webRoot, route.slice(1));
+      else if (['/members-start.mjs', '/members-start.css', '/members-preview.mjs', '/preview-additions.mjs'].includes(route)) file = await containedFile(webRoot, route.slice(1));
       else if (route === '/core/members-start.mjs') file = await containedFile(path.join(ROOT, 'app', 'core'), 'members-start.mjs');
       else if (route === '/mining-settings.mjs') file = await containedFile(webRoot, 'mining-settings.mjs');
       else if (route === '/woodcutting-settings.mjs') file = await containedFile(webRoot, 'woodcutting-settings.mjs');
@@ -1987,7 +1992,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
       // Optional full-state tools share these small, pure travel helpers. Their
       // catalogue dependencies already use the selected dataset's static routes.
       else if (['/core/rule-registry.mjs', '/core/progress-index.mjs', '/core/automatic-transport.mjs', '/core/travel-inputs.mjs', '/core/progress-snapshots.mjs', '/core/teleport-returns.mjs', '/core/teleport-return-cache.mjs'].includes(route)) file = await containedFile(path.join(ROOT, 'app', 'core'), route.slice('/core/'.length));
-      else if (['/teleports.mjs', '/teleports.css', '/backup-status.mjs', '/backup-transfer.mjs', '/backup-limits.mjs', '/map-display.mjs', '/map-display.css', '/map-task-counts.mjs', '/map-task-count-renderer.mjs', '/map-task-count-obstacles.mjs', '/map-place-labels.mjs'].includes(route)) file = await containedFile(webRoot, route.slice(1));
+      else if (['/teleports.mjs', '/teleports.css', '/backup-status.mjs', '/backup-transfer.mjs', '/original-map-code.mjs', '/original-map-code-worker.mjs', '/original-public.mjs', '/backup-limits.mjs', '/map-display.mjs', '/map-display.css', '/map-task-counts.mjs', '/map-task-count-renderer.mjs', '/map-task-count-obstacles.mjs', '/map-place-labels.mjs'].includes(route)) file = await containedFile(webRoot, route.slice(1));
       else if (['/stream-safe.mjs', '/stream-safe.css', '/feedback-badge.css'].includes(route)) file = await containedFile(webRoot, route.slice(1));
       else if (['/screen-roll-stats.mjs', '/roll-stats.css'].includes(route)) file = await containedFile(webRoot, route.slice(1));
       else if (['/profile-view.mjs', '/profile-model.mjs', '/profile-copy.mjs', '/profile.css'].includes(route)) file = await containedFile(webRoot, route.slice(1));

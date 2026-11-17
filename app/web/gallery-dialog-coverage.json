@@ -34,6 +34,9 @@
       "finish"
     ]
   },
+  "app/web/members-preview.mjs :: 'What would membership add?'": {
+    "reason": "Needs a live members sandbox calculation, which the gallery does not run. Its result list reuses the chunk Preview task layout (preview-additions.mjs), and the other states are one-line messages."
+  },
   "app/web/game-plugin.mjs :: 'Game plugin'": {
     "reason": "Same game plugin controls as the Activity Info samples, plus the key form. Creating a key is a write the gallery denies, and a real key must never appear in a screenshot."
   },
