@@ -125,7 +125,7 @@ export function createSerializedSnapshotCache(budget, { context = () => undefine
         // Keep the producer's index identity: cancellation rolls an uncharged
         // index back by identity. Its canonicalizer is no longer needed here.
         if (value.planningIndex?.canonical) delete value.planningIndex.canonical;
-        if (!entry.meter || force) { entry.meter = createSnapshotHeapMeter(); entry.heapVersion = undefined; }
+        if (!entry.meter || force) { entry.meter = createSnapshotHeapMeter({ byteLimit: hotSet.byteLimit }); entry.heapVersion = undefined; }
         const meter = entry.meter, prior = entry.heapVersion;
         // Stable baseline objects are immutable; lazy roots are measured only
         // when their identity/size changes. The meter deduplicates their aliases.
@@ -138,6 +138,8 @@ export function createSerializedSnapshotCache(budget, { context = () => undefine
         meter.visit({ ...value, predict: undefined }, false, checkpoint);
         meter.visit(entry.key); meter.visit(entry.owner);
         entry.heapVersion = roots;
+        // An over-bound meter can stop early: this graph cannot be promoted.
+        // Its cold representation below still pays its exact backing charge.
         const cost = entry.heapCost = meter.bytes;
         if (hotSet.canHold(cost) && budget.canAdmit({ cost, owner: 'picker:' + entry.owner })) {
           // Measurement only stages a candidate. A representation or charge

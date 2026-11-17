@@ -16,7 +16,10 @@ export function instrumentProjection(source) {
   ]) replace(anchor, `${anchor.startsWith('      ') ? '      ' : '    '}__fp.mark('${phase}');\n${anchor}`);
   replace('    if (proofSubject) return { howProof:', "    if (proofSubject) { __fp.finish(); return { howProof:");
   replace('proof.finish(howRequest.taskId, { tasks: rows }, howRequest.context) };', 'proof.finish(howRequest.taskId, { tasks: rows }, howRequest.context) }; }');
-  replace('    return result;\n  }\n  function computeEligibility', '    __fp.finish();\n    return result;\n  }\n  function computeEligibility');
+  // Close the same final-pass window without depending on which declarations
+  // follow evaluatePass (dependency bases now precede computeEligibility).
+  const end = '      processingRawAccessEvaluations: { value: replay.rawAccessEvaluations } });';
+  replace(end, `${end}\n    __fp.finish();`);
   return source;
 }
 export function createProjectionRecorder(now = () => Number(process.hrtime.bigint()) / 1000) {
