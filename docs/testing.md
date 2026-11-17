@@ -80,6 +80,29 @@ npm run test:quick -- --list
 npm test -- --list
 ```
 
+## Opt-in full-game unlock equivalence
+
+The long unlock proof lives in `tests/opt-in/`, outside the runner's top-level
+`tests/*.test.mjs` discovery. With the full-game dataset/profile selected in
+the environment, run it explicitly with Node.js 24.20.0 or a newer 24.x release:
+
+```sh
+node --test --test-concurrency=1 tests/opt-in/incremental-unlock-full.test.mjs
+```
+
+It requires at least 2,500 chunk definitions and refuses the bundled F2P
+slice. The three sequences retain all 78 complete-result comparisons against
+cold full calculations: personal (20 unlocks), disconnected partner (eight)
+and alternating ownership (eight), checking both members after each step.
+Negative processing prerequisites and hidden processing counters are unchanged.
+Allow several minutes, use the shared-PC lock and priority rules below, and
+keep this proof separate from browser benchmarks. Its prior full-data evidence
+is recorded in `docs/incremental-unlocks.md`.
+
+`tests/incremental-unlock.test.mjs` remains in the default suite. Its small
+fixtures cover personal and partner unlocks, dependency reuse, negative
+processing prerequisites and full fallbacks without loading the full game.
+
 ## File telemetry
 
 CI retains `test-ledger-<SHA>-<run ID>-<attempt>` and
