@@ -19,7 +19,7 @@ export const existingTestExceptions = [
     death-settings definition-overlays definition-pipeline design-tokens divination-training docs-menu-paths
     duo-backlog duo-task-lists feedback-storage feedback-web finish-line-model finish-line-state
     finish-line-view fishing-display fishing-planner gallery game-coords game-defaults game-plugin-achievements
-    game-plugin-coords game-plugin-items game-plugin-state game-plugin-status game-plugin-tasks game-plugin-web
+    game-plugin-coords game-plugin-state game-plugin-status game-plugin-tasks game-plugin-web
     game-profile gameplay-fingerprint gathering-processing group-goals-view group-goals helper-custom-tasks
     helper-model helper-training history-dialog history-pagination-storage history-reader history-text
     http-response idle-memory instant-screens journal-state json-duplicates json-stream light-facts
@@ -57,6 +57,9 @@ export const existingTestExceptions = [
     warmstart-scheduler watchdog-core woodcutting-preferences xp-choices-model xp-choices-state xp-choices-web
     y03-fuzz-ci
   `],
+  // Main run 44028552302: 134s alone; PR run 44033520402: 388s shared,
+  // with substantial slowdown in neighbours. Preserve quick membership.
+  ['quick solo', `game-plugin-items`],
   ['solo', `
     activity area-check-server.private art-pack-server automatic-travel-integration backup-import-server
     cache-comparison cache-island-policy cache-resources-catalogue cache-resources-expanded-application

@@ -317,23 +317,46 @@ report against its exact assignment before applying the existing
 every-case-passes-somewhere rule. Cancelled, missing or incomplete shards cannot
 make coverage green. The Windows slice is unchanged.
 
-Timings in `scripts/ci/test-timings.json` come from the complete Linux measurements
-in public run `42294078968`. Regenerate from one recent complete Linux run with
-`node scripts/ci/update-test-timings.mjs <ledger.jsonl> [...]`. The slowest passing
-measurement per file supplies its weight and the median supplies new files.
-Avoid retaining inflated maxima from older execution environments.
+Timings in `scripts/ci/test-timings.json` use complete Linux measurements from
+public main Tests run `44028552302` (`cee64cd9`, 2026-11-17), the newest complete
+main run at calibration, and PR #307 run `44033520402` (`0a6cbf36`, same day).
+The latter supplies observed contention costs from a different partition.
+Regenerate with `node scripts/ci/update-test-timings.mjs <ledger.jsonl> [...]`.
+The slowest passing measurement in this recent, same-environment window supplies
+each weight; the median supplies new files. Do not retain inflated maxima from
+older execution environments. Download with
+`gh run download <run-id> -p 'test-ledger-shard-*'` and pass all four JSONL files.
+Regenerate after large runtime/test changes, a material change to the longest
+files, or shard imbalance/timeout pressure; verify all four jobs succeeded and
+all selected files have passing completed receipts. Compare the resulting PR's
+four shard job times with the source runs before landing. After changing a file
+to solo, include a recent exclusive measurement until the next complete run
+under that policy replaces the calibration window. The generator accepts solo
+receipts or a one-file shard for solo weights, rejects shared contention samples,
+and refuses a solo file whose only passing samples were shared.
 
-The rebuilt `linux-tools-install`, `linux-multi-picker` and new
-`linux-ops-effects` weights use focused passing Linux Node.js 24.20.0 measurements
-at `9262ab1`, recorded as a scoped `local-focused` source. The cancelled shard run
-had no completed samples for these files. Other weights and the new-file default
-retain their complete hosted-run calibration. A future complete Linux ledger
-regeneration replaces these focused measurements along with the rest of the table.
+The planner models the runner's serial solo prefix, then assigns shared files
+longest first to the earliest available of six workers. The longest shared file
+starts first in its shared phase; its shard may also contain solo work, whose
+cost is included. Six is the admission cap, not guaranteed concurrency: memory
+pressure, ramp-up, runner contention and job setup can add time. Duration weights
+also depend on neighbours: `game-plugin-items` took 134 seconds in a one-file
+main shard, then 388 seconds shared in the first PR layout, slowing other files
+too. Its existing run-policy exception now marks it solo (still in quick/full),
+so nothing else is admitted beside it. Its 134-second weight is charged in full
+to the solo prefix. Other files retain their observed shared contention costs.
 
-The original unsharded Linux job took about 25 minutes (22m39s in the recorded
-baseline). Fresh weights predict about 6m14s execution per shard plus setup.
-Actual wall time varies with memory admission and contention; hosted ledgers
-validate the estimates. Static test selection is deferred to a separate follow-up
+The former `max(longest, shared total / 6)` approximation also missed worker
+tails: fresh weights gave 502 seconds versus 550 observed on main shard 4.
+Tracking worker finish times fixes that scheduling error, but replaying the same
+run is not validation of a different partition. The first PR plan predicted
+382 seconds per shard and actually took 323/430/673/568 seconds, worse than
+main's 155/482/578/573 seconds. A blanket scaling factor cannot explain the
+file-specific contention. With exclusive plugin-items admission and the updated
+weights, the revised plan estimates 489 seconds per shard; 1.5× plus a 60-second
+setup allowance is about 13m13s. This is a prediction requiring a new hosted
+run, not established headroom. The four shards and 15-minute timeout are unchanged.
+Static test selection is deferred to a separate follow-up
 based on runtime traces of files each test actually loads and reads.
 
 Published pack profiles control which data overlays CI sees. Source overlays do
