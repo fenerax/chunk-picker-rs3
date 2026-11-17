@@ -112,7 +112,7 @@ export class RevisionConflict extends Error {
 }
 
 /** One durable, exclusively locked store. All writes share one revision queue. */
-export async function openStore({ dataDir, world, registry, initialState, migrateState, prepareState, prepareImportState, beforeCommit, beforeLockRecovery, now, random, tokenRandomBytes, taskCatalogue, retention, progressQuestPoints, membersStartBanks, xpChoiceCatalogue, readOnly = false, importReader = false, liveSwapStrict = false, expectedCheckpoint, onActivationTiming, rollPoolCache, computeRollPool, completionCodec = process.env.RS3_COMPLETION_CODEC === '1', startupDiagnostics, ownedFormat2 = false, ownedCatalogueSemantics = false, releaseCommandResponses = false, deltaValidation = false } = {}) {
+export async function openStore({ dataDir, world, registry, initialState, migrateState, prepareState, prepareImportState, beforeCommit, afterRosterCommit, beforeLockRecovery, now, random, tokenRandomBytes, taskCatalogue, retention, progressQuestPoints, membersStartBanks, xpChoiceCatalogue, readOnly = false, importReader = false, liveSwapStrict = false, expectedCheckpoint, onActivationTiming, rollPoolCache, computeRollPool, completionCodec = process.env.RS3_COMPLETION_CODEC === '1', startupDiagnostics, ownedFormat2 = false, ownedCatalogueSemantics = false, releaseCommandResponses = false, deltaValidation = false } = {}) {
   if (!dataDir) throw new TypeError('dataDir is required.');
   if (importReader && (isMainThread || !readOnly)) throw new TypeError('An import reader must be an isolated read-only worker.');
   if (typeof completionCodec !== 'boolean') throw new TypeError('completionCodec must be boolean.');
@@ -331,6 +331,15 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
   let retentionFailure;
   const archiveIndexes = new Map();
   const listeners = new Set();
+  let rosterProjection;
+  async function syncRosterProjection() {
+    if (!afterRosterCommit) return;
+    const members = current.members.map(({ id, runescapeName }) => ({ id, runescapeName: runescapeName ?? null }));
+    const signature = JSON.stringify(members);
+    if (signature === rosterProjection) return;
+    await afterRosterCommit(members);
+    rosterProjection = signature;
+  }
   const envelope = ownedStorage ? state => ({ format: BACKUP_FORMAT, schemaVersion: SCHEMA_VERSION, state: copyState(state) })
     : state => ({ format: BACKUP_FORMAT, schemaVersion: SCHEMA_VERSION, state });
   const envelopePrefix = `${JSON.stringify({ format: BACKUP_FORMAT, schemaVersion: SCHEMA_VERSION }).slice(0, -1)},"state":`;
@@ -1377,6 +1386,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     currentDiskSerialized = diskDocument;
     await ownedStorage?.crash?.('memory-published');
     reportDurability(publication);
+    await syncRosterProjection();
     if (!cleanup && ++maintenanceWrites >= 50 && !frozen && !closing) { maintenanceWrites = 0; void enqueueMaintenance(maintainRetention); }
     for (const listener of listeners) {
       try { listener({ revision: current.revision, ...(operation === 'replace' ? { restored: true } : {}), ...(ownershipChanged ? { ownershipChanged: true } : {}), ...(noteEdit ? { noteEdit: true } : {}), ...(choicesChanged ? { choicesChanged: true } : {}) }); } catch { /* A subscriber cannot roll back a committed write. */ }
@@ -1395,7 +1405,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     const work = async () => {
       const receipt = command && commandReceipt(command, attribution, requestId, requestAck);
       if (receipt) {
-        if (receipt.replay) return serializedResult ? { ...await preparedCommandSnapshot(undefined, false, view), receipt: receipt.result } : cloneCurrent();
+        if (receipt.replay) { await syncRosterProjection(); return serializedResult ? { ...await preparedCommandSnapshot(undefined, false, view), receipt: receipt.result } : cloneCurrent(); }
       }
       checkRevision(expectedRevision);
       const baseline = current;
@@ -1816,6 +1826,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     commandSerialized(command, expectedRevision, { omitUnchanged = false, actor, view, requestId, requestAck } = {}) { return runCommand(command, expectedRevision, true, omitUnchanged, actor, view, requestId, requestAck); },
     async replayCommandSerialized(command, requestId, { actor, view, requestAck } = {}) {
       const receipt = commandReceipt(command, actor, requestId, requestAck);
+      if (receipt?.replay) await syncRosterProjection();
       return receipt?.replay ? { ...await preparedCommandSnapshot(undefined, false, view), receipt: receipt.result } : undefined;
     },
     openActionSession(clientId, { actor } = {}) {
@@ -1992,6 +2003,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
         fingerprint.seedStatic(current, publication.fingerprints.gameplay);
         taskReuseFingerprint.seedStatic(current, publication.fingerprints.tasks);
         reportDurability(published);
+        await syncRosterProjection();
         for (const listener of listeners) {
           try { listener({ revision: current.revision, restored: true, restoredMemberIds: publication.restoredMemberIds, ...(publication.ownershipChanged ? { ownershipChanged: true } : {}), ...(publication.choicesChanged ? { choicesChanged: true } : {}) }); } catch { /* Already committed. */ }
         }

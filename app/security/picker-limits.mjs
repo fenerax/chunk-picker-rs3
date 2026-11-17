@@ -197,12 +197,12 @@ export function createPickerLimits(options = {}, { now = Date.now, onKeyCount = 
     registration(client) { charge(rows('registration', { accountId: client }, config.registrationsPerAccount, 0, config.registrationsGlobal), 1, config.limitWindowMs, 'Too many sign-in attempts. Wait before starting sign-in again.'); },
     provisioningRegistry(value) {
       return new Proxy(value, { get(target, name) {
-        if (!['firstLogin', 'ensureDefaultPicker'].includes(name)) return target[name];
+        if (!['firstLogin', 'ensureDefaultPicker', 'addCharacter'].includes(name)) return target[name];
         return async (...args) => {
           const account = name === 'firstLogin' ? target.findIdentity(...args) : target.getAccount(args[0]);
           const picker = account?.defaultPickerId && target.getPicker(account.defaultPickerId);
           if (name === 'firstLogin' && !account) charge(rows('new-account', { accountId: hash(JSON.stringify(args)) }, config.registrationsPerAccount, 0, config.registrationsGlobal), 1, config.limitWindowMs, 'Too many account registrations. Wait before trying sign-in again.');
-          if (!picker || picker.provisioning !== 'ready') charge(rows('provision', { accountId: account?.id ?? hash(JSON.stringify(args)) }, config.provisioningPerAccount, 0, config.provisioningGlobal), 1, config.limitWindowMs, 'Too many picker creation attempts. Wait and retry sign-in.');
+          if (name === 'addCharacter' || !picker && !account?.initialProvisioned || picker && picker.provisioning !== 'ready') charge(rows('provision', { accountId: account?.id ?? hash(JSON.stringify(args)) }, config.provisioningPerAccount, 0, config.provisioningGlobal), 1, config.limitWindowMs, 'Too many picker creation attempts. Wait and retry sign-in.');
           return target[name](...args);
         };
       } });

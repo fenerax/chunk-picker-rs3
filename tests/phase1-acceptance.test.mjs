@@ -260,8 +260,9 @@ test('P1.3 preview tokens cannot apply or consume another picker proposal', asyn
   }
 });
 
-// Bullet 4: native credentials, SSE and overlay delivery across durable deletion.
-test('P1.4 deletion closes A streams and capabilities while B continues worker and plugin events', { timeout: 15000 }, async t => {
+// Bullet 4: refused self-service deletion preserves credentials and delivery.
+// Stopped operator tombstones remain covered by the recovery cases below.
+test('P1.4 refused character deletion preserves A streams while B continues worker and plugin events', { timeout: 15000 }, async t => {
   const f = await fixture(t), a = await f.login(A), b = await f.login(B);
   await f.note(a, 'Player 1', 0); await f.note(b, 'Player 2', 0);
   const id = await f.picker(A), account = (await f.registry()).accounts.find(row => row.defaultPickerId === id);
@@ -277,8 +278,9 @@ test('P1.4 deletion closes A streams and capabilities while B continues worker a
   const overlay = await f.send('/overlay/events?widget=count&player=owner', a, { stream: true, headers: { Authorization: 'Bearer ' + token } });
   t.after(() => [left, right, overlay].forEach(closeStream));
   assert.deepEqual([left.status, right.status, overlay.status], [200, 200, 200]);
-  const closed = Promise.all([ended(left), ended(overlay)]), before = streamBytes(right);
-  assert.equal((await f.send('/api/picker/delete', a, { body: {} })).status, 200); await closed; await settle();
+  const before = streamBytes(right);
+  assert.equal((await f.send('/api/picker/delete', a, { body: {} })).status, 409); await settle();
+  assert.equal(left.res.readableEnded, false); assert.equal(overlay.res.readableEnded, false);
   assert.equal(streamBytes(right), before); assert.equal(right.res.readableEnded, false);
   const lengths = [streamBytes(left).length, streamBytes(overlay).length];
   assert.equal((await f.note(b, 'Player 2', 1)).status, 200); assert.equal((await f.send('/api/tasks?memberId=owner', b)).status, 200);
@@ -286,10 +288,11 @@ test('P1.4 deletion closes A streams and capabilities while B continues worker a
   await keyFor(f, b); await settle(); assert.ok(streamBytes(right).length > before.length);
   assert.match(streamBytes(right), /event: game-plugin/);
   assert.deepEqual([streamBytes(left).length, streamBytes(overlay).length], lengths);
-  assert.equal((await f.send('/api/state', a)).status, 401);
-  assert.equal((await f.send('/api/plugin/v1/status', undefined, { headers: { Authorization: 'Bearer ' + keys[0] } })).status, 401);
-  assert.equal((await f.send('/overlay/data?widget=count&player=owner', a, { headers: { Authorization: 'Bearer ' + token } })).status, 401);
-  await f.restart(); assert.equal((await f.send('/api/state', a)).status, 401);
+  assert.equal((await f.send('/api/state', a)).status, 200);
+  assert.equal((await f.send('/api/plugin/v1/status', undefined, { headers: { Authorization: 'Bearer ' + keys[0] } })).status, 200);
+  assert.equal((await f.send('/overlay/data?widget=count&player=owner', a, { headers: { Authorization: 'Bearer ' + token } })).status, 200);
+  [left, right, overlay].forEach(closeStream);
+  await f.restart(); assert.equal((await f.send('/api/state', a)).status, 200);
   assert.equal((await stateOf(f, b)).members[0].notes['12341'], 'Player 2');
 });
 function controlledWorkers() {
@@ -314,20 +317,19 @@ function controlledWorkers() {
 }
 
 // Bullet 5: the scheduler itself is real; only its transport is deterministic.
-test('P1.5 cancellation, late delivery and worker crash preserve B queued HTTP work', { timeout: 15000 }, async t => {
+test('P1.5 refused deletion, late delivery and worker crash preserve B queued HTTP work', { timeout: 15000 }, async t => {
   const workers = controlledWorkers(), f = await fixture(t, { taskWorkerOptions: { workerFactory: workers.workerFactory, backoffMs: 1 } });
   const a = await f.login(A), b = await f.login(B), aId = await f.picker(A), bId = await f.picker(B);
   const aRequest = f.send('/api/tasks?memberId=owner', a), first = await workers.next(); assert.equal(first.message.pickerId, aId);
   const bRequest = f.send('/api/tasks?memberId=owner', b); await settle();
-  const deletion = f.send('/api/picker/delete', a, { body: {} });
-  // Deletion fences admission and signals A's active job before late delivery.
-  for (let i = 0; i < 200 && !first.worker.messages.some(m => m.type === 'cancel' && m.pickerId === aId); i++) await new Promise(resolve => setTimeout(resolve, 5));
-  assert.ok(first.worker.messages.some(m => m.type === 'cancel' && m.pickerId === aId));
+  const deletion = await f.send('/api/picker/delete', a, { body: {} });
+  assert.equal(deletion.status, 409);
+  assert.equal(first.worker.messages.some(m => m.type === 'cancel' && m.pickerId === aId), false);
   first.worker.emit('error', new Error('synthetic transport crash'));
   workers.finish(first, 'Player 1');
   const second = await workers.next(); assert.equal(second.message.pickerId, bId); assert.notEqual(second.worker, first.worker);
   workers.finish(second, 'Player 2');
-  assert.notEqual((await aRequest).status, 200); assert.equal((await deletion).status, 200);
+  assert.notEqual((await aRequest).status, 200);
   const result = await bRequest; assert.equal(result.status, 200, result.text); assert.equal(result.json().marker, 'Player 2');
   const cached = await f.send('/api/tasks?memberId=owner', b); assert.equal(cached.json().marker, 'Player 2');
   assert.equal((await f.note(b, 'Player 2', 0)).status, 200);
@@ -358,7 +360,7 @@ test('P1.5 eviction during queued HTTP writes drains accepted work and preserves
 
 // Bullet 6: races share durable provisioning; established shared members keep
 // separate default slots. Offline registry setup models an operator grant.
-test('P1.6 racing sign-ins preserve the shared game and separate private default slots', async t => {
+test('P1.6 racing sign-ins and explicit Add character preserve the shared game and private slots', async t => {
   const f = await fixture(t, { registrationsPerAccount: 20 }), left = await f.begin(A), right = await f.begin(A);
   const callbacks = await Promise.all([left(), right()]); assert.deepEqual(callbacks.map(r => r.status), [303, 303]);
   let doc = await f.registry(); assert.equal(doc.accounts.length, 1); assert.equal(doc.pickers.filter(p => p.kind === 'default').length, 1);
@@ -371,14 +373,19 @@ test('P1.6 racing sign-ins preserve the shared game and separate private default
   await f.restart(async () => {
     const registry = await openRegistry(f.multiPicker);
     try {
-      for (const row of (await f.registry()).accounts.filter(row => !row.defaultPickerId)) await registry.ensureDefaultPicker(row.id);
+      for (const row of (await f.registry()).accounts.filter(row => !row.defaultPickerId)) {
+        assert.equal(await registry.ensureDefaultPicker(row.id), null);
+        await registry.addCharacter(row.id, { requestId: 'explicit-solo' });
+      }
     } finally { await registry.close(); }
   });
   doc = await f.registry(); assert.equal(doc.pickers.filter(p => p.kind === 'default').length, 3);
   const shared = doc.pickers.find(p => p.kind === 'legacy-shared'); assert.equal(shared.ownerAccountId, null);
   for (const subject of [B, C]) {
-    const state = await stateOf(f, await f.login(subject)); assert.deepEqual(state.members.map(m => m.id), ['one', 'two']);
     const row = doc.accounts.find(row => row.identities.some(identity => identity.subject === String(subject)));
+    const character = doc.characters.find(c => c.accountId === row.id && c.placement.pickerId === shared.id);
+    const response = await f.send('/api/state', await f.login(subject), { headers: { 'X-Character-Id': character.id } });
+    assert.equal(response.status, 200, response.text); assert.deepEqual(response.json().state.members.map(m => m.id), ['one', 'two']);
     assert.ok(row.defaultPickerId); assert.ok(row.memberships.some(m => m.pickerId === shared.id));
     assert.ok(row.memberships.some(m => m.pickerId === row.defaultPickerId && m.role === 'owner'));
   }
@@ -416,11 +423,11 @@ async function browser(f, initialCookie) {
 // durable command queue; no mocked session response can hide routing failures.
 for (const change of ['switch', 'logout']) test(`P1.7 browser ${change} retires queued commands, views, streams and recovery`, async t => {
   const f = await fixture(t), a = await f.login(A), b = await f.login(B), page = await browser(f, a);
-  const session = page.c.panelContext.pickerSession, prefix = page.pickerStoragePrefix(page.session.pickerId);
+  const session = page.c.panelContext.pickerSession, prefix = page.pickerStoragePrefix(session.storageScope);
   page.gameStorage().setItem('rs3:task-view', 'Player 1');
   const entered = Promise.withResolvers(), release = Promise.withResolvers(); let released = false;
   t.after(() => release.resolve(() => { released = true; }));
-  const client = createLiveSwapCommandClient({ pickerId: page.session.pickerId, storage: page.tabStore,
+  const client = createLiveSwapCommandClient({ pickerId: session.storageScope, storage: page.tabStore,
     uuid: () => '40000000-0000-4000-8000-000000000001', fetch: session.fetch,
     acquireSession: () => { entered.resolve(); return release.promise; } });
   session.registerCommands(client);
@@ -449,7 +456,7 @@ for (const change of ['switch', 'logout']) test(`P1.7 browser ${change} retires 
 // MP8 must provide the service backup/restore entry point before this can run.
 // Bullet 8: MP8 service backup and stopped restore with the real server on both
 // sides. A is deleted after the backup; its tombstone wins over the backup copy.
-test('P1.8 restoring a service backup containing a later-deleted picker keeps it deleted and B unchanged', { timeout: 15000 }, async t => {
+test('P1.8 restoring a service backup containing a later-deleted picker keeps it deleted and B unchanged', async t => {
   const f = await fixture(t), a = await f.login(A), b = await f.login(B);
   await f.note(a, 'Player 1', 0); await f.note(b, 'Player 2', 0);
   const ids = [await f.picker(A), await f.picker(B)], keys = [await keyFor(f, a), await keyFor(f, b)];
@@ -469,12 +476,20 @@ test('P1.8 restoring a service backup containing a later-deleted picker keeps it
   const configBytes = JSON.stringify({ coreRoot: core, dataDir: live.dataDir, datasetId: 'open-f2p', multiPicker: live.multiPicker });
   await writeFile(config, configBytes); await writeFile(pointer, JSON.stringify({ config: { path: config, sha256: hash(configBytes) } }));
   const release = await readRelease(pointer, live.dataDir);
-  assert.equal((await f.send('/api/picker/delete', a, { body: {} })).status, 200);
+  assert.equal((await f.send('/api/picker/delete', a, { body: {} })).status, 409);
+  await f.restart(async () => {
+    const registry = await openRegistry(f.multiPicker);
+    try { await registry.beginPickerDeletion(ids[0]); } finally { await registry.close(); }
+  });
   const before = await stateOf(f, b);
   await f.restart(async () => {
     const probe = async (_release, dir) => JSON.parse(await readFile(path.join(dir, 'state.json')));
-    const result = await restoreServiceStopped({ settings: recovered, backup, release, assertStopped: async () => {}, probe });
-    assert.equal(result.excluded, 1); assert.equal(result.credentialsRestored, 0);
+    // Guard the stopped restore itself, independently of cold OAuth/setup and
+    // the later reauthentication/reclaim flows. Keep the original guard size.
+    await t.test('stopped restore excludes the tombstoned picker and all credentials', { timeout: 15000 }, async () => {
+      const result = await restoreServiceStopped({ settings: recovered, backup, release, assertStopped: async () => {}, probe });
+      assert.equal(result.excluded, 1); assert.equal(result.credentialsRestored, 0);
+    });
     // Swap the recovered service roots into place, as a disk recovery would.
     for (const name of ['legacy', 'legacy.dataset.json', 'registry', 'pickers']) {
       await rename(path.join(f.root, name), path.join(f.root, 'replaced-' + name));

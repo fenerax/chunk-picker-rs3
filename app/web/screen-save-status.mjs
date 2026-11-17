@@ -65,14 +65,16 @@ const sessionKey = 'picker.active-session.v1';
 const changeKey = 'picker.session-change.v1';
 const unsentMessage = 'Queued changes were not sent because the account or picker changed. A save already in flight may have arrived; check History before repeating it.';
 const abandoned = () => Object.assign(new Error('The account or picker changed. Reload the picker.'), { name: 'AbortError' });
-const identity = session => JSON.stringify([session.pickerId, session.accountId ?? session.account?.id, session.kind, session.memberId, session.readOnly, session.capabilities, session.actor?.kind ?? null, session.actor?.inviteId ?? null]);
+const identity = session => JSON.stringify([session.pickerId, session.accountId ?? session.account?.id, session.characterId, session.kind, session.memberId, session.readOnly, session.capabilities, session.actor?.kind ?? null, session.actor?.inviteId ?? null]);
 
 // One document, one picker: no cache, controller or queued closure is transferred.
 export function createScreenPickerSession(c, { fetch = (...args) => globalThis.fetch(...args),
   location = globalThis.location, notify = message => globalThis.alert?.(message),
   storage = () => globalThis.localStorage, tabStorage = () => globalThis.sessionStorage,
   schedule = globalThis.setInterval, cancel = globalThis.clearInterval } = {}) {
-  let session, signature, stopped = false, checking, timer, queued = 0, commands, accountAction = false;
+  let session, signature, stopped = false, checking, timer, queued = 0, commands, accountAction = false, switching = false;
+  const scope = () => session?.characterId ? JSON.stringify([session.accountId ?? session.account?.id, session.characterId, session.pickerId, session.memberId, session.datasetId, session.datasetDigest]) : session?.pickerId;
+  const scopeHeaders = () => ({ 'X-Picker-Id': session.pickerRoute ?? session.pickerId, ...(session.characterId ? { 'X-Character-Id': session.characterId } : {}) });
   const disposers = new Set(), requests = new Set();
   const safe = work => { try { return work(); } catch {} };
   const active = () => { if (stopped) throw abandoned(); };
@@ -88,7 +90,7 @@ export function createScreenPickerSession(c, { fetch = (...args) => globalThis.f
   function stop({ announce = true } = {}) {
     if (!session?.multiPicker || stopped) return;
     stopped = true; // Stop admission before aborts, storage cleanup or UI callbacks.
-    const pending = queued > 0 || safe(() => commands?.pending()) || storedPending(session.pickerId);
+    const pending = queued > 0 || safe(() => commands?.pending()) || storedPending(scope());
     cancel?.(timer);
     safe(() => commands?.stop());
     for (const controller of requests) controller.abort();
@@ -105,18 +107,18 @@ export function createScreenPickerSession(c, { fetch = (...args) => globalThis.f
     c.viewerPreferences = {}; c.statePools = {}; c.pendingChunkChanges = []; c.lastDuoResults = [];
     c.refreshSaveRecovery?.();
     for (const node of globalThis.document?.querySelectorAll?.('.workspace, #chunk-info, #dialog-content, #pending-panel, #recent-content, #group-goals') ?? []) node.replaceChildren();
-    safe(() => tabStorage().setItem(sessionKey, JSON.stringify({ signature, pickerId: session.pickerId, retired: true })));
-    safe(() => clear(session.pickerId));
+    safe(() => tabStorage().setItem(sessionKey, JSON.stringify({ signature, pickerId: scope(), retired: true })));
+    safe(() => clear(scope()));
     stopPickerStorage(); // Late preference callbacks cannot recreate cleared records.
     if (pending && announce) notify(unsentMessage);
   }
-  function reload() { stop(); clear(session.pickerId); location.reload(); }
+  function reload() { stop(); clear(scope()); location.reload(); }
   async function check() {
     if (!session?.multiPicker) return;
     active();
     if (accountAction) throw new Error('An account change is in progress. Try again after it finishes.');
     if (!checking) checking = withStartupTimeout(async (signal, readJSON) => {
-      const response = await fetch('/api/session', { credentials: 'same-origin', cache: 'no-store', signal });
+      const response = await fetch('/api/session', { credentials: 'same-origin', cache: 'no-store', signal, headers: scopeHeaders() });
       active();
       if ([401, 403].includes(response.status)) { reload(); throw abandoned(); }
       if (!response.ok) {
@@ -131,7 +133,16 @@ export function createScreenPickerSession(c, { fetch = (...args) => globalThis.f
     return checking;
   }
   async function scopedFetch(path, options, transport = fetch) {
-    if (!session?.multiPicker) return transport(path, options);
+    if (!session?.multiPicker) {
+      const url = new URL(location?.href ?? 'http://localhost/');
+      const character = url.searchParams.get('character');
+      const group = /^\/pickers\/(p_[0-9a-f]{32})\//.exec(url.pathname)?.[1];
+      if (!character && !group) return transport(path, options);
+      const headers = new Headers(options?.headers);
+      if (character) headers.set('X-Character-Id', character);
+      if (group) headers.set('X-Picker-Id', group);
+      return transport(path, { ...options, headers });
+    }
     // Unload flushes must dispatch before teardown: skip the preflight. The
     // picker header still binds them, and the server refuses a changed session.
     if (options?.keepalive) active(); else { await check(); active(); }
@@ -144,6 +155,7 @@ export function createScreenPickerSession(c, { fetch = (...args) => globalThis.f
     let retain = false;
     try {
       const headers = new Headers(options?.headers); headers.set('X-Picker-Id', session.pickerRoute ?? session.pickerId);
+      if (session.characterId) headers.set('X-Character-Id', session.characterId);
       const response = await transport(path, { ...options, headers, signal: controller.signal });
       active();
       if ([401, 403].includes(response.status)) await check();
@@ -178,8 +190,8 @@ export function createScreenPickerSession(c, { fetch = (...args) => globalThis.f
       if (key.endsWith('.v1') || !record || record.body || record.unsent) notify('An older pending save has no picker identity and was not sent. Check History in the original picker before repeating it.');
       tabStorage().removeItem(key);
     }
-    configurePickerStorage(session.pickerId);
-    safe(() => tabStorage().setItem(sessionKey, JSON.stringify({ signature, pickerId: session.pickerId })));
+    configurePickerStorage(scope());
+    safe(() => tabStorage().setItem(sessionKey, JSON.stringify({ signature, pickerId: scope() })));
     c.usage?.refreshPreference();
     timer = schedule?.(() => { void check().catch(() => {}); }, 5000); timer?.unref?.();
     globalThis.addEventListener?.('focus', () => { void check().catch(() => {}); });
@@ -191,7 +203,7 @@ export function createScreenPickerSession(c, { fetch = (...args) => globalThis.f
       if (link && /^\/auth\//.test(link.getAttribute('href') ?? '') && !event.ctrlKey && !event.metaKey && !event.shiftKey && !event.altKey
         && (event.button ?? 0) === 0 && !['_blank', '_new'].includes((link.getAttribute('target') ?? '').toLowerCase())) {
         stop();
-        try { clear(session.pickerId); } catch { event.preventDefault(); c.notice?.('Browser storage could not be cleared. Restore browser storage before switching accounts.', true); }
+        try { clear(scope()); } catch { event.preventDefault(); c.notice?.('Browser storage could not be cleared. Restore browser storage before switching accounts.', true); }
       }
     }, true);
   }
@@ -201,7 +213,7 @@ export function createScreenPickerSession(c, { fetch = (...args) => globalThis.f
   const beforeSignOut = () => {
     if (session?.multiPicker) {
       stop();
-      if (session?.multiPicker) clear(session.pickerId);
+      if (session?.multiPicker) clear(scope());
       safe(() => storage().setItem(changeKey, String(Date.now())));
     }
     // Every deployment, not only multi-picker ones: the display snapshot holds
@@ -213,6 +225,14 @@ export function createScreenPickerSession(c, { fetch = (...args) => globalThis.f
   };
   c.panelContext ??= {};
   c.panelContext.pickerSession = { initialize, check, fetch: scopedFetch, stop, beforeSignOut,
+    async beforeSwitch() {
+      active(); switching = true;
+      try {
+        await c.queue;
+        if (queued || commands?.pending() || storedPending(scope())) throw new Error('A save is not confirmed. Use Retry save and check History before switching characters.');
+        stop({ announce: false }); await c.viewCache?.clear();
+      } catch (error) { switching = false; throw error; }
+    },
     async beginAccountAction() {
       if (checking) await checking;
       active();
@@ -221,10 +241,11 @@ export function createScreenPickerSession(c, { fetch = (...args) => globalThis.f
       return () => { accountAction = false; };
     },
     get pickerId() { return session?.pickerId; }, get stopped() { return stopped; },
+    get storageScope() { return scope(); },
     get enabled() { return session?.multiPicker === true; },
-    streamPath: () => session?.multiPicker ? `/api/events?picker=${encodeURIComponent(session.pickerRoute ?? session.pickerId)}` : '/api/events',
+    streamPath: () => session?.multiPicker ? `/api/events?picker=${encodeURIComponent(session.pickerRoute ?? session.pickerId)}${session.characterId ? `&character=${encodeURIComponent(session.characterId)}` : ''}` : '/api/events',
     registerStop: dispose => disposers.add(dispose),
     registerCommands: value => { commands = value; },
-    queueCommand() { active(); queued++; let done = false; return () => { if (!done) { done = true; queued--; } }; },
+    queueCommand() { active(); if (switching) throw new Error('A character switch is in progress.'); queued++; let done = false; return () => { if (!done) { done = true; queued--; } }; },
   };
 }

@@ -74,7 +74,10 @@ export async function readFile(file, ...args) {
 export async function lstat(file, ...args) {
   await boundary('lstat', file, 'before');
   const info = await fs.lstat(file, ...args);
-  return attributes(info, inode(info));
+  // Windows number Stats round birthtime differently from bigint Stats. Use
+  // the same precise key as chown/open so synthetic ownership survives reads.
+  const identity = typeof info.ino === 'bigint' ? info : await fs.lstat(file, { bigint: true });
+  return attributes(info, inode(identity));
 }
 export async function chmod(file, mode) {
   await boundary('chmod', file, 'before');

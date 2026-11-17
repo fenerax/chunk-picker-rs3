@@ -1,7 +1,8 @@
+import { characterLabel, characterDetails, createCharacterForm } from './character-menu.mjs';
 const providerNames = { discord: 'Discord', google: 'Google' };
 const providersFor = account => [...new Set([...(account?.providers ?? []), ...(account?.identities ?? []).map(identity => identity.provider), account?.provider].filter(provider => Object.hasOwn(providerNames, provider)))];
 
-export function createAccountPanel({ el, openDialog, menuButton, topMenu, fetch = globalThis.fetch, location = globalThis.location, beforeSignOut = () => {}, beginAccountAction = async () => () => {}, dialogCurrent = () => true, ownerActions = {} }) {
+export function createAccountPanel({ el, openDialog, menuButton, topMenu, fetch = globalThis.fetch, location = globalThis.location, beforeSignOut = () => {}, beforeSwitch = beforeSignOut, beginAccountAction = async () => () => {}, dialogCurrent = () => true, ownerActions = {} }) {
   let session = {};
   const available = () => Boolean(session.account) || (session.signIn?.providers?.length ?? 0) > 0;
   const signedInName = () => Object.hasOwn(providerNames, session.account?.provider) ? providerNames[session.account.provider] : providersFor(session.account).map(provider => providerNames[provider]).join(' and ');
@@ -26,13 +27,39 @@ export function createAccountPanel({ el, openDialog, menuButton, topMenu, fetch 
       const signedIn = signedInName();
       content.append(el('p', signedIn ? `Signed in with ${signedIn}` : 'Signed in', compact ? 'account-menu-status' : undefined));
       if (session.multiPicker) {
+        if (session.characters) {
+          content.append(el('h3', 'Characters'));
+          const status = el('p', undefined, 'field-help'); status.setAttribute('role', 'alert');
+          for (const [index, character] of session.characters.entries()) {
+            const current = character.id === session.characterId;
+            const button = actionButton(`${characterLabel(character, index)}${current ? ' · Current' : ''}`, async () => {
+              button.disabled = true;
+              try { await beforeSwitch(); location.assign(character.href); }
+              catch (failure) { status.textContent = failure.message; button.disabled = false; }
+            });
+            button.disabled = current || !character.available;
+            button.setAttribute('aria-current', current ? 'true' : 'false');
+            const row = el('div'); row.append(button, el('p', `${characterDetails(character)}${character.available ? '' : ' · unavailable'}`, 'field-help')); content.append(row);
+          }
+          content.append(status);
+          actions.append(actionButton('Add character', () => {
+            const form = createCharacterForm({ el, accountId: session.accountId ?? session.account.id, fetch,
+              onCreated: async character => { await beforeSwitch(); location.assign(character.href); } });
+            openDialog('Add character', form);
+          }));
+        }
         content.append(el('p', `Account: ${session.accountId ?? session.account.id}`, 'field-help'));
         content.append(el('p', `Picker: ${session.pickerId}`, 'field-help'));
         if (session.ownerControls?.role) content.append(el('p', `Role: ${session.ownerControls.role}`, 'field-help'));
         if (isOwner()) for (const [label, action] of Object.entries(ownerActions)) actions.append(actionButton(label, action));
         if (session.ownerControls) {
-          if (isOwner()) actions.append(actionButton('Delete picker', () => deletionDialog('picker')));
-          actions.append(actionButton('Delete account', () => deletionDialog('account')));
+          for (const target of [...(isOwner() ? ['picker'] : []), 'account']) {
+            const control = actionButton(`Delete ${target}`, () => deletionDialog(target));
+            control.disabled = session.ownerControls.deletionPaused === true;
+            if (control.disabled) control.title = 'Deletion affecting characters will be available with character deletion.';
+            actions.append(control);
+          }
+          if (session.ownerControls.deletionPaused) content.append(el('p', 'Deletion affecting characters is unavailable until character deletion is supported. Your maps and access are unchanged.', 'field-help'));
         }
       }
       if (!compact && providers.length > 1) content.append(el('p', `Linked sign-ins: ${providers.map(provider => providerNames[provider]).join(' and ')}.`, 'field-help'));

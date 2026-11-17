@@ -32,7 +32,7 @@ test('private browser harness supplies every public collaborator', { skip: !proc
   async function collaborators(helperPath) {
     const url = pathToFileURL(helperPath);
     let source = await readFile(url, 'utf8');
-    const bindings = { URL };
+    const bindings = { URL, Headers };
     const imports = [...source.matchAll(/^import\s+(\{[^{};]*\}|\*\s+as\s+[\w$]+)\s+from\s+['"]([^'"]+)['"];?\r?\n/gm)];
     for (const [declaration, names, specifier] of imports) {
       const namespace = /^\*\s+as\s+(\w+)$/.exec(names.trim());

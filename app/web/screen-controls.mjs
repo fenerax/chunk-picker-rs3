@@ -78,8 +78,13 @@ export function createScreenControls(c) {
     });
     document.querySelector('.topbar nav').addEventListener('click', event => { if (event.target.closest('button, a')) c.closeTopMenus(); });
     document.addEventListener('click', event => { for (const menu of menus) if (!menu.contains(event.target)) menu.open = false; });
-    observeScreenBars(document);
-    const toolbarLayout = new ResizeObserver(() => c.$('map-panel').style.setProperty('--map-toolbar-height', `${document.querySelector('.map-toolbar').getBoundingClientRect().height}px`)); toolbarLayout.observe(document.querySelector('.map-toolbar'));
+    const screenBars = observeScreenBars(document);
+    const toolbarLayout = new ResizeObserver(() => {
+      if (c.panelContext?.pickerSession?.stopped) return;
+      c.$('map-panel')?.style.setProperty('--map-toolbar-height', `${document.querySelector('.map-toolbar')?.getBoundingClientRect().height ?? 0}px`);
+    });
+    toolbarLayout.observe(document.querySelector('.map-toolbar'));
+    c.panelContext?.pickerSession?.registerStop(() => { toolbarLayout.disconnect(); screenBars.disconnect(); });
     c.phoneLayout?.mount();
   }
 

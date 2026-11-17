@@ -58,6 +58,8 @@ export async function readScreenGraph() {
 }
 
 export function runScreenGraph(context, modules) {
+  context.URL ??= URL;
+  context.Headers ??= Headers;
   context.memberDisplay ??= memberDisplay;
   context.memberSelect ??= memberSelect;
   context.resolveDeathSettings ??= resolveDeathSettings;

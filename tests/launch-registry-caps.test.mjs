@@ -33,7 +33,8 @@ const denied = (operation, pattern) => assert.rejects(operation, failure => fail
 
 test('adopted defaults keep defensive bounds and raise only entity/capability ceilings', () => {
   assert.deepEqual(DEFAULT_REGISTRY_CAPS, { accounts: 3000, pickers: 3500, capabilities: 20000, capabilitiesPerPicker: 100,
-    issuedPickerIds: 1000000, retiredAccounts: 1000000, membershipsPerAccount: 1000, membersPerPicker: 100 });
+    issuedPickerIds: 1000000, retiredAccounts: 1000000, membershipsPerAccount: 1000, membersPerPicker: 100,
+    characters: 3000, charactersPerAccount: 10, issuedCharacterIds: 1000000, retiredCharacters: 1000000 });
 });
 
 test('the 3000th active login persists and the next login leaves records and ledger unchanged', async t => {
@@ -61,7 +62,8 @@ test('3500 non-deleted pickers include deleting and reserved records; overflow i
     lifecycle: 'deleting', provisioning: 'reserved', memberIds: ['owner'], createdAt: at }));
   const tombstones = pickers.map(p => ({ pickerId: p.id, lifecycle: 'deleting', deletingAt: at, deletedAt: null }));
   await f.seed([owner], pickers, tombstones); await f.open();
-  const last = await f.registry.firstLogin('google', 'synthetic-1');
+  assert.equal((await f.registry.firstLogin('google', 'synthetic-1')).picker, null);
+  const last = await f.registry.addCharacter(owner.id, { requestId: 'last-place' });
   assert.equal(f.registry.listPickers().length, 3500);
   for (const restart of [false, true]) {
     if (restart) await f.restart();

@@ -311,6 +311,10 @@ test('bounded text assembly retains exact private inputs without copying pack pa
 // The observed busy-PC run took 119 seconds alone (131 s on 2026-10-20) and over
 // 180 s inside the sequential tooling contracts; keep headroom for those captures.
 test('a new kit prepares a changed-pack release with its own packs, bidirectional evidence and fresh full/gallery keys', {}, async t=>{
+  // This fixture supplies synthetic stage results and checks evidence identity,
+  // not elapsed time. Keep receipt creation/verification on one logical clock;
+  // expiry, future timestamps and early budgets have independent unit fixtures.
+  t.mock.timers.enable({ apis: ['Date'], now: Date.parse('2026-01-01T00:00:00.000Z') });
   const old=await fixture(t),next=await fixture(t);
   // This scenario deliberately installs its own HTTP save/endpoint adapter below.
   // Keep that adapter unchanged and substitute only the unrelated startup CLI

@@ -118,9 +118,10 @@ function providerFixture(config, clock) {
   return { fetch, grant, calls, sensitive, exchanges, responses };
 }
 
-async function fixture(t, mode = 'optional', rateLimits = {}) {
+async function fixture(t, mode = 'optional', rateLimits = {}, { multiPicker = false } = {}) {
   await mkdir(root, { recursive: true });
   const directory = await mkdtemp(path.join(root, 'server-')), dataDir = path.join(directory, 'game');
+  const registryOptions = multiPicker ? { registryDir: path.join(directory, 'registry'), pickerRoot: path.join(directory, 'pickers'), tombstoneDir: path.join(directory, 'ledger') } : undefined;
   const config = {}, envKeys = [], oldEnvironment = new Map(), browserSecrets = [];
   for (const provider of ['discord', 'google']) {
     const prefix = `RS3_${provider.toUpperCase()}_CLIENT_`, file = path.join(directory, `${provider}-secret`);
@@ -141,6 +142,7 @@ async function fixture(t, mode = 'optional', rateLimits = {}) {
   let app, currentMode = mode;
   async function start(state) {
     app = await createServer({ dataset: selectedDataset, dataDir, initialState: state, definitions, taskMap: {},
+      multiPicker: registryOptions,
       host: '127.0.0.1', port: 0, loopbackPort: 0, loopbackRole: 'public', publicOrigin,
       signIn: currentMode, signInProvider: { fetch: provider.fetch, now: () => clock.now(), setTimeout: clock.setTimeout, clearTimeout: clock.clearTimeout }, predictionPrewarm: false,
       shutdownDeadlineMs: 500, rateLimits: { failedJoins: 100, unauthenticated: 1000, ...rateLimits } });
@@ -197,7 +199,7 @@ async function fixture(t, mode = 'optional', rateLimits = {}) {
     const route = `/auth/${flow.name}/callback?${new URLSearchParams({ code, state: flow.state })}`;
     return { response: await client.request(route), route, code };
   }
-  return { get app() { return app; }, dataDir, config, provider, clock, browserSecrets, invite, browser, begin, callback, admin, privateOrigin, publicAddress,
+  return { get app() { return app; }, dataDir, registryOptions, config, provider, clock, browserSecrets, invite, browser, begin, callback, admin, privateOrigin, publicAddress,
     async restart(nextMode = currentMode) { await app.close(); currentMode = nextMode; await start(); } };
 }
 
@@ -628,6 +630,33 @@ test('simultaneous callbacks for one invite allocate only its winning account', 
   assert.equal(accounts.length, 1); assert.equal(accounts[0].memberships.length, 1);
   const invites = (await (await f.admin('/api/invites')).json()).invites;
   assert.equal(invites[0].claimedAccountId, accounts[0].id);
+});
+
+for (const existing of [false, true]) test(`replacement invite refuses a different ${existing ? 'existing' : 'new'} sign-in without persisting a character transfer`, async t => {
+  const f = await fixture(t, 'required', {}, { multiPicker: true });
+  const original = await f.invite(), owner = f.browser();
+  const originalIdentity = await signIn(f, owner, 'discord', original);
+  if (existing) await signIn(f, f.browser(), 'google', await f.invite({ label: 'Reed', memberId: 'reed' }));
+  assert.equal((await f.admin(`/api/invites/${original.invite.id}/revoke`, {})).status, 200);
+  const replacement = await f.invite(), stranger = f.browser();
+  const flow = await f.begin(stranger, 'google', replacement);
+  const files = [path.join(f.dataDir, 'accounts.json'), path.join(f.dataDir, 'invites.json'),
+    path.join(f.registryOptions.registryDir, 'registry.json'), path.join(f.registryOptions.tombstoneDir, 'ledger.json'), path.join(f.dataDir, 'state.json')];
+  const before = await Promise.all(files.map(file => readFile(file)));
+  const result = await f.callback(stranger, flow);
+  assert.equal(result.response.status, 409);
+  assert.match(await result.response.text(), /ownership transfers are unavailable/i);
+  assert.equal(stranger.jar.has('duo_access'), false);
+  assert.deepEqual(await Promise.all(files.map(file => readFile(file))), before, 'A refused transfer changes no account, claim, registry, ledger or gameplay bytes.');
+  const invites = JSON.parse(await readFile(files[1])).invites;
+  assert.equal(invites.find(invite => invite.id === replacement.invite.id).claimedAccountId, undefined);
+  await f.restart();
+  assert.equal((await f.admin('/api/accounts')).status, 200, 'The refused claim cannot poison server startup.');
+  // Replacing a revoked grant for its established controller is still supported.
+  const reopened = await signIn(f, f.browser(), 'discord', replacement);
+  assert.equal(reopened.account.id, originalIdentity.account.id);
+  await f.restart();
+  assert.equal((await f.admin('/api/accounts')).status, 200);
 });
 
 for (const mode of ['optional', 'required']) test(`${mode} unassigned player invites explain assignment and only optional links can continue`, async t => {

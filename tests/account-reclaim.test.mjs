@@ -70,7 +70,7 @@ test('MP15 source with another membership or owned picker refuses without change
   await f.close();
   const document = JSON.parse(await readFile(f.file));
   const id = 'p_' + randomUUID().replaceAll('-', '');
-  document.pickers.push({ ...source.picker, id, lifecycle: 'deleted' });
+  document.pickers.push({ ...source.picker, id, lifecycle: 'deleted', seats: [], ownerCharacterId: null });
   const ledger = JSON.parse(await readFile(f.ledger)); ledger.issuedPickerIds.push(id);
   ledger.pickers.push({ pickerId: id, lifecycle: 'deleted', deletingAt: new Date().toISOString(), deletedAt: new Date().toISOString() });
   await writeFile(f.file, JSON.stringify(document)); await writeFile(f.ledger, JSON.stringify(ledger)); await f.open();

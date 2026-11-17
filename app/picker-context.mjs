@@ -1,4 +1,5 @@
 import { createTransferReviews } from './save-transfer.mjs';
+import { DELETION_PAUSED } from './storage/registry-characters.mjs';
 import { reserveImportUser } from './import-jobs.mjs';
 import { boundedOutput, displayText } from './import-output.mjs';
 import { originalTransfer } from './original-transfer.mjs';
@@ -192,7 +193,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
   let store;
   const prepareImportState = prepareState;
   prepareState = preserveGameIdentity(dataset, prepareState);
-  store = await openStore({ dataDir, world: indexedWorld, registry: ruleRegistry, initialState, migrateState, prepareState, prepareImportState, beforeCommit, now, random, retention, membersStartBanks, xpChoiceCatalogue, progressQuestPoints: createProgressQuestPoints(parsedDefinitions), rollPoolCache, computeRollPool: evaluatedRollPool,
+  store = await openStore({ dataDir, world: indexedWorld, registry: ruleRegistry, initialState, migrateState, prepareState, prepareImportState, beforeCommit, afterRosterCommit: pickerRouting?.syncCharacterNames, now, random, retention, membersStartBanks, xpChoiceCatalogue, progressQuestPoints: createProgressQuestPoints(parsedDefinitions), rollPoolCache, computeRollPool: evaluatedRollPool,
     // Only rows carrying a level need a copy without it; generated goal rows are read as they are.
     taskCatalogue: taskWorker ? new Map([...(ownedBase?.tasks ?? taskWorker.catalogue), ...taskWorker.dynamicCatalogue].map(row => {
       if (!Object.hasOwn(row, 'level')) return [row.id, row];
@@ -203,6 +204,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
   if (PROFILE_ENABLED) profile.wrapMethods(store, ['command', 'commandSerialized', 'getStateSnapshot'], 'store');
   try {
     startupSignal?.throwIfAborted();
+    await pickerRouting?.syncCharacterNames?.(store.getCalculationSnapshot().readState.members);
     if (initialImport) {
       const current = store.getState();
       if (current.revision || current.history.length || current.members.some(member => member.unlocked.length || member.selected.length || member.completedTasks.length)) throw new TypeError('This store already has gameplay. Start without --import and use the reviewed import in Backup & Import.');
@@ -1029,7 +1031,11 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
             await json(request, response, 200, gamePlugin.review(identity, query.get('memberId'))); return;
           }
           if (route === '/api/session') { await json(request, response, 200, { ...(pickerRouting ? { multiPicker: true, pickerId: identity.pickerId ?? pickerRouting.registry?.listPickers().find(p => p.kind === 'legacy-shared')?.id ?? pickerId, pickerRoute: pickerId } : {}), originalMapCodeEnabled: originalMapCodeEnabled && dataset.datasetId === 'duo-legacy' && dataset.coordinateSystem === 'surface-grid-v1', originalPasteEnabled: originalPasteEnabled && dataset.datasetId === 'duo-legacy' && dataset.coordinateSystem === 'surface-grid-v1', admin: identity.admin, ...(security.publicRequest ? { adminAvailable: false } : {}), readOnly: identity.readOnly, capabilities: identity.capabilities, label: identity.label, kind: identity.kind, memberId: identity.memberId ?? null, actor: identity.actor, ...(identity.pickerId ? { accountId: identity.accountId, pickerId: identity.pickerId } : {}), ...(pickerRouting?.sessionView ?? signInFlow.sessionView)(identity, security, request) }); return; }
-          if (route === '/api/accounts') { requireAdmin(); await json(request, response, 200, { accounts: accounts.list() }); return; }
+          if (route === '/api/accounts') {
+            requireAdmin();
+            const listed = accounts.list().map(account => ({ ...account, ...(pickerRouting?.registry ? { deletionPaused: pickerRouting.registry.listCharacters(account.id).length > 0 } : {}) }));
+            await json(request, response, 200, { accounts: listed }); return;
+          }
           if (route === '/api/pool-ranking') {
             noteTiming({ source: 'cache' });
             const query = new URL(request.url, 'http://localhost').searchParams;
@@ -1683,6 +1689,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
               const [, id, action] = accountAction;
               if (Object.keys(body).some(key => action !== 'unlink' || key !== 'provider')) throw httpError(400, 'Use only the requested account action.');
               if (!accounts.get(id)) throw httpError(404, 'Account not found.');
+              if (action === 'delete' && pickerRouting?.registry?.listCharacters(id).length) throw httpError(409, DELETION_PAUSED);
               if (action === 'unlink' && !['discord', 'google'].includes(body.provider)) throw httpError(400, 'Choose a sign-in provider.');
               // Identity removal also invalidates existing sessions; re-entry uses a remaining identity.
               await invites.revokeAccountSessions(id);
@@ -1990,6 +1997,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
       else if (['/screen-roll-stats.mjs', '/roll-stats.css'].includes(route)) file = await containedFile(webRoot, route.slice(1));
       else if (['/profile-view.mjs', '/profile-model.mjs', '/profile-copy.mjs', '/profile.css'].includes(route)) file = await containedFile(webRoot, route.slice(1));
       else if (['/group-goals.mjs', '/group-goals.css', '/finish-line-view.mjs', '/finish-line-model.mjs', '/finish-line-copy.mjs', '/finish-line.css'].includes(route)) file = await containedFile(webRoot, route.slice(1));
+      else if (route === '/character-menu.mjs') file = await containedFile(webRoot, 'character-menu.mjs');
       else if (route === '/screen-chunk-notes.mjs') file = await containedFile(webRoot, 'screen-chunk-notes.mjs');
       else if (['/screen-journal.mjs', '/journal.css'].includes(route)) file = await containedFile(webRoot, route.slice(1));
       else if (route === '/screen-backlog.mjs') file = await containedFile(webRoot, 'screen-backlog.mjs');

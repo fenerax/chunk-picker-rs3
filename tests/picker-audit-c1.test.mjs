@@ -14,6 +14,7 @@ for (const key of ['RS3_PACKS_DIR', 'RS3_PACK_SELECTION', 'RS3_PUBLIC_ORIGIN', '
 const { createServer } = await import('../app/server.mjs');
 const { createGroupState } = await import('../app/core/state.mjs');
 const { selectedDataset } = await import('../app/dataset-runtime.mjs');
+const { openRegistry } = await import('../app/storage/registry.mjs');
 const { snapshotPath } = await import('../app/storage/snapshot.mjs');
 const { restoreServiceStopped } = await import('../scripts/linux/service-recovery.mjs');
 const { readRelease } = await import('../scripts/linux/runtime.mjs');
@@ -117,7 +118,15 @@ async function fixture(t) {
       probe: async (_release, dir) => JSON.parse(await readFile(path.join(dir, 'state.json'), 'utf8')) });
     await start(target); return { result, target };
   }
-  return { root, settings, send, login, begin, session, note, deleteAccount, capture, restore, handler: () => handler };
+  const retireStopped = async (kind, selected) => {
+    await app.close();
+    const registry = await openRegistry(settings.multiPicker);
+    try {
+      if (kind === 'account') await registry.deleteAccount(selected.accountId, { runtimePurge: true });
+      else await registry.beginPickerDeletion(selected.pickerId);
+    } finally { await registry.close(); }
+  };
+  return { root, settings, send, login, begin, session, note, deleteAccount, retireStopped, capture, restore, handler: () => handler };
 }
 
 for (const deletion of ['none', 'picker', 'account']) {
@@ -134,7 +143,8 @@ for (const deletion of ['none', 'picker', 'account']) {
     assert(!exported.some(row => /(?:accounts|invites|plugin-keys|overlays)\.json|access-token/.test(row.path)));
     if (deletion !== 'none') {
       const response = deletion === 'account' ? await f.deleteAccount(cookies[0]) : await f.send('/api/picker/delete', cookies[0], { body: {} });
-      assert.equal(response.status, 200, response.text);
+      assert.equal(response.status, 409, response.text);
+      await f.retireStopped(deletion, sessions[0]);
     }
     const { result, target } = await f.restore(backup);
     assert.equal(result.credentialsRestored, 0); assert.equal(result.excluded, deletion === 'none' ? 0 : 1);
@@ -199,14 +209,14 @@ test('audit C1: a plugin report whose body started before key revocation cannot 
   assert.equal((await f.send('/api/game-plugin', cookie)).json().positions.length, 1);
 });
 
-test('audit C1: an OAuth flow begun before account deletion creates a fresh principal', { timeout: 10000 }, async t => {
+test('audit C1: an OAuth flow across refused character deletion retains the existing principal', { timeout: 10000 }, async t => {
   const f = await fixture(t), cookie = await f.login(subjects[0]), old = await f.session(cookie);
   assert.equal((await f.note(cookie, 'Player 1')).status, 200);
   const finish = await f.begin(subjects[0]);
-  assert.equal((await f.deleteAccount(cookie)).status, 200);
+  assert.equal((await f.deleteAccount(cookie)).status, 409);
   const freshCookie = await finish(), fresh = await f.session(freshCookie);
-  assert.notEqual(fresh.accountId, old.accountId); assert.notEqual(fresh.pickerId, old.pickerId);
-  assert.equal((await f.send('/api/state', cookie)).status, 401);
+  assert.equal(fresh.accountId, old.accountId); assert.equal(fresh.pickerId, old.pickerId);
+  assert.equal((await f.send('/api/state', cookie)).status, 200);
   const state = (await f.send('/api/state', freshCookie)).json().state;
-  assert.equal(state.revision, 0); assert.equal(state.members[0].notes, undefined);
+  assert.equal(state.revision, 1); assert.equal(state.members[0].notes['12341'], 'Player 1');
 });
