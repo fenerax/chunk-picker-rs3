@@ -6,6 +6,17 @@ function originalArchive(state, memberId) {
   const seen = new Set();
   for (let node = state.provenance; node && typeof node === 'object' && !seen.has(node); node = node.restore?.incomingProvenance) {
     seen.add(node);
+    // Archives keep their source attribution. Walk each transfer backwards,
+    // newest first, to interpret this node and its incoming restore in those
+    // source IDs without rewriting any evidence (including ID swaps).
+    const transfers = new Set();
+    for (let transfer = node.transferRoster; transfer && typeof transfer === 'object'; transfer = transfer.previous) {
+      if (transfers.has(transfer)) return;
+      transfers.add(transfer);
+      const sources = Object.entries(transfer.mapping ?? {}).filter(([, target]) => target === memberId);
+      if (sources.length !== 1) return;
+      memberId = sources[0][0];
+    }
     const archive = node.originalPasteImports?.findLast(row => row.memberId === memberId);
     if (archive) return archive;
   }

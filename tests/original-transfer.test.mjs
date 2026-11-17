@@ -4,6 +4,7 @@ process.env.RS3_DATASET = 'open-starter';
 const { createGroupState } = await import('../app/core/state.mjs');
 const { originalTransfer } = await import('../app/original-transfer.mjs');
 const { normalizeOriginalPaste, originalChunkList } = await import('../app/original-paste.mjs');
+const { mapTransferRoster } = await import('../app/save-transfer.mjs');
 const dataset = { datasetId: 'duo-legacy', datasetContractVersion: 1, coordinateSystem: 'surface-grid-v1', identityNamespace: 'rs3' };
 const world = { chunks: new Map(['12850', '12594', '13106', '12338', '12082'].map(id => [id, { id }])) };
 const defaults = { Extra: true, F2P: true };
@@ -116,4 +117,32 @@ test('empty maps never offer the original importer an empty token that it would 
   const result = exportOriginal(state);
   assert.equal(result.url, null); assert.match(result.message, /grid cell zero/);
   assert.equal(result.journal, state.members[0].journal); assert.ok(result.rulesJSON);
+});
+
+test('retained rules follow roster mappings and nested restores without changing historical evidence', () => {
+  let { state } = importOriginal({ chunks: { unlocked: { '12850': '12850' } }, rules: { Extra: false } });
+  const sourceId = state.members[0].id;
+  state.members.push(createGroupState([{ id: 'peer', name: 'Synthetic peer' }]).members[0]);
+  state.members[1].unlocked = ['12594'];
+  state.provenance.originalPasteImports.push({ memberId: 'peer', rules: [{ key: 'Extra', value: true }] });
+  const historical = structuredClone(state.provenance.originalPasteImports);
+  const check = (owner, peer) => {
+    const before = structuredClone(state);
+    for (const [id, expected] of [[owner, false], [peer, true]]) {
+      assert.equal(JSON.parse(originalTransfer(state, id, dataset, world, { defaults }).rulesJSON).Extra, expected);
+    }
+    assert.deepEqual(state, before, 'Export leaves historical evidence and mappings untouched');
+  };
+  state = mapTransferRoster(state, state.members, { [sourceId]: 'peer', peer: sourceId });
+  check('peer', sourceId);
+  state = mapTransferRoster(state, [{ id: 'destination' }, { id: 'other' }], { peer: 'destination', [sourceId]: 'other' });
+  check('destination', 'other');
+  assert.deepEqual(state.provenance.originalPasteImports, historical);
+  state.provenance = { restore: { incomingProvenance: state.provenance } };
+  state = mapTransferRoster(state, [{ id: 'final' }, { id: 'partner' }], { destination: 'final', other: 'partner' });
+  state.provenance = { restore: { incomingProvenance: state.provenance } };
+  check('final', 'partner');
+  assert.deepEqual(state.provenance.restore.incomingProvenance.restore.incomingProvenance.originalPasteImports, historical);
+  state.provenance.originalPasteImports = [{ memberId: 'final', rules: [{ key: 'Extra', value: true }] }];
+  assert.equal(JSON.parse(originalTransfer(state, 'final', dataset, world, { defaults }).rulesJSON).Extra, true, 'A newer import takes precedence over restored evidence');
 });
