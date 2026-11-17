@@ -1,7 +1,7 @@
 import { createTransferReviews } from './save-transfer.mjs';
 import { reserveImportUser } from './import-jobs.mjs';
 import { boundedOutput, displayText } from './import-output.mjs';
-import { originalChunkURL } from './original-chunk-url.mjs';
+import { originalTransfer } from './original-transfer.mjs';
 import { PUBLIC_FIREBASE_URL } from './web/original-public.mjs';
 import { noteTiming } from './live-timings.mjs';
 import { serveLiveTimings, isLiveTimingsRoute } from './live-timings-route.mjs';
@@ -1510,9 +1510,9 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
           if (route === '/api/export/original-chunks') {
             const memberId = new URL(request.url, 'http://localhost').searchParams.get('memberId');
             if (!identity.admin && identity.role !== 'owner' && identity.memberId !== memberId) throw httpError(403, 'Export only your own member map.');
-            const member = store.getReadState().members.find(row => row.id === memberId);
+            const state = store.getReadState(), member = state.members.find(row => row.id === memberId);
             if (!member) throw httpError(400, 'Choose a known player.');
-            await json(request, response, 200, { url: originalChunkURL(member.unlocked, dataset, indexedWorld), message: 'Only unlocked chunks carry over. Tasks, rules, notes and History do not carry over. Importing the link replaces chunks in the original picker.' }); return;
+            await json(request, response, 200, originalTransfer(state, memberId, dataset, indexedWorld)); return;
           }
           if (route === '/api/backups') { await json(request, response, 200, { backups: await store.listBackups() }); return; }
           if (route === '/api/members-start') { await json(request, response, 200, { data: membersStartBanks }); return; }

@@ -4598,13 +4598,41 @@ test('save-transfer chunk export supplies a selectable fallback and ignores stal
   const h = harness(); h.context.navigator = { clipboard: { writeText: async () => { throw new Error('Synthetic clipboard denial'); } } };
   h.run('backupDialog()');
   h.route(() => ({ url: 'https://gitgeddes.github.io/ChunkPicker/?fv', message: 'Only unlocked chunks carry over.' }));
-  await h.click('Copy link for the original picker');
-  assert.equal(h.nodes.get('dialog-title').textContent, 'Export unlocked chunks');
-  const link = h.all().find(node => node.tagName === 'INPUT' && node.readOnly);
+  await h.click('Move to the original picker');
+  assert.equal(h.nodes.get('dialog-title').textContent, 'Move to the original picker');
+  const link = h.all().find(node => node.tagName === 'TEXTAREA' && node.readOnly);
   assert.equal(link.value, 'https://gitgeddes.github.io/ChunkPicker/?fv');
+  await h.click('Copy chunk link');
   assert.equal(h.context.document.activeElement, link);
   h.run('backupDialog()'); const pending = deferred(); h.route(() => pending.promise);
-  const request = h.click('Copy link for the original picker'); await flush(); h.run('settingsPanels.settings()');
+  const request = h.click('Move to the original picker'); await flush(); h.run('settingsPanels.settings()');
   pending.resolve({ url: 'https://gitgeddes.github.io/ChunkPicker/?fv', message: 'Only chunks.' }); await request;
   assert.equal(h.nodes.get('dialog-title').textContent, 'Settings');
+});
+
+test('save-transfer guide keeps the requested player when the selector changes before the export responds', async () => {
+  const h = harness(), pending = deferred();
+  h.run("state.members[0].name = 'Synthetic destination'; state.members[1].name = 'Synthetic other'; backupDialog()");
+  h.route(() => pending.promise);
+  const request = h.click('Move to the original picker'); await flush();
+  assert.equal(h.calls.at(-1).path, '/api/export/original-chunks?memberId=actor1');
+  const selector = h.nodes.get('dialog-content').querySelector('select');
+  selector.value = 'reed'; await selector.emit('change');
+  h.run("state.members[0].name = 'Renamed after request'");
+  pending.resolve({ url: 'https://gitgeddes.github.io/ChunkPicker/?fv', rulesJSON: '{"Extra":false}', journal: 'Synthetic destination journal', message: 'Synthetic destination chunks.' });
+  await request;
+  assert.equal(h.nodes.get('dialog-title').textContent, 'Move to the original picker');
+  assert.ok(h.all().some(node => node.tagName === 'P' && node.textContent.startsWith('Moving Synthetic destination.')));
+  assert.deepEqual(h.all().filter(node => node.tagName === 'TEXTAREA' && node.readOnly).map(node => node.value),
+    ['https://gitgeddes.github.io/ChunkPicker/?fv', '{"Extra":false}', 'Synthetic destination journal']);
+});
+
+test('save-transfer guide visibly lists every defaulted rule for review before importing', async () => {
+  const h = harness(), resetRules = Array.from({ length: 125 }, (_, index) => `Synthetic reference rule ${index}`);
+  h.run('backupDialog()');
+  h.route(() => ({ url: 'https://gitgeddes.github.io/ChunkPicker/?fv', rulesJSON: '{"Extra":true}', resetRules, resetRuleCount: resetRules.length, appOnlyRules: [] }));
+  await h.click('Move to the original picker');
+  assert.ok(h.all().some(node => node.tagName === 'P' && node.textContent.startsWith('Check these rules in the original picker before importing this JSON.')));
+  for (const key of resetRules) assert.ok(h.find('li', key), `${key} is listed without opening a disclosure`);
+  assert.ok(h.find('button', 'Copy original rules'));
 });

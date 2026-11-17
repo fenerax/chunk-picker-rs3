@@ -3,6 +3,7 @@ import { parseRequestJSON } from './security/json.mjs';
 import { decodeLegacyText } from './tasks/gameplay-compat.mjs';
 import { buildIdentityIndex, legacyTaskId } from './tasks/identity.mjs';
 import { createGroupState } from './core/state.mjs';
+import { migrateJournal } from './tasks/migration.mjs';
 import { boundedOutput, REPORT_RECORDS, DISPLAY_CHARACTERS } from './import-output.mjs';
 import { originalRuleDefaults, taskRuleDefinitions, taskRuleBehavior, taskRuleValueError } from './data/settings.mjs';
 
@@ -183,10 +184,13 @@ export function normalizeOriginalPaste(document, { current, world, dataset, migr
   }
   member.taskStatus = Object.fromEntries(statuses);
   state.tasks = [...referenced].map(id => Object.fromEntries(Object.entries(definitions.get(id)).filter(([key]) => ['id', 'label', 'category', 'completionIds', 'skill', 'level'].includes(key))));
+  const journalWarnings = [], journalCounts = { journals: 0 };
+  migrateJournal(member, paste.gameplay, journalWarnings, journalCounts);
+  for (const warning of journalWarnings) add('gameplay', 'chunkNotes', undefined, warning);
   // All other branches are explicitly archive-only; they never become authority,
   // observed personal progress, generated tasks or integration bindings.
   for (const [key, value] of Object.entries(paste.gameplay)) {
-    if (key !== 'chunkinfo' && key !== 'chunks') add('gameplay', key, value, 'This gameplay branch is retained only. Paste rules separately; clipboard chunks are authoritative.');
+    if (key !== 'chunkinfo' && key !== 'chunks' && !(key === 'chunkNotes' && journalCounts.journals)) add('gameplay', key, value, 'This gameplay branch is retained only. Paste rules separately; clipboard chunks are authoritative.');
   }
   for (const [key, value] of Object.entries(chunks ?? {})) if (!['selected', 'potential', 'blacklisted'].includes(key)) add('chunks', key, value, key === 'unlocked' ? 'Clipboard chunks are authoritative; captured ownership retained for comparison.' : 'Chunk annotations are retained only.');
   for (const [key, value] of Object.entries(paste.gameplay.chunkinfo ?? {})) if (!['checkedAllTasks', 'checkedChallenges', 'completedChallenges', 'backlog', 'favoriteTasks'].includes(key)) add('chunkinfo', key, value, 'This task-control branch is retained only.');
