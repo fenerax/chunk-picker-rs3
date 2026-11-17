@@ -1,0 +1,12 @@
+.guest-notice { display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-4) var(--space-5); padding:var(--space-4) var(--space-6); background:var(--panel); border-bottom:1px solid var(--hairline); font-size:var(--type-sm); }
+.guest-notice > span { flex:1 1 26rem; }
+.guest-notice details { position:relative; }
+.guest-notice details p { position:absolute; z-index:30; right:0; width:min(28rem,85vw); padding:var(--space-6); background:var(--panel); border:1px solid var(--hairline); box-shadow:0 4px 16px #0006; }
+.guest-notice a { color:inherit; }
+[data-guest] #group-goals { display:none; }
+[data-guest] #active-tasks .task-row > .task-why { position:static; pointer-events:auto; opacity:1; }
+@media(max-width:600px) {
+  .guest-notice { gap:var(--space-2) var(--space-4); padding:var(--space-2) var(--space-4); font-size:var(--type-xs); }
+  .guest-notice > span { flex-basis:100%; }
+  .guest-notice button,.guest-notice a,.guest-notice summary { min-height:44px; display:inline-flex; align-items:center; }
+}

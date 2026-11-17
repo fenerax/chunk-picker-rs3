@@ -1412,6 +1412,33 @@ test('a saved wrong-task backlog offers an editable report; closing sends nothin
   assert.deepEqual(h.snapshot().members[1].taskStatus[task.id], saved);
 });
 
+test('guest task details and wrong-task backlog do not offer stored feedback', async () => {
+  const h = harness();
+  h.run('panelContext.guest = true; showTask(state.tasks[0])');
+  assert.equal(h.find('button', 'Report a problem with this task'), undefined);
+  h.context.guestCommands = [];
+  h.run('command = async payload => guestCommands.push(payload)');
+  h.run("backlogForm(document.getElementById('active-tasks'), state.tasks[0])");
+  for (const node of dialogNodes(h).filter(node => node.type === 'radio')) node.checked = node.value === 'Task looks wrong';
+  await h.nodes.get('dialog-content').querySelector('form').emit('submit', { preventDefault() {} });
+  assert.equal(h.context.guestCommands.length, 1);
+  assert.equal(h.context.guestCommands[0].backlogged, true);
+  assert.equal(h.context.guestCommands[0].backlogReason, 'Task looks wrong');
+  assert.equal(h.find('button', 'Report a problem with this task'), undefined);
+  assert.ok(h.calls.every(call => !call.path.startsWith('/api/feedback')));
+});
+
+test('guest Inside tab explains its limit without requesting an account endpoint', () => {
+  const h = harness();
+  h.context.interiorCandidates = () => ['12341'];
+  h.context.interiorPanel = () => assert.fail('Guest must not load interior maps');
+  h.run("panelContext.guest = true; supportsFeature = feature => feature !== 'training'; chunkTab = 'interior'; showChunk('12341')");
+  assert.ok(h.find('button', 'Tasks'), 'Bounded chunk tasks remain available despite the training helper limit');
+  assert.ok(h.find('button', 'Clues'));
+  assert.ok(h.find('p', 'Sign in for interior maps. Guest mode shows the surface map.'));
+  assert.ok(h.calls.every(call => !call.path.startsWith('/api/interior-maps')));
+});
+
 test('task details and info sources display the raw unknown label', () => {
   const h = harness(); h.context.opaqueTask = { ...task, sources: [{ kind: 'drop', source: 'Rat', probability: null, unknownRate: true, rawRate: 'Very rare', rate: 'Very rare' }] };
   h.run('showTask(opaqueTask)');

@@ -164,6 +164,10 @@ export function createSetupGuide(ctx) {
     }
     list.append(el('dt', 'The map'), el('dd', 'Click or tap a chunk to see its details and tasks.'));
     if (ctx.isPhone?.()) list.append(el('dt', 'Map, Tasks, More'), el('dd', 'On a phone, switch views with the tabs at the bottom.'));
+    if (ctx.guest?.()) {
+      body.append(list, el('h3', 'Keep your browser save'), el('p', 'Export / Import downloads your save. Groups and invite links need an account.'));
+      return;
+    }
     body.append(list, el('h3', 'Invite your partner'));
     if (ctx.isAdmin?.()) {
       body.append(el('p', 'Make a player link for them in Admin → Invite links. Each link is private: send it only to them.'));
@@ -228,7 +232,7 @@ export function createScreenSetupGuide(c) {
     command: c.command, api: c.api, state: () => c.state, memberId: () => c.memberId, preferences: c.preferences,
     canWrite: c.canWrite, sandboxActive: () => !!c.sandbox?.active, advanced: c.advanced, supportsFeature: c.supportsFeature,
     world: () => c.world, plain: c.plain, centerOnChunk: id => c.map?.centerOnChunk(id), showError: c.showError,
-    control: id => c.$(id), isPhone: () => !c.$('phone-tabs')?.hidden, isAdmin: () => c.sessionAdmin,
+    control: id => c.$(id), isPhone: () => !c.$('phone-tabs')?.hidden, isAdmin: () => c.sessionAdmin, guest: () => c.panelContext.guest === true,
     openInvites: () => c.$('invites-open')?.click(),
   });
   c.setupGuide = guide;

@@ -40,6 +40,19 @@ The first launch creates a fresh `open-f2p` game for Explorer 1 and Explorer 2.
 Progress is stored in `var/open-f2p`; later launches resume it. The sibling
 `var/open-f2p.dataset.json` binds that storage to its dataset.
 
+Guest mode is off by default. Operators can opt in with `RS3_GUEST_MODE=1`
+before starting the server; no launcher enables it. With the flag enabled,
+open a separate solo picker without signing in at
+`http://127.0.0.1:8952/guest/`. Its save stays in this browser, separate from
+the server's game. Use **Download save** to keep a portable copy and **Import
+save** to move it to another browser. Clearing site data removes the browser
+copy. Guests can roll, check tasks, open How explanations and change rules;
+groups, progress sync, plugins, overlays and server backups require sign-in.
+The public sign-in page then offers **Try without signing in**. With the flag
+unset or any value other than `1`, `/guest` and `/guest/*` return 404, no
+guest limits or workers are created, and sign-in has no guest link. See
+[Guest mode](docs/guest-mode.md) for the calculation and admission limits.
+
 The bare address requires authentication on a fresh browser. Open
 `var/open-f2p/access-token` locally in a text editor and copy its single token,
 without trailing whitespace. In your browser's address bar, replace `<token>`

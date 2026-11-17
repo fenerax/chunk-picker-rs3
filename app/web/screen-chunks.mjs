@@ -193,10 +193,12 @@ export function createScreenChunks(c) {
     const hasNote = c.state.members.some(owner => owner.notes?.[id]?.trim()), topology = c.world.sectionTopology.get(id);
     const tabs = [
       { id: 'contents', label: 'Contents', render: () => c.chunkContents(record, undefined, true) },
-      ...(c.canWrite() && c.supportsFeature?.('training') !== false ? [{ id: 'tasks', label: 'Tasks', render: () => planningSection(1) }, { id: 'clues', label: 'Clues', render: () => planningSection(0) }] : []),
+      ...(c.canWrite() && (c.panelContext?.guest || c.supportsFeature?.('training') !== false) ? [{ id: 'tasks', label: 'Tasks', render: () => planningSection(1) }, { id: 'clues', label: 'Clues', render: () => planningSection(0) }] : []),
       ...(c.canWrite() && c.world.surface.has(id) && !mine ? [{ id: 'unlock', label: 'Preview', render: () => c.unlockPreview(id) }] : []),
       ...(c.world.chunks.has(id) ? [{ id: 'note', label: hasNote || c.chunkDrafts.has(`${c.memberId}:${id}`) ? 'Note ●' : 'Note', accessibleLabel: hasNote ? 'Note (saved note)' : c.chunkDrafts.has(`${c.memberId}:${id}`) ? 'Note (unsaved draft)' : 'Note', render: () => c.chunkNote(id) }] : []),
-      ...(interiorCandidates(id, record, c.world).length ? [{ id: 'interior', label: 'Inside', render: () => interiorPanel({ el: c.el, button: c.button, api: c.api, world: c.world }, interiorCandidates(id, record, c.world)) }] : []),
+      ...(interiorCandidates(id, record, c.world).length ? [{ id: 'interior', label: 'Inside', render: () => c.panelContext?.guest
+        ? c.el('p', 'Sign in for interior maps. Guest mode shows the surface map.', 'field-help')
+        : interiorPanel({ el: c.el, button: c.button, api: c.api, world: c.world }, interiorCandidates(id, record, c.world)) }] : []),
       ...(area || topology ? [{ id: 'access', label: 'Access', render: () => c.chunkAccess(id, topology) }] : []),
     ];
     // The Inside tab lists the same places as its map picker, so hide the duplicate row there.

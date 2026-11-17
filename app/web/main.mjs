@@ -33,6 +33,7 @@ import { createScreenUsage } from './screen-usage.mjs';
 import { createScreenSetupGuide } from './setup-guide.mjs';
 import { showStartupError } from '../startup-read.mjs';
 
+export function createPickerScreen({ configureTransport = () => {}, configureScreen = () => {} } = {}) {
 // Feature factories register callbacks before startup uses them. No module imports a peer.
 const screen = createScreenContext();
 screen.applyDatasetCopy();
@@ -40,7 +41,8 @@ createScreenUi(screen);
 createScreenPickerSession(screen);
 createScreenSettings(screen);
 createScreenUsage(screen);
-createScreenCommands(screen);
+const transport = configureTransport(screen);
+createScreenCommands(screen, transport);
 createScreenRoll(screen);
 createScreenMap(screen);
 createScreenLoading(screen);
@@ -70,4 +72,8 @@ createScreenPhoneLayout(screen);
 createScreenSetupGuide(screen);
 screen.applyDatasetControls();
 
-screen.start().catch(showStartupError);
+configureScreen(screen);
+return screen;
+}
+
+if (!globalThis.location?.pathname.startsWith('/guest/')) createPickerScreen().start().catch(showStartupError);

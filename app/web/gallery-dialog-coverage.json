@@ -1,4 +1,7 @@
 {
+  "app/web/guest.mjs :: 'Export / Import'": {
+    "reason": "Browser-owned guest save replacement requires writable localStorage, Web Locks and a page reload. The read-only gallery forbids those writes; synthetic guest transport and HTTP tests plus the isolated headless import flow cover this dialog."
+  },
   "app/web/screen-tasks.mjs :: 'Backlog task'": {
     "reason": "Task-row action dialog with native reason choices and optional details; synthetic backlog interaction tests cover cancellation, owner selection and refused-save draft recovery."
   },

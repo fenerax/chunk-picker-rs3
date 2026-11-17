@@ -6,7 +6,7 @@ import { createCalculationFeedback, calculationLabel } from './calculation-feedb
 import { createSaveRecovery } from './screen-save-recovery.mjs';
 
 // Main-screen commands; shared values and callbacks live in the explicit screen context.
-export function createScreenCommands(c) {
+export function createScreenCommands(c, { commandClient: providedClient } = {}) {
   const readRequest = createRequestReader({ fetch: (...args) => c.panelContext?.pickerSession ? c.panelContext?.pickerSession.fetch(...args) : fetch(...args) });
   let durableCommands, recoveredForm, connectionNoticeShown = false;
   const showSaveRetry = createSaveRecovery(c, {
@@ -30,11 +30,11 @@ export function createScreenCommands(c) {
       return c.queue;
     },
   });
-  const commandClient = () => durableCommands ??= createLiveSwapCommandClient({ pickerId: c.panelContext?.pickerSession?.storageScope ?? c.panelContext?.pickerSession?.pickerId,
+  const commandClient = () => providedClient ?? (durableCommands ??= createLiveSwapCommandClient({ pickerId: c.panelContext?.pickerSession?.storageScope ?? c.panelContext?.pickerSession?.pickerId,
     fetch: (...args) => c.panelContext?.pickerSession ? c.panelContext?.pickerSession.fetch(...args) : fetch(...args), onRetry: event => {
     if (event?.status === 'paused') { c.saved('Save not confirmed', true); showSaveRetry(true); }
     else { showSaveRetry(false); if (event?.status !== 'confirmed') c.saved('Reconnecting… Confirming save', true); }
-  } });
+  } }));
   c.panelContext?.pickerSession?.registerCommands({ pending: () => hasPendingCommand(), stop: () => { durableCommands?.stop(); recoveredForm = undefined; showSaveRetry(false); checks = []; } });
   const feedback = createCalculationFeedback({ show(text) {
     let node = c.$('calculation-status');

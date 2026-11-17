@@ -168,7 +168,9 @@ export function runScreenGraph(context, modules) {
     source = source.replace(/^export\s+(?=(?:async\s+)?function\s+|(?:const|let|class)\s+)/gm, '');
     for (const match of modules.get(url.href).matchAll(/^export\s+(?:(?:async\s+)?function|const|let|class)\s+(\w+)/gm)) names.push(match[1]);
     // Suppress only the entrypoint's automatic lifecycle; factory bodies run as shipped.
-    if (url.href === entry.href) source = source.replace(/^(?:screen\.)?start\(\)\.catch\(.*$/m, '');
+    if (url.href === entry.href) source = /function createPickerScreen\(/.test(source)
+      ? source.replace(/^if \(!globalThis\.location.*$/m, '') + '\nconst screen = createPickerScreen();'
+      : source.replace(/^(?:screen\.)?start\(\)\.catch\(.*$/m, '');
     const factory = runInContext(`(__dependencies) => {\n${source}\nreturn { ${names.join(', ')}${url.href === entry.href ? `${names.length ? ', ' : ''}__screen: screen` : ''} };\n}`, context, { filename: url.pathname });
     const exports = factory(dependencies);
     loaded.set(url.href, exports);

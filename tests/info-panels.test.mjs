@@ -51,6 +51,16 @@ function harness(preferences = {}, storage) {
   return { state, result, ui, panels, ctx: helpers, find, inputFor, openTraining, openDetails, nodes: () => walk(ui.nodes) };
 }
 
+test('guest Activity Info explains training limits and keeps local training assumptions', async () => {
+  const h = harness(); h.ctx.guest = true;
+  await h.openTraining();
+  assert.equal(h.find('button', 'Plan training'), undefined);
+  assert.ok(h.nodes().some(node => node.textContent.includes('Sign in for training plans')));
+  assert.ok(h.nodes().some(node => node.textContent.includes('Sign in to sync real account progress')));
+  assert.ok(h.find('button', 'Save training assumption'));
+  assert.deepEqual(h.ui.attempts, []);
+});
+
 test('Activity Info skill methods hide unmatched Wiki delimiters without changing task references or goals', async () => {
   const controls = [
     ['rs3:task:000038', 'Enter the Polar eagle eyrie|~', 'Enter the Polar eagle eyrie'],

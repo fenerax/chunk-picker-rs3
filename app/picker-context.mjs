@@ -106,7 +106,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
     originalSyncIntegration: configuredOriginalSync, privateAddon, appVersion, browserDataset: sharedBrowserDataset, webRoot, art,
     loadChunkSections, loadMapInfo, loadNpcShopInfo, loadArchaeology, loadInteriors,
     iconCatalogue, terrainCatalogue, trainingCatalogue, membersStartBanks,
-    limits, admitStream: legacyAdmitStream, usageAdmission, requestContextFor, pickerLimits,
+    limits, admitStream: legacyAdmitStream, usageAdmission, requestContextFor, pickerLimits, guestModeEnabled,
   } = runtime;
   // Uploaded gameplay (whole-save restore, member restore and import) is never
   // authority to use the operator's source integration. Only legacy owns it.
@@ -231,7 +231,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
     accounts = await openAccountStore({ dataDir });
     invites = await openInviteStore({ dataDir, masterToken: token, masterLabel: dataset.gameDefaults.masterLabel, accounts, signInMode: signIn, pickerRegistry: pickerRouting?.registry });
     if (pickerRouting?.authenticate) invites.authenticate = (request, security) => pickerRouting.authenticate(request, security, pickerId);
-    signInFlow = await openSignIn({ publicOrigin, mode: signIn, accounts, invites, provider: signInProvider,
+    signInFlow = await openSignIn({ publicOrigin, mode: signIn, accounts, invites, provider: signInProvider, guestModeEnabled,
       unauthenticated: key => limits.unauthenticated(key), checkRequestOrigin, serializeMutation, webRoot, pickerRegistry: pickerLimits && pickerRouting?.registry ? pickerLimits.provisioningRegistry(pickerRouting.registry) : pickerRouting?.registry, syncLegacy: pickerRouting?.syncLegacy, reclaimIdentity: pickerRouting?.reclaimIdentity });
     feedback = await openFeedbackStore({ dataDir });
     const usageMembers = store.getCalculationSnapshot().members;
@@ -1928,7 +1928,64 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
         }
         throw httpError(404, 'API route not found.');
       }
+      await serveStatic(request, response, route);
+    } catch (error) {
+      if (response.destroyed) return;
+      if (response.headersSent) { response.end(); return; }
+      const status = error.code === 'REVISION_CONFLICT' ? 409 : error.status ?? (error.code === 'ENOENT' ? 404 : error instanceof TypeError || error instanceof RangeError || error instanceof SyntaxError ? 400 : 500);
+      if (error.retryAfter) response.setHeader('Retry-After', error.retryAfter);
+      // Refuse unread/slow uploads without keeping their socket alive.
+      if (!request.complete) response.setHeader('Connection', 'close');
+      if (signInFlow.errorPage(request, response, security, error, status)) return;
+      if (isImportRoute(route)) {
+        // A stale import needs a fresh preview, not a full main-thread clone,
+        // projection, serialization and hash of the destination's saved state.
+        await json(request, response, status, boundedOutput({
+          message: status === 500 ? 'The save could not be completed. Your previous save remains available.'
+            : error.code === 'ENOENT' ? 'Not found.' : redactInviteTokens(displayText(error.message)),
+          ...(error.code ? { code: error.code } : {}),
+          ...(error.code === 'REVISION_CONFLICT' ? { revision: store.getInfo().revision } : {}),
+        }));
+        return;
+      }
+      await json(request, response, status, { message: status === 500 ? 'The save could not be completed. Your previous save remains available.' : error.code === 'ENOENT' ? 'Not found.' : redactInviteTokens(error.message),
+        ...(['TASK_RESULTS_UNAVAILABLE', 'TASK_DETAILS_UNAVAILABLE', 'TASK_WHY_UNAVAILABLE', 'SAVED_WHY_BUSY'].includes(error.code) || error.code === 'PICKER_UPDATING' || /^(?:REQUEST_|ACTION_SESSION_)/.test(error.code ?? '') ? { code: error.code } : {}),
+        ...(error.code === 'ACTION_SESSION_RETIRED' && error.safeToRetry === true ? { safeToRetry: true } : {}),
+        ...(error.code === 'REVISION_CONFLICT' ? await viewEnvelope(error.importConflict ? store.getState() : error.state, viewFor(request)) : {}),
+        ...(error.code === 'REVISION_CONFLICT' && error.claimOnlyChanges === true ? { claimOnlyChanges: true } : {}),
+        ...((routeIsRuneMetrics(request) || (request.url ?? '').startsWith('/api/original-sync/')) && error.code !== 'REVISION_CONFLICT' && error.code ? { code: error.code } : {}) });
+    } finally { if (ownsImport) importingBackup = false; releaseImportUser?.(); }
+  };
+  const requestHandler = async (request, response, listener) => {
+    let route, lease;
+    try {
+      if (closed) throw httpError(503, 'The picker is stopping. Retry after it restarts.');
+      route = decodeURIComponent((request.url ?? '/').split('?')[0]);
+      const health = ['GET', 'HEAD'].includes(request.method) && route === '/api/health';
+      const safeStandbyRead = ['GET', 'HEAD'].includes(request.method) && !route.startsWith('/join/')
+        && (['/', '/api/health', '/api/art-status', '/api/overlays', '/api/state'].includes(route)
+          || (!route.startsWith('/api/') && (route.startsWith('/overlay/') || /\.(?:mjs|css|html|json|svg|png|jpg|webp|woff2)$/.test(route))));
+      if ((handover.frozen && !health) || (liveSwap?.standby && !safeStandbyRead)) {
+        throw Object.assign(httpError(503, 'Please try again in a moment.'), { code: 'PICKER_UPDATING', retryAfter: 1 });
+      }
+      // All handlers, including overlays, join, usage retention and invitation
+      // touches, enter this exclusion before their first asynchronous operation.
+      if (!health) lease = handover.begin();
+      await applicationRequestHandler(request, response, lease, listener);
+    } catch (error) {
+      request.resume();
+      if (response.destroyed || response.headersSent) return;
+      response.setHeader('Cache-Control', PRIVATE_NO_STORE);
+      if (error.retryAfter) response.setHeader('Retry-After', error.retryAfter);
+      await json(request, response, error.status ?? 400, { message: error.status ? error.message : 'Invalid URL.', ...(error.code ? { code: error.code } : {}) });
+    } finally { lease?.finish(); }
+  };
+  let activationPending;
+  async function serveStatic(request, response, route, { guest = false } = {}) {
       if (request.method !== 'GET' && request.method !== 'HEAD') throw httpError(405, 'Method not allowed.');
+      if (guest && route === '/art-status.json') {
+        await json(request, response, 200, await art.status()); return;
+      }
       let file;
       let iconFile;
       let interiorFile;
@@ -1945,7 +2002,8 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
           catalogue.complete && catalogue.manifest.available ? PRIVATE_REVALIDATE : PRIVATE_NO_STORE });
         await sendRepresentation(request, response, catalogue.response, { conditional: catalogue.complete && catalogue.manifest.available }); return;
       }
-      if (route === '/') file = await containedFile(webRoot, 'index.html');
+      if (['/asset-url.mjs', '/guest-transport.mjs'].includes(route)) file = await containedFile(webRoot, route.slice(1));
+      else if (route === '/') file = await containedFile(webRoot, 'index.html');
       else if (['/overlay-panel.mjs', '/overlay-panel.css', '/game-plugin.mjs', '/game-plugin.css', '/signin.css', '/account-panel.mjs', '/accounts-panel.mjs'].includes(route)) file = await containedFile(webRoot, route.slice(1));
       else if (route === '/core/chunk-colours.mjs') file = await containedFile(path.join(ROOT, 'app', 'core'), 'chunk-colours.mjs');
       else if (route === '/core/completion-codec.mjs') file = await containedFile(path.join(ROOT, 'app', 'core'), 'completion-codec.mjs');
@@ -2080,73 +2138,31 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
       else throw httpError(404, 'Not found.');
       const metadata = await stat(file);
       const expected = iconFile ?? interiorFile ?? terrainFile ?? art.pack.expected(file);
-      const key = `${file}:${metadata.size}:${metadata.mtimeMs}:${metadata.ctimeMs}:${expected?.sha256 ?? ''}`;
+      const key = `${file}:${metadata.size}:${metadata.mtimeMs}:${metadata.ctimeMs}:${expected?.sha256 ?? ''}:${guest}`;
       let cached = runtime.staticCache.get(key);
       if (!cached) {
-        const bytes = await readFile(file);
+        let bytes = await readFile(file);
         if (expected && (bytes.length !== expected.bytes || createHash('sha256').update(bytes).digest('hex') !== expected.sha256)) throw httpError(404, `${iconFile ? 'Icon' : terrainFile ? 'Terrain asset' : 'Interior tile'} does not match its manifest.`);
         const extension = path.extname(file).toLowerCase();
+        // Preserve the member module graph inside the guest namespace, including
+        // web modules whose ../ imports normally resolve at the site root.
+        if (guest && extension === '.mjs') bytes = Buffer.from(bytes.toString('utf8').replace(
+          /((?:\bfrom\s+|\bimport\s*\(\s*|\bimport\s+)["'])(\.[^"']+)(["'])/g,
+          (_, before, specifier, after) => `${before}/guest${new URL(specifier, `http://localhost${route}`).pathname}${after}`));
+        if (guest && extension === '.css') bytes = Buffer.from(bytes.toString('utf8').replace(/url\((['"]?)\/(?!\/)/g, 'url($1/guest/'));
+        // Optional panels insert stylesheets after startup as well.
+        if (guest && extension === '.mjs') bytes = Buffer.from(bytes.toString('utf8').replace(/(["'])\/(?!guest\/)([a-zA-Z0-9./_-]+\.css)\1/g, '$1/guest/$2$1'));
         // Dates and v1 names are revalidated. Only paths carrying a content
         // digest can advertise immutable bytes across application updates.
         const immutable = route.startsWith('/assets/') && /[.-][a-f0-9]{12,}(?:[./-]|$)/i.test(route);
         cached = runtime.staticCache.set(key, createRepresentation(bytes, { type: MIME[extension] ?? 'application/octet-stream',
-          cacheControl: immutable ? 'private, max-age=31536000, immutable' : PRIVATE_REVALIDATE,
+          cacheControl: guest ? PRIVATE_NO_STORE : immutable ? 'private, max-age=31536000, immutable' : PRIVATE_REVALIDATE,
           compress: ['.html', '.css', '.mjs', '.json', '.svg'].includes(extension) }));
       }
       await sendRepresentation(request, response, cached);
-    } catch (error) {
-      if (response.destroyed) return;
-      if (response.headersSent) { response.end(); return; }
-      const status = error.code === 'REVISION_CONFLICT' ? 409 : error.status ?? (error.code === 'ENOENT' ? 404 : error instanceof TypeError || error instanceof RangeError || error instanceof SyntaxError ? 400 : 500);
-      if (error.retryAfter) response.setHeader('Retry-After', error.retryAfter);
-      // Refuse unread/slow uploads without keeping their socket alive.
-      if (!request.complete) response.setHeader('Connection', 'close');
-      if (signInFlow.errorPage(request, response, security, error, status)) return;
-      if (isImportRoute(route)) {
-        // A stale import needs a fresh preview, not a full main-thread clone,
-        // projection, serialization and hash of the destination's saved state.
-        await json(request, response, status, boundedOutput({
-          message: status === 500 ? 'The save could not be completed. Your previous save remains available.'
-            : error.code === 'ENOENT' ? 'Not found.' : redactInviteTokens(displayText(error.message)),
-          ...(error.code ? { code: error.code } : {}),
-          ...(error.code === 'REVISION_CONFLICT' ? { revision: store.getInfo().revision } : {}),
-        }));
-        return;
-      }
-      await json(request, response, status, { message: status === 500 ? 'The save could not be completed. Your previous save remains available.' : error.code === 'ENOENT' ? 'Not found.' : redactInviteTokens(error.message),
-        ...(['TASK_RESULTS_UNAVAILABLE', 'TASK_DETAILS_UNAVAILABLE', 'TASK_WHY_UNAVAILABLE', 'SAVED_WHY_BUSY'].includes(error.code) || error.code === 'PICKER_UPDATING' || /^(?:REQUEST_|ACTION_SESSION_)/.test(error.code ?? '') ? { code: error.code } : {}),
-        ...(error.code === 'ACTION_SESSION_RETIRED' && error.safeToRetry === true ? { safeToRetry: true } : {}),
-        ...(error.code === 'REVISION_CONFLICT' ? await viewEnvelope(error.importConflict ? store.getState() : error.state, viewFor(request)) : {}),
-        ...(error.code === 'REVISION_CONFLICT' && error.claimOnlyChanges === true ? { claimOnlyChanges: true } : {}),
-        ...((routeIsRuneMetrics(request) || (request.url ?? '').startsWith('/api/original-sync/')) && error.code !== 'REVISION_CONFLICT' && error.code ? { code: error.code } : {}) });
-    } finally { if (ownsImport) importingBackup = false; releaseImportUser?.(); }
-  };
-  const requestHandler = async (request, response, listener) => {
-    let route, lease;
-    try {
-      if (closed) throw httpError(503, 'The picker is stopping. Retry after it restarts.');
-      route = decodeURIComponent((request.url ?? '/').split('?')[0]);
-      const health = ['GET', 'HEAD'].includes(request.method) && route === '/api/health';
-      const safeStandbyRead = ['GET', 'HEAD'].includes(request.method) && !route.startsWith('/join/')
-        && (['/', '/api/health', '/api/art-status', '/api/overlays', '/api/state'].includes(route)
-          || (!route.startsWith('/api/') && (route.startsWith('/overlay/') || /\.(?:mjs|css|html|json|svg|png|jpg|webp|woff2)$/.test(route))));
-      if ((handover.frozen && !health) || (liveSwap?.standby && !safeStandbyRead)) {
-        throw Object.assign(httpError(503, 'Please try again in a moment.'), { code: 'PICKER_UPDATING', retryAfter: 1 });
-      }
-      // All handlers, including overlays, join, usage retention and invitation
-      // touches, enter this exclusion before their first asynchronous operation.
-      if (!health) lease = handover.begin();
-      await applicationRequestHandler(request, response, lease, listener);
-    } catch (error) {
-      request.resume();
-      if (response.destroyed || response.headersSent) return;
-      response.setHeader('Cache-Control', PRIVATE_NO_STORE);
-      if (error.retryAfter) response.setHeader('Retry-After', error.retryAfter);
-      await json(request, response, error.status ?? 400, { message: error.status ? error.message : 'Invalid URL.', ...(error.code ? { code: error.code } : {}) });
-    } finally { lease?.finish(); }
-  };
-  let activationPending;
+  }
   const context = {
+    serveStatic,
     pickerId, store,
     getRetentionCounts: () => ({ requests: requests.size, jobs: jobs.size, bodies: bodyRequests.size,
       clients: clients.size + clientCredentials.size, responses: responseCache.size, responseBytes: responseCache.bytes,

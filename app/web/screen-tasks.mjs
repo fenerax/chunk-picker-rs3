@@ -93,7 +93,7 @@ export function createScreenTasks(c) {
         await c.command({ type: 'set-task-status', memberId: owner, taskId: task.id, backlogged: true, backlogReason });
         backlogDrafts.delete(draftKey);
         if (!c.dialogCurrent(generation)) return;
-        if (preset !== 'Task looks wrong') { dismiss(); return; }
+        if (preset !== 'Task looks wrong' || c.panelContext?.guest) { dismiss(); return; }
         const report = c.button('Report a problem with this task', () => {
           dismiss();
           c.openFeedback({ text: `Problem with task: ${reportContext.task}\n\nWhat looks wrong: ${text}`, context: reportContext });
@@ -121,7 +121,7 @@ export function createScreenTasks(c) {
     if (facts.group) content.append(c.el('span', `Done by ${facts.completedBy.map(id => c.state.members.find(item => item.id === id)?.name || id).join(' and ')}`, 'task-meta'));
     const taskState = taskDisplayState().members.find(owner => owner.id === c.memberId)?.taskStatus?.[task.id] ?? {};
     const completed = facts.group || facts.personal;
-    if (completed || (!taskState.backlogged && task.status === 'available')) appendTaskClaim({ document, host: content, task, completed,
+    if (!c.panelContext?.guest && (completed || (!taskState.backlogged && task.status === 'available'))) appendTaskClaim({ document, host: content, task, completed,
       readOnly: !c.canWrite(), getState: () => c.state, getMemberId: () => c.sessionMember ?? c.memberId, actingForMember: () => !c.sessionMember, command: c.command, showError: c.showError,
       canEdit: () => c.canWrite() && !c.sandbox.active && (!isCustomTask(task) || customTaskAssignedTo(task, c.sessionMember ?? c.memberId)) && c.result?.stateRevision === c.state.revision && (completed || c.claimableTaskIds?.has(task.id)) });
     if (taskState.backlogged && taskState.backlogReason) content.append(c.el('span', `Backlogged: ${taskState.backlogReason}`, 'task-meta backlog-reason'));

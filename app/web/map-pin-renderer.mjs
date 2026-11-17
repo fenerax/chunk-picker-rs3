@@ -1,3 +1,4 @@
+import { browserAsset } from './asset-url.mjs';
 import { pinMatchesSearch, normalizePinSearch } from './map-pins.mjs';
 import { CACHE_PIN_SPRITE_DIRECTORY } from '../data/map-pins.mjs';
 import { indexPinDetails } from './map-info.mjs';
@@ -98,7 +99,7 @@ export class MapPinRenderer {
       const ready = () => { if (this.disposed) return; entry.ready = true; this.revision++; this.cancelZoomRefresh(); this.changed(); };
       image.onload = () => { if (typeof image.decode === 'function') image.decode().then(ready, () => {}); else ready(); };
       image.onerror = () => { recordPictureFailure(path); image.onload = image.onerror = null; };
-      image.src = path;
+      image.src = browserAsset(path);
     }
     const entry = this.images.get(key);
     return entry.ready ? entry.image : null;

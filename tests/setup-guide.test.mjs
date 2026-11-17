@@ -28,7 +28,7 @@ class Node {
 const walk = node => node ? [node, ...node.children.flatMap(walk)] : [];
 const settle = () => new Promise(resolve => setImmediate(resolve));
 
-function harness({ writable = true, sandbox = false, admin = false, data = { optionAF2PExtension: banks }, state: initial } = {}) {
+function harness({ guest = false, writable = true, sandbox = false, admin = false, data = { optionAF2PExtension: banks }, state: initial } = {}) {
   let state = initial ?? createGroupState([{ id: 'one', name: 'Ash' }, { id: 'two', name: 'Birch' }]);
   let content, title, generation = 0, open = false;
   const calls = [], errors = [], centred = [], dialog = new Node('dialog'), host = new Node('div');
@@ -40,7 +40,7 @@ function harness({ writable = true, sandbox = false, admin = false, data = { opt
     openDialog: (text, node) => { if (content?.contains(document.activeElement)) document.activeElement = undefined; title = text; content = node; host.children = [node]; open = true; return ++generation; },
     closeDialog: () => { generation++; open = false; calls.push('close'); },
     dialogCurrent: value => value === generation && open, isDialogOpen: () => open, dialog, dialogContent: () => host,
-    state: () => state, memberId: () => 'one', canWrite: () => writable, sandboxActive: () => sandbox, advanced: () => false,
+    guest: () => guest, state: () => state, memberId: () => 'one', canWrite: () => writable, sandboxActive: () => sandbox, advanced: () => false,
     preferences: id => ({ theme: 'dark', roll2: true, ...state.members.find(member => member.id === id)?.preferences }),
     settingDefinitions, supportsFeature: () => true, world: () => world, showError: error => errors.push(error),
     centerOnChunk: id => centred.push(id), isAdmin: () => admin, openInvites: () => calls.push('invites'),
@@ -384,4 +384,13 @@ test('a stale starting-bank response cannot pull focus back after navigation or 
     resolve({ data: { optionAF2PExtension: banks } }); await loading;
     assert.equal(h.document.activeElement, focused);
   }
+});
+
+test('the guest tour explains browser exports instead of partner invitations', async () => {
+  const h = harness({ guest: true, data: {} }); h.guide.open();
+  for (let index = 0; index < 3; index++) await h.button('Next').events.click();
+  assert.ok(h.nodes().some(node => node.textContent === 'Keep your browser save'));
+  assert.ok(h.nodes().some(node => /Export \/ Import downloads your save/.test(node.textContent)));
+  assert.equal(h.nodes().some(node => node.textContent === 'Invite your partner'), false);
+  assert.equal(h.button('Finish and open invite links'), undefined);
 });

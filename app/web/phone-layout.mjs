@@ -4,7 +4,7 @@ const tabs = ['map', 'tasks', 'more'];
 
 // Every visible banner takes space above the workspace, including updates.
 export function observeScreenBars(document, Observer = globalThis.ResizeObserver) {
-  const bars = [document.querySelector('.topbar'), ...['update-banner', 'notice', 'backup-status-notice', 'sandbox-banner', 'duo-catchup', 'duo-live'].map(id => document.getElementById(id))].filter(Boolean);
+  const bars = [document.querySelector('.topbar'), ...['guest-notice', 'update-banner', 'notice', 'backup-status-notice', 'sandbox-banner', 'duo-catchup', 'duo-live'].map(id => document.getElementById(id))].filter(Boolean);
   const view = document.defaultView;
   let pending = false;
   const revealFocusNow = () => {

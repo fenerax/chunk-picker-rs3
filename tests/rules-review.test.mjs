@@ -39,7 +39,7 @@ test('review counts unique rules in the current filter and labels raw catalogue 
   assert.equal(reviewRuleLabel({ id: 'InsidePOH', label: 'Furniture', description: 'Explanation' }), 'Furniture');
 });
 
-function harness(writable = true, beforeSave = async () => {}, advanced = false) {
+function harness(writable = true, beforeSave = async () => {}, advanced = false, guest = false) {
   class Node {
     constructor(tag, text = '', className) { Object.assign(this, { tag, textContent: text, className, children: [], dataset: {}, attrs: {}, events: {} }); }
     append(...children) { this.children.push(...children); }
@@ -48,7 +48,7 @@ function harness(writable = true, beforeSave = async () => {}, advanced = false)
     addEventListener(key, action) { this.events[key] = action; }
   }
   const doc = state(), calls = [], host = new Node('div'), el = (...args) => new Node(...args);
-  const ctx = { el, state: () => doc, memberId: () => 'a', registry: () => registry, canWrite: () => writable,
+  const ctx = { el, guest, state: () => doc, memberId: () => 'a', registry: () => registry, canWrite: () => writable,
     input: (type, value) => Object.assign(el('input'), { type, value }),
     preferences: () => ({ advanced }),
     select: (options, value) => Object.assign(el('select'), { options, value }),
@@ -68,6 +68,14 @@ function harness(writable = true, beforeSave = async () => {}, advanced = false)
   const control = label => nodes().find(node => node.tag === 'label' && node.textContent === label)?.children[0];
   return { doc, calls, panel, nodes, button, control, host };
 }
+
+test('guest rule review explains unavailable comparisons while retaining local rule edits', async () => {
+  const h = harness(true, async () => {}, false, true);
+  assert.equal(h.button('Check task effect'), undefined);
+  assert.ok(h.nodes().some(node => node.textContent.includes('Sign in for task-effect comparisons')));
+  await h.button('Off').events.click();
+  assert.ok(h.calls.some(call => call.commands?.some(command => command.type === 'set-task-rule')));
+});
 
 test('guided view shows both values and automatic, changes Both through revision checked commands, saves shared notes', async () => {
   const h = harness();

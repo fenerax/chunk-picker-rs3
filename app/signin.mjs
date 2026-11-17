@@ -57,16 +57,17 @@ function checkFormOrigin(request, security, checkRequestOrigin) {
   if (request.headers.origin === 'null' && request.headers['sec-fetch-site'] === 'same-origin') return;
   checkRequestOrigin(request, security);
 }
-function page(response, input, status = 200) {
+function renderPage(response, input, status = 200) {
   response.writeHead(status, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'private, no-store', 'Referrer-Policy': 'no-referrer' });
   response.end(renderSignInPage(input));
 }
 
 /** OAuth state and tokens remain in this process; only provider subjects reach storage. */
-export async function openSignIn({ publicOrigin, mode = 'off', accounts, invites, provider = {}, unauthenticated = () => {},
+export async function openSignIn({ publicOrigin, mode = 'off', accounts, invites, provider = {}, unauthenticated = () => {}, guestModeEnabled = false,
   checkRequestOrigin, serializeMutation = operation => operation(), webRoot, pickerRegistry, syncLegacy, reclaimIdentity } = {}) {
   if (!['off', 'optional', 'required'].includes(mode)) throw new TypeError('RS3_SIGNIN must be off, optional or required.');
   if (mode !== 'off' && (!publicOrigin || new URL(publicOrigin).protocol !== 'https:' || new URL(publicOrigin).origin !== publicOrigin)) throw new TypeError('Sign-in requires an HTTPS public origin.');
+  const page = (response, input, status) => renderPage(response, { ...input, guestModeEnabled }, status);
   const now = provider?.now ?? Date.now;
   const fetchProvider = provider?.fetch ?? globalThis.fetch;
   const scheduleTimeout = provider?.setTimeout ?? setTimeout;
