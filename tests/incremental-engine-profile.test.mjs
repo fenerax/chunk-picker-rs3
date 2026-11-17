@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { spawnSync } from 'node:child_process';
 import { createPhaseRecorder, instrumentEngine } from '../scripts/perf/incremental-engine-phases.mjs';
+import { instrumentProjection } from '../scripts/perf/final-projection-builders.mjs';
 
 test('phase transitions exclude time while a processing generator is suspended', () => {
   let now = 0;
@@ -55,11 +56,13 @@ test('diagnostic rows stay bounded and unmeasured How replay has no phase state'
 
 test('current engine instrumentation parses and refuses missing or ambiguous anchors', async () => {
   const source = await readFile(new URL('../app/tasks/engine.mjs', import.meta.url), 'utf8');
-  const transformed = instrumentEngine(source);
-  const checked = spawnSync(process.execPath, ['--check', '--input-type=module'], { input: transformed, encoding: 'utf8' });
-  assert.equal(checked.status, 0, checked.stderr);
+  for (const transformed of [instrumentEngine(source), instrumentEngine(instrumentProjection(source))]) {
+    const checked = spawnSync(process.execPath, ['--check', '--input-type=module'], { input: transformed, encoding: 'utf8' });
+    assert.equal(checked.status, 0, checked.stderr);
+  }
   assert.throws(() => instrumentEngine(source.replace('    let disconnectedDetail;', '    let changedAnchor;')), /Anchor/);
   assert.throws(() => instrumentEngine(source + '\n    let disconnectedDetail;'), /Anchor/);
+  assert.throws(() => instrumentEngine(source.replace('      processingRawAccessEvaluations: { value: replay.rawAccessEvaluations } });', '      changed: true });')), /Anchor/);
 });
 
 test('diagnostic preload preserves synthetic evaluate, prediction and How results', async t => {
@@ -74,8 +77,10 @@ test('diagnostic preload preserves synthetic evaluate, prediction and How result
   const world = buildWorld(definitions), state = createGroupState([{ id: 'one', name: 'One' }]);
   state.members[0].unlocked = ['12341'];
   const reports = [];
-  for (const instrumented of [false, true]) {
+  for (const mode of ['off', 'engine', 'projection']) {
+    const instrumented = mode !== 'off';
     const worker = new Worker(new URL('../app/tasks/worker.mjs', import.meta.url), {
+      env: { ...process.env, RS3_PROJECTION_PROFILE: mode === 'projection' ? '1' : '0' },
       workerData: genericWorkerData({ definitions, world: { chunks: world.chunks, surface: world.surface } }),
       ...(instrumented ? { execArgv: ['--import', new URL('../scripts/perf/incremental-engine-probe.mjs', import.meta.url).href] } : {}),
     });
@@ -84,6 +89,7 @@ test('diagnostic preload preserves synthetic evaluate, prediction and How result
       const [ready] = await once(worker, 'message');
       assert.equal(ready.type, 'ready');
       assert.equal(!!ready.__incrementalProfile, instrumented);
+      assert.equal(!!ready.__finalProjectionProfile, mode === 'projection');
       let sequence = 0;
       const send = async request => {
         const id = ++sequence;
@@ -106,6 +112,7 @@ test('diagnostic preload preserves synthetic evaluate, prediction and How result
         const rows = evaluated.__incrementalProfile.evaluations;
         assert.ok(rows.length > 0);
         assert.ok(rows.some(row => row.phases.projectionMs > 0));
+        if (mode === 'projection') assert.ok(evaluated.__finalProjectionProfile.some(row => row.end >= row.start));
       }
       const predicted = await send({ type: 'predict', chunkId: '12342' });
       const how = await send({ type: 'how-task', chunkId: evaluated.result.tasks[0].id });
@@ -116,4 +123,5 @@ test('diagnostic preload preserves synthetic evaluate, prediction and How result
     } finally { await worker.terminate(); }
   }
   assert.deepEqual(reports[1], reports[0]);
+  assert.deepEqual(reports[2], reports[0]);
 });

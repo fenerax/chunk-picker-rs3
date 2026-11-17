@@ -3,6 +3,7 @@ import { openTeleportsDialog } from './teleports.mjs';
 import { backupSaveLabel } from './backup-status.mjs';
 import { createSearchDialog } from './screen-search.mjs';
 import { createBackupUpload, createOriginalPasteUpload, downloadFullBackup } from './backup-transfer.mjs';
+import { createOriginalMapCodeUpload } from './original-map-code.mjs';
 import { BACKUP_LIMIT_LABEL } from './backup-limits.mjs';
 
 // Native textarea focus can reveal only the caret, and progressive details can
@@ -170,23 +171,39 @@ export function createScreenDialogs(c) {
     content.append(c.el('h3', 'Export unlocked chunks'), c.el('p', 'Only chunks carry over. Tasks, rules, notes and History stay in your full backup. Available only with the full legacy RS3 dataset.', 'status-detail'), c.field('Player', exportMember), chunkExport, c.el('h3', 'Import a backup'));
     if (statusLine) content.prepend(statusLine);
     const owner = c.panelContext?.account?.isOwner?.() === true;
-    let originalMode = false;
+    let originalMode = false, mapCodeMode = false;
+    const mapCode = c.input('text'); mapCode.maxLength = 64; mapCode.autocomplete = 'off';
+    const mapCodeFields = c.el('div', undefined, 'form-stack'); mapCodeFields.hidden = true;
     const pasteFields = c.el('div', undefined, 'form-stack'); pasteFields.hidden = true;
     const pasteChunks = c.el('textarea'), pasteRules = c.el('textarea'), pasteGameplay = c.el('textarea');
     for (const input of [pasteChunks, pasteRules, pasteGameplay]) { input.rows = 4; input.spellcheck = false; }
     const pasteRulesOn = c.input('checkbox'), pasteTasksOn = c.input('checkbox');
-    const pastePlayer = c.select(c.state.members.filter(member => c.sessionAdmin || member.id === c.sessionMember).map(member => ({ value: member.id, label: member.name })), c.sessionMember ?? c.state.members[0].id);
-    const pasteControls = [pasteChunks, pasteRules, pasteGameplay, pasteRulesOn, pasteTasksOn, pastePlayer];
+    const pastePlayer = c.select(c.state.members.filter(member => c.sessionAdmin || owner || member.id === c.sessionMember).map(member => ({ value: member.id, label: member.name })), c.sessionMember ?? c.state.members[0].id);
+    const pasteControls = [pasteChunks, pasteRules, pasteGameplay, pasteRulesOn, pasteTasksOn, pastePlayer, mapCode];
+    const originalOptions = c.el('div', undefined, 'form-stack'); originalOptions.hidden = true;
+    originalOptions.append(c.field('Destination player', pastePlayer), c.field('Import equivalent player rules', pasteRulesOn), c.field('Import matched challenge checks, backlog and favorites', pasteTasksOn),
+      c.el('p', 'Rules and task checks start off. F2P and other shared rules need separate review in Rules. Unsupported records stay in your full backup. This replaces one player map; Undo and the previous save are available.', 'status-detail'));
+    const chooseOriginal = mode => {
+      if (submitting) return;
+      originalMode = mode; mapCodeMode = mode === 'code';
+      pasteFields.hidden = mode !== 'paste'; mapCodeFields.hidden = !mapCodeMode; originalOptions.hidden = !mode;
+      file.disabled = !!mode; if (scope) scope.disabled = !!mode; invalidatePreview();
+    };
+    if (c.originalMapCodeEnabled === true) {
+      mapCodeFields.append(c.field('Original map code', mapCode), c.el('p', 'Your browser reads public gameplay only. Nothing is written to the original picker. Check the preview before replacing your map. If reading fails, retry or use pasted exports when available.', 'status-detail'));
+      content.append(c.button('Import by original map code', () => chooseOriginal(mapCodeMode ? false : 'code')), mapCodeFields);
+    }
     if (c.originalPasteEnabled === true) {
       pasteFields.append(c.el('p', 'From the original RS3 chunk picker, use Miscellaneous Actions > Chunks and Rules. Paste optional gameplay JSON only if its own UI offers it. Limit: 8 MiB total. No map-code read is available here.', 'status-detail'),
-        c.field('Destination player', pastePlayer), c.field('Exported chunks (comma-separated IDs or legacy chunk URL)', pasteChunks),
-        c.field('Rules JSON (required; {} for none)', pasteRules), c.field('Optional gameplay JSON', pasteGameplay),
-        c.field('Import equivalent player rules', pasteRulesOn), c.field('Import matched challenge checks, backlog and favorites', pasteTasksOn),
-        c.el('p', 'Rules and task checks start off. F2P and other shared rules need separate review in Rules. Unsupported records stay in your full backup. This replaces one player map; Undo and the previous save are available.', 'status-detail'));
+        c.field('Exported chunks (comma-separated IDs or legacy chunk URL)', pasteChunks),
+        c.field('Rules JSON (required; {} for none)', pasteRules), c.field('Optional gameplay JSON', pasteGameplay));
       content.append(c.button('Import from the original chunk picker', () => {
         if (submitting) return;
-        originalMode = !originalMode; pasteFields.hidden = !originalMode; file.disabled = originalMode; if (scope) scope.disabled = originalMode; invalidatePreview();
+        chooseOriginal(originalMode === 'paste' ? false : 'paste');
       }), pasteFields);
+    }
+    if (c.originalPasteEnabled === true || c.originalMapCodeEnabled === true) {
+      content.append(originalOptions, c.button('Use a full backup instead', () => chooseOriginal(false)));
     }
     const file = c.input('file'); file.accept = '.json,.json.gz,application/json,application/gzip'; const preview = c.el('div');
     const progress = c.el('p', '', 'status-detail'); progress.setAttribute('role', 'status'); progress.setAttribute('aria-live', 'polite');
@@ -211,6 +228,7 @@ export function createScreenDialogs(c) {
       if (!c.dialogCurrent(generation) || request !== previewRequest) return; const memberScope = scopedMember();
       const path = memberScope ? '/api/member-restore' : '/api/restore';
       const payload = preparedPayload ?? (backupId !== undefined ? { backupId, ...(memberScope ? { memberId: memberScope } : {}) }
+        : mapCodeMode ? await createOriginalMapCodeUpload(mapCode.value, { includeRules: pasteRulesOn.checked, includeTasks: pasteTasksOn.checked }, { memberId: memberScope }, { onStage: stage, signal: controller.signal })
         : originalMode ? await createOriginalPasteUpload({ chunksText: pasteChunks.value, rulesText: pasteRules.value, gameplayText: pasteGameplay.value, includeRules: pasteRulesOn.checked, includeTasks: pasteTasksOn.checked }, { memberId: memberScope }, { onStage: stage, signal: controller.signal })
         : createBackupUpload(file.files[0], { members: c.owners, ...(memberScope ? { memberId: memberScope } : {}) }, { onStage: stage }));
       const value = await c.api(`${path}/preview`, payload, controller.signal); if (!c.dialogCurrent(generation) || request !== previewRequest) return; if (value.mappingRequired) {

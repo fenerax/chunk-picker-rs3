@@ -18,6 +18,10 @@ test('private linker accepts only the reviewed imports and blocks new executable
   const linked = linkPrivateModule("import { selectedDataset } from '../dataset-runtime.mjs';\nexport const value = selectedDataset;\n", 'fixture');
   assert.match(linked.body, /const \{ selectedDataset \} = core.datasetRuntime/);
   assert.match(linked.body, /return \{ value \}/);
+  const named = linkPrivateModule("const first = 1, second = 2;\nexport { first, second };\n", 'fixture');
+  assert.match(named.body, /return \{ first, second \}/);
+  assert.doesNotMatch(named.body, /export/);
+  assert.throws(() => linkPrivateModule("const first = 1;\nexport { first as second };\n", 'fixture'));
   assert.throws(() => linkPrivateModule("import { run } from './unknown.mjs';\nexport const value = run();", 'fixture'));
   assert.throws(() => linkPrivateModule("export const value = import('./unknown.mjs');", 'fixture'));
   assert.throws(() => linkPrivateModule("import './unknown.mjs';\nexport const value = 1;", 'fixture'));
@@ -32,7 +36,8 @@ test('independent defaults clear every private profile and executable add-on sel
 
 test('private sync bundle is self-contained and preserves original entry exports', async () => {
   const rows = [];
-  for (const [filename, name] of [['../app/integrations/original-local-changes.mjs', 'localChanges'],
+  for (const [filename, name] of [['../app/web/original-public.mjs', 'originalPublic'],
+    ['../app/integrations/original-local-changes.mjs', 'localChanges'],
     ['../app/integrations/original-tasks.mjs', 'taskReview'], ['../app/capture-maps.mjs', 'captureMaps'],
     ['../app/integrations/original-sync.mjs', 'sync']]) rows.push(linkPrivateModule(await readFile(new URL(filename, import.meta.url), 'utf8'), name));
   const source = [...new Set(rows.flatMap(row => row.builtins))].join('\n') + '\nexport function createIntegration(core) {\n' + rows.map(row => row.body).join('\n') + '\nreturn sync;\n}';

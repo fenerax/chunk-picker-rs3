@@ -67,12 +67,16 @@ function takeDefinitions() {
   return raw;
 }
 const mapLocationResults = new WeakMap();
-function mapPlayResult(result) {
+function mapLocationsFor(result) {
   let locations = mapLocationResults.get(result);
   if (!locations) {
     locations = projectMapTaskLocations(definitions, result, workerData.world);
     mapLocationResults.set(result, locations);
   }
+  return locations;
+}
+function mapPlayResult(result) {
+  const locations = mapLocationsFor(result);
   completeCache.refreshResult(result); sandboxCache.refreshResult(result);
   return { ...projectPlayResult(result), taskLocations: locations };
 }
@@ -252,7 +256,7 @@ const pickerSnapshotKey = (pickerId, input) => JSON.stringify([pickerId, input])
 // one key the revision, and rules still separate states at an unchanged revision.
 const calculationKey = (state, memberId, input) => [typeof input === 'string' ? null : state.revision, memberId, input ?? null, state.rules, state.taskRules,
   state.members.map(owner => [owner.id, owner.taskRules, state.legacy?.maps?.[owner.sourceMapId]?.rules])];
-function snapshotFor(state, memberId, timingMs, input, includeViews = true, pickerId = 'legacy-shared') {
+function snapshotFor(state, memberId, timingMs, input, includeViews = true, pickerId = 'legacy-shared', includeLocations = false) {
   const key = JSON.stringify(calculationKey(state, memberId, input));
   let snapshot = snapshots.get(key), hit = !!snapshot;
   if (!snapshot) {
@@ -267,6 +271,9 @@ function snapshotFor(state, memberId, timingMs, input, includeViews = true, pick
   // Input-equivalent saves can reuse the baseline, but resident planning also
   // requires a snapshot used at this exact captured revision.
   snapshot.revision = state.revision;
+  // An HTTP evaluation always needs these locations. Build them before the
+  // first admission so a cold graph is not walked and encoded twice.
+  if (includeLocations) mapLocationsFor(snapshot.baseline);
   completeCache.set(key, snapshot, state, pickerId);
   return { snapshot, hit };
 }
@@ -669,7 +676,8 @@ const handleMessage = async ({ id, pickerId = 'legacy-shared', type = 'evaluate'
         parentPort.postMessage({ id, result: { cancelled: true }, evaluationMs: timingMs.totalMs, timingMs }); return;
       }
       const compact = type === 'evaluate' && resultTransport === 'json-shared-v1' && resultView === 'play-v1';
-      const { snapshot } = snapshotFor(state, memberId, timingMs, input, type !== 'predict' && type !== 'chunk-planning' && !compact, pickerId);
+      const { snapshot } = snapshotFor(state, memberId, timingMs, input, type !== 'predict' && type !== 'chunk-planning' && !compact, pickerId,
+        type === 'evaluate' && resultTransport === 'json-shared-v1');
       eligibilitySeeded &&= snapshot.baseline.metrics.eligibilityCacheHit === true;
       if (type === 'predict') {
         // Let panel closure cancel a completed baseline before starting the

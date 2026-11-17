@@ -5,11 +5,14 @@
 // object property names, so charge each name once, plus the meter's name registry.
 // Producer-owned snapshots only grow lazy fields. Revisited mutable containers
 // keep their previous charge as slack; a forced refresh starts a fresh walk.
-export function createSnapshotHeapMeter() {
+// A finite bound is an admission probe: once exceeded, bytes is a lower bound
+// proving the graph cannot be hot. Fitting graphs still receive the full charge.
+export function createSnapshotHeapMeter({ byteLimit = Infinity } = {}) {
   const seen = new WeakSet(), propertyNames = new Set();
   let bytes = 2048;
   function visit(value, revisit = false, checkpoint = () => {}) {
     checkpoint();
+    if (bytes > byteLimit) return;
     if (typeof value === 'string') { bytes += 32 + 2 * value.length; return; }
     if (value === null || typeof value !== 'object') {
       if (typeof value === 'function' || typeof value === 'symbol') throw new TypeError('Unsupported hot snapshot value.');
@@ -21,20 +24,24 @@ export function createSnapshotHeapMeter() {
     if (ArrayBuffer.isView(value)) { bytes += 128; visit(value.buffer, false, checkpoint); return; }
     if (value instanceof Map || value instanceof Set) {
       bytes += 128 + 64 * value.size;
-      if (value instanceof Map) for (const [key, child] of value) { visit(key, false, checkpoint); visit(child, false, checkpoint); }
-      else for (const child of value) visit(child, false, checkpoint);
+      if (value instanceof Map) for (const [key, child] of value) {
+        if (bytes > byteLimit) break;
+        visit(key, false, checkpoint); visit(child, false, checkpoint);
+      }
+      else for (const child of value) { if (bytes > byteLimit) break; visit(child, false, checkpoint); }
       return;
     }
     const prototype = Object.getPrototypeOf(value);
     if (Array.isArray(value)) {
       bytes += 64 + 16 * value.length;
-      for (const child of value) visit(child, false, checkpoint);
+      for (const child of value) { if (bytes > byteLimit) break; visit(child, false, checkpoint); }
       return;
     }
     if (prototype !== Object.prototype && prototype !== null) throw new TypeError('Unsupported hot snapshot prototype.');
     const keys = Object.getOwnPropertyNames(value);
     bytes += 64 + 32 * keys.length;
     for (const key of keys) {
+      if (bytes > byteLimit) break;
       const descriptor = Object.getOwnPropertyDescriptor(value, key);
       if (!('value' in descriptor)) throw new TypeError('Unsupported hot snapshot accessor.');
       if (!propertyNames.has(key)) {

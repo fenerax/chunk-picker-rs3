@@ -93,9 +93,11 @@ async function run(job) {
     const body = deserialize(Buffer.from(job.input)), { dataset, world, route, actor } = options;
     const previewOnly = route.endsWith('/preview');
     const originalPaste = body.document?.format === ORIGINAL_PASTE_FORMAT;
+    const originalMapCode = body.document?.format === 'rs3-original-map-code';
     if (originalPaste && !options.originalPasteEnabled) fail(404, 'Original picker paste import is unavailable.');
-    if (originalPaste && !route.startsWith('/api/member-restore')) fail(422, 'Choose one destination player for original picker paste.');
-    const pasted = originalPaste ? normalizeOriginalPaste(body.document, { current, world, dataset, migration: options.migration }) : null;
+    if (originalMapCode && !options.originalMapCodeEnabled) fail(404, 'Original picker map-code import is unavailable.');
+    if ((originalPaste || originalMapCode) && !route.startsWith('/api/member-restore')) fail(422, 'Choose one destination player for original picker import.');
+    const pasted = originalPaste || originalMapCode ? normalizeOriginalPaste({ ...body.document, format: ORIGINAL_PASTE_FORMAT }, { current, world, dataset, migration: options.migration }) : null;
     let backup;
     if (Object.hasOwn(body, 'backupId')) {
       if (Object.hasOwn(body, 'backup') || Object.hasOwn(body, 'document')) fail(400, 'Choose either a retained save or an uploaded backup.');

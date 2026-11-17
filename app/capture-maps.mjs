@@ -4,12 +4,8 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { selectedDataset } from './dataset-runtime.mjs';
 
-export const PUBLIC_FIREBASE_URL = 'https://chunkpickerrs3.firebaseio.com';
-export const PUBLIC_GAMEPLAY_FIELDS = Object.freeze([
-  'rules', 'chunkOrder', 'settings', 'chunkinfo', 'chunks', 'activeSubTabs',
-  'topbarSelection', 'manualPrimary', 'recentFancyRollTime', 'recent', 'recentTime',
-  'randomLoot', 'chunkNotes', 'userTasks', 'friends', 'friendsAlt',
-]);
+import { PUBLIC_FIREBASE_URL, PUBLIC_GAMEPLAY_FIELDS } from './web/original-public.mjs';
+export { PUBLIC_FIREBASE_URL, PUBLIC_GAMEPLAY_FIELDS };
 export const DEFAULT_MAP_IDS = Object.freeze((selectedDataset.gameDefaults?.members ?? []).flatMap(({ mapId }) => mapId ? [mapId] : []));
 
 const MAP_ID = /^[A-Za-z0-9_-]+$/;

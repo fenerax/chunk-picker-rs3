@@ -23,6 +23,7 @@ export function createScreenSettings(c) {
 
   function applySession(session) {
     c.originalPasteEnabled = session.originalPasteEnabled === true;
+    c.originalMapCodeEnabled = session.originalMapCodeEnabled === true;
     const previousSession = c.viewSession, token = c.viewCache?.token();
     c.viewSession = session;
     c.preferenceSignature = undefined;
