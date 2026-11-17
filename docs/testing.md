@@ -103,6 +103,18 @@ is recorded in `docs/incremental-unlocks.md`.
 fixtures cover personal and partner unlocks, dependency reuse, negative
 processing prerequisites and full fallbacks without loading the full game.
 
+## Large synthetic responsiveness checks
+
+The save-transfer responsiveness checks run each large synthetic size in a fresh
+child process. Fixture construction garbage is collected before measurement;
+preview, apply and export keep their original 150 ms timer-gap ceiling, including
+application allocation and collection. The hook, immutable state, portable
+round-trip, History/provenance and main-thread baseline assertions remain in
+`tests/helpers/save-transfer-responsiveness.mjs`. Queue, transport and admission
+assertions remain in the entry file. The changed-pack release lifecycle fixture
+uses a fixed Date clock for synthetic receipt identity; receipt expiry/future-time
+refusal and ordered early-check budgets retain their independent tests.
+
 ## File telemetry
 
 CI retains `test-ledger-<SHA>-<run ID>-<attempt>` and
