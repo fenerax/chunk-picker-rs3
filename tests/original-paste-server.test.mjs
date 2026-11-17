@@ -11,8 +11,11 @@ const { createGroupState } = await import('../app/core/state.mjs');
 const { createOriginalPasteUpload } = await import('../app/web/backup-transfer.mjs');
 const { createScreenDialogs } = await import('../app/web/screen-dialogs.mjs');
 
-async function fixture(t, enabled) {
+async function fixture(t, enabled, codeEnabled = false) {
   const previous = process.env.RS3_ORIGINAL_IMPORT_PASTE;
+  const previousCode = process.env.RS3_ORIGINAL_IMPORT_MAP_CODE;
+  if (codeEnabled) process.env.RS3_ORIGINAL_IMPORT_MAP_CODE = '1'; else delete process.env.RS3_ORIGINAL_IMPORT_MAP_CODE;
+  t.after(() => { if (previousCode === undefined) delete process.env.RS3_ORIGINAL_IMPORT_MAP_CODE; else process.env.RS3_ORIGINAL_IMPORT_MAP_CODE = previousCode; });
   if (enabled) process.env.RS3_ORIGINAL_IMPORT_PASTE = '1'; else delete process.env.RS3_ORIGINAL_IMPORT_PASTE;
   const root = await mkdtemp(path.join(tmpdir(), 'synthetic-original-paste-http-'));
   // Synthetic metadata provider, with the exact legacy coordinate contract.
@@ -32,7 +35,7 @@ async function fixture(t, enabled) {
   const json = (route, body, credential) => request(route, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }, credential);
   const upload = async (route, extra = {}, credential) => {
     const payload = await createOriginalPasteUpload({ chunksText: '12850', rulesText: '{"F2P":true}', gameplayText: '{"chunkinfo":{"checkedAllTasks":{"Mining":{"t_unknown":true}}}}' },
-      { memberId: 'destination', sourceMemberId: 'original_paste', ...extra });
+      { memberId: 'destination', sourceMemberId: 'original_paste', ...extra }, { format: codeEnabled ? 'rs3-original-map-code' : 'rs3-original-paste' });
     return request(route, await payload.toBackupRequest(), credential);
   };
   return { app, request, json, upload };
@@ -44,6 +47,35 @@ test('flag defaults off on the session and rejects paste on the existing import 
   const response = await f.upload('/api/member-restore/preview');
   assert.equal(response.status, 404, await response.clone().text());
   assert.equal(f.app.store.getInfo().revision, 0);
+});
+
+test('map-code flag works independently of paste and still requires review, mapping and Undo', async t => {
+  const f = await fixture(t, false, true);
+  const session = await (await f.request('/api/session')).json();
+  assert.equal(session.originalMapCodeEnabled, true); assert.equal(session.originalPasteEnabled, false);
+  assert.match((await f.request('/')).headers.get('content-security-policy'), /connect-src 'self' https:\/\/chunkpickerrs3.firebaseio.com;/);
+  for (const route of ['/original-map-code.mjs', '/original-map-code-worker.mjs', '/original-public.mjs']) assert.equal((await f.request(route)).status, 200);
+  const noMapping = await createOriginalPasteUpload({ chunksText: '12850', rulesText: '{}' }, { memberId: 'destination' }, { format: 'rs3-original-map-code' });
+  assert.equal((await (await f.request('/api/member-restore/preview', await noMapping.toBackupRequest())).json()).mappingRequired, true);
+  assert.equal((await f.upload('/api/member-restore', { expectedRevision: 0 })).status, 409);
+  const review = await (await f.upload('/api/member-restore/preview')).json();
+  assert.ok(review.previewToken); assert.equal(f.app.store.getInfo().revision, 0);
+  assert.equal((await f.upload('/api/member-restore', { expectedRevision: 0, previewToken: review.previewToken })).status, 200);
+  assert.deepEqual(f.app.store.getState().members[0].unlocked, ['12850']);
+  assert.equal((await f.json('/api/command', { command: { type: 'undo' }, expectedRevision: 1 })).status, 200);
+  assert.deepEqual(f.app.store.getState().members[0].unlocked, []);
+  assert.equal((await f.upload('/api/member-restore', { expectedRevision: 0, previewToken: review.previewToken })).status, 409);
+  const invite = await f.json('/api/invites', { label: 'Synthetic map-code invitation', memberId: 'other' });
+  const joined = await fetch((await invite.json()).link, { redirect: 'manual' });
+  assert.equal((await f.upload('/api/member-restore/preview', {}, joined.headers.get('set-cookie').split(';')[0])).status, 403);
+});
+
+test('paste flag cannot enable map-code imports and flag-off policy stays same-origin', async t => {
+  const f = await fixture(t, true);
+  assert.equal((await (await f.request('/api/session')).json()).originalMapCodeEnabled, false);
+  assert.match((await f.request('/')).headers.get('content-security-policy'), /connect-src 'self';/);
+  const payload = await createOriginalPasteUpload({ chunksText: '12850', rulesText: '{}' }, { memberId: 'destination' }, { format: 'rs3-original-map-code' });
+  assert.equal((await f.request('/api/member-restore/preview', await payload.toBackupRequest())).status, 404);
 });
 
 test('flag-on HTTP preview/apply requires reviewed bytes and destination, retains evidence, and supports Undo', async t => {
@@ -99,14 +131,25 @@ test('original entry is absent when off; flag-on UI labels fields and defaults b
   assert.equal(nodes.find(node => node.tag === 'input' && node.type === 'file').disabled, true);
 });
 
+test('map-code entry is separately gated and can switch back to backup import', () => {
+  assert.ok(!dialogFixture(true).nodes.some(node => node.text === 'Import by original map code'));
+  const { nodes } = dialogFixture(false, { originalMapCodeEnabled: true });
+  nodes.find(node => node.text === 'Import by original map code').click();
+  assert.ok(nodes.find(node => node.tag === 'label' && node.text === 'Original map code'));
+  const file = nodes.find(node => node.tag === 'input' && node.type === 'file');
+  assert.equal(file.disabled, true);
+  nodes.find(node => node.text === 'Use a full backup instead').click();
+  assert.equal(file.disabled, false);
+});
+
 test('paste destinations follow member-restore authorization even for a non-admin picker owner', () => {
   const state = createGroupState([{ id: 'destination', name: 'Synthetic destination' }, { id: 'other', name: 'Synthetic other' }]);
   for (const [sessionAdmin, sessionMember, owner, expected] of [
     [true, 'destination', false, ['destination', 'other']],
     [true, 'destination', true, ['destination', 'other']],
     [false, 'other', false, ['other']],
-    [false, 'other', true, ['other']],
-    [false, undefined, true, []],
+    [false, 'other', true, ['destination', 'other']],
+    [false, undefined, true, ['destination', 'other']],
   ]) {
     const { nodes } = dialogFixture(true, { state, sessionAdmin, sessionMember, panelContext: { account: { isOwner: () => owner } } });
     const selector = nodes.find(node => node.tag === 'label' && node.text === 'Destination player').control;
