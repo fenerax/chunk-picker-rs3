@@ -7,12 +7,13 @@ import { createGuestLimits, guestError } from './guest-limits.mjs';
 import { TASK_WORKER_RESOURCE_LIMITS } from './tasks/worker-limits.mjs';
 import { preparedDefinitionStages } from './dataset-pipeline.mjs';
 
-const assets = new Map([['/guest/', ['guest.html', 'text/html']], ['/guest/guest.mjs', ['guest.mjs', 'text/javascript']],
+const assets = new Map([['/guest/', ['index.html', 'text/html']], ['/guest/guest.mjs', ['guest.mjs', 'text/javascript']],
   ['/guest/guest-save.mjs', ['guest-save.mjs', 'text/javascript']], ['/guest/guest.css', ['guest.css', 'text/css']]]);
-const operations = new Set(['new', 'load', 'command', 'tasks', 'how']);
+const operations = new Set(['new', 'load', 'command', 'tasks', 'how', 'why', 'chunk-sections', 'chunk-planning', 'profile-preview', 'predict', 'teleports']);
 export const isGuestRoute = request => /^\/guest(?:\/|\?|$)/.test(request.url ?? '');
 
 export function createGuestMode({ runtime, publicOrigin, host, limits: limitOptions, now = Date.now,
+  serveStatic,
   workerFactory = (url, options) => new Worker(url, options), clock = { setTimeout, clearTimeout } } = {}) {
   const admission = createGuestLimits({ now, ...limitOptions });
   const active = new Set(), uploads = new Set();
@@ -57,17 +58,30 @@ export function createGuestMode({ runtime, publicOrigin, host, limits: limitOpti
       response.setHeader('Cache-Control', 'private, no-store');
       response.setHeader('Referrer-Policy', 'no-referrer');
       response.setHeader('X-Content-Type-Options', 'nosniff');
-      response.setHeader('Content-Security-Policy', "default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'");
+      response.setHeader('Content-Security-Policy', "default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' blob: data:; font-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'");
       try {
         const security = runtime.requestContextFor(request, { ...listener, publicOrigin });
         if (security.publicRequest && (!security.secure || !publicOrigin || security.origin !== publicOrigin)) throw guestError(403, 'Use the configured HTTPS address for guest mode.');
         if (closed) throw guestError(503, 'Guest mode is stopping. Try again shortly.', 60);
         const url = new URL(request.url, security.origin), route = url.pathname;
-        if (url.search || request.headers['x-picker-id'] || request.headers['x-account-id']) throw guestError(400, 'Guest mode does not accept group selectors.');
+        if (route.startsWith('/guest/api/') && url.search || request.headers['x-picker-id'] || request.headers['x-account-id']) throw guestError(400, 'Guest mode does not accept group selectors.');
         if (request.method === 'GET' && route === '/guest') { response.writeHead(303, { Location: '/guest/' }); response.end(); return; }
+        // Only the member picker's existing static allowlist is shared. API,
+        // gallery, overlay and auth dispatchers are never called here.
+        if (['GET', 'HEAD'].includes(request.method) && !assets.has(route) && route.startsWith('/guest/') && !route.startsWith('/guest/api/')) {
+          if (!serveStatic) throw guestError(404, 'Guest feature unavailable.');
+          const setHeader = response.setHeader.bind(response);
+          response.setHeader = (name, value) => setHeader(name, name.toLowerCase() === 'cache-control' ? 'private, no-store' : value);
+          return await serveStatic(request, response, route.slice('/guest'.length), { guest: true });
+        }
         const asset = assets.get(route);
         if (asset && ['GET', 'HEAD'].includes(request.method)) {
-          const bytes = await readFile(path.join(runtime.webRoot, asset[0]));
+          let bytes = await readFile(path.join(runtime.webRoot, asset[0]));
+          if (route === '/guest/') bytes = Buffer.from(bytes.toString('utf8')
+            .replace('src="/main.mjs"', 'src="/guest/guest.mjs"')
+            .replaceAll('href="/', 'href="/guest/')
+            .replace('</head>', '<link rel="stylesheet" href="/guest/guest.css"></head>'));
+
           response.writeHead(200, { 'Content-Type': `${asset[1]}; charset=utf-8` });
           response.end(request.method === 'HEAD' ? undefined : bytes); return;
         }
@@ -87,7 +101,7 @@ export function createGuestMode({ runtime, publicOrigin, host, limits: limitOpti
         const body = await bodyJSON(request, admission.config.bodyBytes);
         uploads.delete(request);
         clock.clearTimeout(bodyDeadline); bodyDeadline = undefined;
-        if (!operations.has(body.operation) || Object.keys(body).some(key => !['operation', 'backup', 'command', 'taskId'].includes(key))) throw guestError(400, 'Choose an available guest action.');
+        if (!operations.has(body.operation) || Object.keys(body).some(key => !['operation', 'backup', 'command', 'taskId', 'chunkId', 'profile'].includes(key))) throw guestError(400, 'Choose an available guest action.');
         const result = await calculate(body, request, response, lease);
         await json(request, response, 200, result);
       } catch (error) {

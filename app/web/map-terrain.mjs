@@ -1,3 +1,4 @@
+import { browserAsset } from './asset-url.mjs';
 import { SURFACE_GRID, surfaceCoordinates } from '../data/surface-grid.mjs';
 
 const CELL = 128;
@@ -193,7 +194,7 @@ export class MapTerrain {
         this.coarseReady = true; this.composeBase(); this.pump(); this.prepareView();
       };
       image.onload = () => typeof image.decode === 'function' ? image.decode().then(() => finish(true), () => finish(false)) : finish(true);
-      image.onerror = () => finish(false); image.src = `/assets/map/${source.path}`;
+      image.onerror = () => finish(false); image.src = browserAsset(`/assets/map/${source.path}`);
     }
   }
 
@@ -381,7 +382,7 @@ export class MapTerrain {
       if (typeof image.decode === 'function') image.decode().then(() => finish(true), () => finish(false));
       else finish(true);
     };
-    image.onerror = () => finish(false); image.src = `/assets/map/${page.path}`;
+    image.onerror = () => finish(false); image.src = browserAsset(`/assets/map/${page.path}`);
   }
 
   prioritizeTiles() {
@@ -466,7 +467,7 @@ export class MapTerrain {
         if (typeof image.decode === 'function') image.decode().then(() => finish(true), () => finish(false));
         else finish(true);
       };
-      image.onerror = () => finish(false); image.src = `/assets/map/${tile.path}`;
+      image.onerror = () => finish(false); image.src = browserAsset(`/assets/map/${tile.path}`);
   }
 
   cancelBackground() {

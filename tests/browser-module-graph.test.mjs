@@ -24,8 +24,9 @@ test('real browser entry and optional full-state tools serve every module depend
   assert.equal(joined.status, 303);
   const cookie = joined.headers.get('set-cookie')?.split(';')[0];
   assert.ok(cookie);
+  let guest = false;
   const queue = ['/'], seen = new Set();
-  const get = route => fetch(new URL(route, origin), { headers: { Cookie: cookie }, redirect: 'manual',
+  const get = route => fetch(new URL(route, origin), { headers: guest ? {} : { Cookie: cookie }, redirect: 'manual',
     signal: AbortSignal.timeout(30000) });
   function enqueue(specifier, from) {
     const url = new URL(specifier, new URL(from, origin));
@@ -42,18 +43,18 @@ test('real browser entry and optional full-state tools serve every module depend
       const response = await get(route);
       assert.equal(response.status, 200, route);
       const source = await response.text();
-      if (route === '/') {
+      if (route === '/' || route === '/guest/') {
         for (const match of source.matchAll(/<script\b[^>]*\bsrc=["']([^"']+)["']/g)) enqueue(match[1], route);
       } else if (/\.mjs(?:\?|$)/.test(route)) {
         assert.match(response.headers.get('content-type'), /javascript/, route);
         for (const match of source.matchAll(/(?:\bfrom\s+|\bimport\s*\(\s*|\bimport\s+)["']([^"']+)["']/g)) {
           // These dynamic imports execute only in dataset-runtime's Node branches,
           // including the opt-in CI dataset receipt writer.
-          if (route === '/dataset-runtime.mjs' && ['./datasets.mjs', './dataset-inputs.mjs', 'node:worker_threads', 'node:fs'].includes(match[1])) continue;
-          assert.ok(match[1].startsWith('.'), `Browser-safe import in ${route}: ${match[1]}`);
+          if (route.endsWith('/dataset-runtime.mjs') && (['./datasets.mjs', './dataset-inputs.mjs', '/guest/datasets.mjs', '/guest/dataset-inputs.mjs', 'node:worker_threads', 'node:fs'].includes(match[1]))) continue;
+          assert.ok(match[1].startsWith('.') || guest && match[1].startsWith('/guest/'), `Browser-safe import in ${route}: ${match[1]}`);
           enqueue(match[1], route);
         }
-        for (const match of source.matchAll(/datasetJSON\(["'](app\/data\/[^"']+\.json)["']\)/g)) enqueue(match[1].slice(3), route);
+        for (const match of source.matchAll(/datasetJSON\(["'](app\/data\/[^"']+\.json)["']\)/g)) enqueue((guest ? '/guest' : '') + match[1].slice(3), route);
       } else {
         assert.match(response.headers.get('content-type'), /application\/json/, route);
         assert.doesNotThrow(() => JSON.parse(source), route);
@@ -71,4 +72,10 @@ test('real browser entry and optional full-state tools serve every module depend
     assert.equal((await fetch(new URL(route, origin), { redirect: 'manual' })).status, 401, `Authenticated ${route}`);
   }
   for (const route of ['/tasks/engine.mjs', '/tasks/worker.mjs']) assert.equal((await get(route)).status, 404, route);
+  guest = true; seen.clear(); queue.push('/guest/');
+  await walk();
+  assert.ok(seen.has('/guest/main.mjs'), 'Guest mode uses the real picker screen');
+  assert.ok(seen.has('/guest/guest-transport.mjs'));
+  assert.ok(seen.has('/guest/map.mjs'));
+  for (const route of ['/guest/tasks/engine.mjs', '/guest/tasks/worker.mjs', '/guest/api/state']) assert.equal((await get(route)).status, 404, route);
 });

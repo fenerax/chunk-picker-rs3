@@ -51,6 +51,11 @@ test('guest solo workflow never changes durable gameplay, registry, auth, backup
     return result;
   }
   let result = await run({ operation: 'new' }), backup = result.backup;
+  const bootstrap = result.bootstrap;
+  assert.ok(bootstrap.world.chunks.some(([id]) => id === '12850'));
+  assert.ok(bootstrap.rules.definitions.length);
+  assert.deepEqual(bootstrap.definitions.chunks['12850'], definitions.chunks['12850']);
+  assert.ok(result.pool.partnerConnections.byChunk, 'The real map receives authoritative connection metadata');
   assert.equal(backup.state.members.length, 1); assert.equal(backup.state.members[0].id, 'guest');
   assert.equal(result.chunks.find(chunk => chunk.id === '12850')?.label, 'Starting town');
   const localValues = new Map(), local = { getItem: key => localValues.get(key) ?? null, setItem: (key, value) => localValues.set(key, value) };
@@ -67,8 +72,26 @@ test('guest solo workflow never changes durable gameplay, registry, auth, backup
   await command({ type: 'set-rule', ruleId: 'roll.adjacent', value: false });
   const list = await run({ operation: 'tasks', backup });
   const quest = list.tasks.find(task => task.label === 'Guest example quest'); assert.ok(quest, 'Existing task engine calculates the guest map');
+  assert.equal(list.result.stateRevision, backup.state.revision);
+  assert.equal(list.result.memberId, 'guest');
+  assert.ok(list.result.presentation.tasks.some(task => task.id === quest.id));
+  const why = await run({ operation: 'why', backup, taskId: quest.id });
+  assert.equal(why.why.task.id, quest.id);
+  assert.equal(why.why.stateRevision, backup.state.revision);
+  assert.ok((await run({ operation: 'chunk-sections', backup, chunkId: '12850' })).sections);
+  const planning = (await run({ operation: 'chunk-planning', backup, chunkId: '12850' })).planning;
+  assert.equal(planning.format, 'chunk-planning-v1');
+  assert.equal(planning.stateRevision, backup.state.revision);
+  assert.ok(planning.rows.some(row => row.task.id === quest.id));
+  assert.ok((await run({ operation: 'predict', backup, chunkId: '12851' })).prediction);
+  assert.equal((await run({ operation: 'teleports', backup })).teleports.memberId, 'guest');
+  const profile = (await run({ operation: 'profile-preview', backup,
+    profile: { format: 'rs3-chunk-rule-profile', schemaVersion: 1, rules: backup.state.rules, taskRules: {} } })).profile;
+  assert.equal(profile.stateRevision, backup.state.revision);
   const how = await run({ operation: 'how', backup, taskId: quest.id }); assert.ok(how.how.nodes[how.how.root]);
   await command({ type: 'set-task-status', taskId: quest.id, challengeCompleted: true });
+  await command({ type: 'set-preference', preferenceId: 'theme', value: 'gray' });
+  assert.equal(backup.state.members[0].preferences.theme, 'gray');
   assert.equal(backup.state.members[0].taskStatus[quest.id].challengeCompleted, true);
   const exported = browser.exportText(); assert.deepEqual(importBackup(JSON.parse(exported)), backup.state);
   browser = createGuestSave(local, session.dataset);
@@ -97,6 +120,21 @@ test('guest solo workflow never changes durable gameplay, registry, auth, backup
   for (const route of ['/guest/', '/guest/guest.mjs', '/guest/guest-save.mjs', '/guest/guest.css']) {
     const response = await fetch(origin + route); assert.equal(response.status, 200, route); assert.ok(response.headers.get('content-security-policy'));
   }
+  const shell = await (await fetch(origin + '/guest/')).text();
+  for (const id of ['map-base', 'map-state', 'active-tasks', 'settings-open', 'chunk-info']) assert.ok(shell.includes(`id="${id}"`), id);
+  assert.match(shell, /src="\/guest\/guest.mjs"/);
+  assert.equal((await fetch(origin + '/guest/guest.html')).status, 404);
+  for (const route of ['/guest/core/state.mjs', '/guest/data/dataset-runtime.json', '/guest/screen-context.mjs', '/guest/art-status.json']) {
+    const response = await fetch(origin + route);
+    assert.equal(response.status, 200, route);
+    assert.equal(response.headers.get('cache-control'), 'private, no-store');
+    if (route.endsWith('screen-context.mjs')) assert.match(await response.text(), /from '\/guest\/dataset-runtime.mjs'/);
+  }
+  assert.equal((await fetch(origin + '/guest/tasks/worker.mjs')).status, 404);
+  assert.match(await (await fetch(origin + '/guest/copy-lists.mjs')).text(), /\/guest\/copy-lists.css/);
+  await run({ operation: 'new', accountId: 'unknown' }, 400);
+  await run({ operation: 'why', backup, taskId: {} }, 422);
+  await run({ operation: 'chunk-sections', backup, chunkId: '../private' }, 422);
   assert.equal((await post('/guest/api/run', { operation: 'new' }, session.token, { Origin: 'https://other.example' })).status, 403);
 });
 

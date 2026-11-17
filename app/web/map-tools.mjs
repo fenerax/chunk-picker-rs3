@@ -1,3 +1,4 @@
+import { browserAsset } from './asset-url.mjs';
 import { stickerDefinitions, resolveMemberStickers, resolveStartingChunk, MAX_STICKERS_PER_CHUNK } from '../core/map-markers.mjs';
 import { selectedDataset } from '../dataset-runtime.mjs';
 
@@ -80,7 +81,7 @@ export function loadStickerFont() {
   if (selectedDataset.capabilities?.independent === true) return Promise.resolve(false);
   if (fontPromise) return fontPromise;
   if (typeof globalThis.FontFace !== 'function' || typeof document === 'undefined') return Promise.resolve(false);
-  const font = new FontFace('ChunkStickerSymbols', 'url("/assets/fontawesome/fa-solid-900.woff2")', { weight: '900' });
+  const font = new FontFace('ChunkStickerSymbols', `url("${browserAsset('/assets/fontawesome/fa-solid-900.woff2')}")`, { weight: '900' });
   fontPromise = font.load().then(loaded => { document.fonts.add(loaded); fontLoaded = true; return true; }).catch(() => false);
   return fontPromise;
 }

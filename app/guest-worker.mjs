@@ -1,22 +1,65 @@
 // This worker has no store, registry, sidecar, integration or telemetry owner.
 import { parentPort, workerData } from 'node:worker_threads';
-import { createGroupState, applyCommand, exportBackup, importBackup } from './core/state.mjs';
-import { createRuleRegistry, evaluateRollPool } from './core/rules.mjs';
+import { createGroupState, applyCommand, exportBackup, importBackup, getUndoEligibility } from './core/state.mjs';
+import { createRuleRegistry, evaluateRollPool, partnerConnections } from './core/rules.mjs';
 import { buildWorld, surfaceCoordinates } from './data/world.mjs';
 import { createTaskEngine } from './tasks/engine.mjs';
 import { selectPresentedTasks } from './tasks/presentation.mjs';
-import { selectedDataset } from './dataset-runtime.mjs';
+import { selectedDataset, datasetJSON } from './dataset-runtime.mjs';
 import { assertWorkerHeapLimit } from './tasks/worker-limits.mjs';
 import { prepareWorkerDefinitions } from './dataset-pipeline.mjs';
+import { projectDisplayWorld } from './display-world.mjs';
+import { evaluateEquipment, buildCurrentBiS } from './tasks/equipment.mjs';
+import { buildActivityInfo } from './tasks/activity.mjs';
+import { createCollectionEngine, selectCollectionGoals } from './tasks/collection.mjs';
+import { taskWhyDisplay } from './tasks/task-why-display.mjs';
+import { chunkSectionsPayload } from './core/chunk-sections.mjs';
+import { predictChunk, previewRuleProfile } from './core/planning.mjs';
+import { configureAutomaticTransport } from './core/automatic-transport.mjs';
+import { evaluateTransportRoutes } from './core/transport-access.mjs';
+import { personalTeleportRows } from './core/teleport-returns.mjs';
+import { projectTeleportRoute } from './teleports-response.mjs';
+import { buildChunkPlanningIndex } from './tasks/chunk-planning-index.mjs';
+import { projectPlayTask } from './play-view.mjs';
 
 assertWorkerHeapLimit();
 const allowedCommands = new Set(['set-chunk', 'set-note', 'roll', 'unlock-selection', 'pick-for-me',
-  'unlock-both', 'cancel-roll', 'undo', 'set-rule', 'set-task-rule', 'set-task-status', 'complete-task', 'set-skill-levels']);
+  'unlock-both', 'cancel-roll', 'undo', 'set-rule', 'set-task-rule', 'set-task-status', 'complete-task', 'set-skill-levels',
+  'set-preference', 'set-profile', 'reset-task-rule', 'set-task-alternative', 'set-primary-override', 'set-rule-review', 'setup-start',
+  'clear-backlog', 'clear-challenge-ticks', 'tick-active-tasks', 'add-task', 'update-task', 'delete-task', 'set-journal',
+  'set-starting-chunk', 'random-start', 'set-section', 'set-area', 'set-source-backlog', 'set-teleport', 'delete-teleport',
+  'set-teleport-override', 'set-transport-facts', 'set-boss-unlock', 'set-slayer-lock', 'set-obtained-equipment',
+  'set-chunk-colour', 'rename-chunk-colour', 'set-sticker', 'add-sticker', 'update-sticker', 'remove-sticker', 'clear-stickers']);
 const { datasetOptions, input } = workerData;
 const definitions = prepareWorkerDefinitions(workerData.definitions, selectedDataset, workerData.preparedDatasetStages, datasetOptions);
 const registry = createRuleRegistry();
+const membersStartBanks = await datasetJSON('app/data/members-start-banks.2026-10-12.v1.json');
 let engine;
 const getEngine = () => engine ??= createTaskEngine(definitions, { dataset: selectedDataset, ...datasetOptions });
+let world;
+const getWorld = () => {
+  if (!world) { world = buildWorld(definitions, { dataset: selectedDataset, ...datasetOptions }); configureAutomaticTransport(world, { definitions, engine: getEngine() }); }
+  return world;
+};
+function evaluate(state, memberId) {
+  const result = getEngine().evaluate(state, memberId);
+  result.memberId = memberId; result.stateRevision = state.revision;
+  const collection = createCollectionEngine(definitions, { dataset: selectedDataset }).evaluate(state, memberId, result);
+  result.tasks.push(...collection.tasks);
+  result.collectionPlanning = { completionGroups: collection.completionGroups, obligationIds: collection.obligationIds,
+    diagnostics: collection.diagnostics, coverage: collection.coverage };
+  result.diagnostics.push(...collection.diagnostics);
+  const equipment = evaluateEquipment(result, state, memberId, definitions);
+  result.presentation = selectCollectionGoals(selectPresentedTasks({ ...result, tasks: [...result.tasks, ...equipment.tasks] }, state, memberId, definitions), state, memberId);
+  result.presentation.alternatives = { ...result.presentation.alternatives, ...equipment.alternatives };
+  result.tasks = [...new Map([...result.tasks, ...equipment.catalogue].map(task => [task.id, task])).values()];
+  result.equipmentPlanning = { obligationIds: equipment.tasks.map(task => task.id), loadouts: equipment.loadouts,
+    recommendations: equipment.recommendations, specialist: equipment.specialist, diagnostics: equipment.diagnostics, coverage: equipment.coverage };
+  result.currentBiS = buildCurrentBiS(result, equipment, state, memberId, definitions);
+  result.activityInfo = buildActivityInfo(result, state, memberId, definitions);
+  result.metrics.availableCount = result.tasks.filter(task => task.status === 'available' && task.obligation !== false).length;
+  return result;
+}
 const stamp = { id: selectedDataset.datasetId, contractVersion: selectedDataset.datasetContractVersion, digest: selectedDataset.digest };
 function readSave(backup) {
   const state = importBackup(backup, registry);
@@ -32,26 +75,60 @@ try {
     state.provenance = { dataset: stamp };
   } else state = readSave(input.backup);
   const memberId = state.members[0].id;
-  if (input.operation === 'how') {
+  if (input.operation === 'profile-preview') {
+    parentPort.postMessage({ profile: { ...previewRuleProfile(state, input.profile, memberId, registry), stateRevision: state.revision } });
+  } else if (input.operation === 'how') {
     if (typeof input.taskId !== 'string' || !input.taskId || input.taskId.length > 512) throw new Error('task');
-    parentPort.postMessage({ how: getEngine().how(state, memberId, input.taskId) });
+    parentPort.postMessage({ how: getEngine().how(state, memberId, input.taskId, { context: { stateRevision: state.revision, memberId } }) });
   } else if (input.operation === 'tasks') {
-    const result = getEngine().evaluate(state, memberId);
-    const presented = selectPresentedTasks(result, state, memberId, definitions);
+    const result = evaluate(state, memberId);
+    const presented = result.presentation;
     parentPort.postMessage({ tasks: presented.tasks.map(({ id, label, category, status, explanation, personalCompleted, challengeSatisfied }) =>
-      ({ id, label, category, status, explanation, completed: personalCompleted || challengeSatisfied })) });
+      ({ id, label, category, status, explanation, completed: personalCompleted || challengeSatisfied })), result });
+  } else if (input.operation === 'why') {
+    if (typeof input.taskId !== 'string' || !input.taskId || input.taskId.length > 512) throw new Error('task');
+    parentPort.postMessage({ why: taskWhyDisplay(evaluate(state, memberId), input.taskId, memberId, state.revision) });
+  } else if (input.operation === 'chunk-planning') {
+    if (typeof input.chunkId !== 'string' || !/^\d{1,8}(?:-\d{1,4})?$/.test(input.chunkId)) throw new Error('chunk');
+    const world = getWorld();
+    if (!world.chunks.has(input.chunkId) && !world.areas?.has(input.chunkId)) throw new Error('chunk');
+    const result = evaluate(state, memberId), index = buildChunkPlanningIndex(definitions, result, world);
+    const rows = [...(index.byLocation.get(input.chunkId)?.values() ?? [])].map(({ task, evidence }) => ({
+      task: { ...projectPlayTask(task, { retainHiddenDisplay: true }),
+        ...(task.record?.ClueTier !== undefined ? { record: { ClueTier: task.record.ClueTier } } : {}) }, evidence }));
+    parentPort.postMessage({ planning: { format: 'chunk-planning-v1', memberId, stateRevision: state.revision,
+      chunkId: input.chunkId, rows, clueLocations: index.clueLocations.get(input.chunkId) ?? [], access: result.access } });
+  } else if (input.operation === 'chunk-sections') {
+    if (typeof input.chunkId !== 'string' || !/^\d{1,8}$/.test(input.chunkId)) throw new Error('chunk');
+    parentPort.postMessage({ sections: chunkSectionsPayload(getWorld(), input.chunkId) });
+  } else if (input.operation === 'predict') {
+    if (typeof input.chunkId !== 'string' || !/^\d{1,8}$/.test(input.chunkId)) throw new Error('chunk');
+    parentPort.postMessage({ prediction: predictChunk(state, memberId, input.chunkId, { world: getWorld(), engine: getEngine(), registry }) });
+  } else if (input.operation === 'teleports') {
+    const world = getWorld(), automatic = state.rules['travel.automatic'] === true;
+    const travel = evaluateTransportRoutes(world, automatic ? state : { ...state, rules: { ...state.rules, 'travel.automatic': true } }, memberId);
+    const rows = travel.map(row => projectTeleportRoute(row, world));
+    parentPort.postMessage({ teleports: { stateRevision: state.revision, memberId, automatic, rows,
+      personalTeleports: personalTeleportRows(world, state, memberId, automatic ? travel : []).map(({ id, available, reason }) => ({ id, available, reason })),
+      counts: { usable: rows.filter(row => row.available).length, total: rows.length } } });
   } else {
-    const world = buildWorld(definitions, { dataset: selectedDataset, ...datasetOptions });
+    const world = getWorld();
     if (input.operation === 'command') {
       const command = input.command;
       if (!command || !allowedCommands.has(command.type) || command.memberId !== undefined && command.memberId !== memberId) throw new Error('command');
       // Task checks register the existing engine's canonical row in the save.
-      const taskCatalogue = ['complete-task', 'set-task-status'].includes(command.type)
-        ? getEngine().catalogue.map(({ level, ...row }) => row) : undefined;
-      state = applyCommand(state, command, { world, registry, taskCatalogue, expectedRevision: state.revision });
+      const taskCatalogue = ['complete-task', 'set-task-status', 'tick-active-tasks'].includes(command.type)
+        ? evaluate(state, memberId).tasks.map(row => Object.fromEntries(
+          ['id', 'label', 'category', 'rawLabel', 'aliases', 'kind', 'objectiveKind', 'sourceId', 'itemId', 'completionIds']
+            .filter(key => row[key] !== undefined).map(key => [key, row[key]]))) : undefined;
+      state = applyCommand(state, command, { world, registry, taskCatalogue, membersStartBanks, expectedRevision: state.revision });
     }
-    const pool = evaluateRollPool(world, state, memberId, registry);
+    const pool = { ...evaluateRollPool(world, state, memberId, registry),
+      partnerConnections: partnerConnections(world, state, memberId, registry) };
     const result = { backup: exportBackup(state, registry), pool };
+    const latest = getUndoEligibility(state, undefined, { registry });
+    result.coordination = { stateRevision: state.revision, history: [], ownUndo: null,
+      latestUndo: { ...latest, event: state.history.find(event => event.revision === latest.undoRevision) ?? null } };
     if (input.operation === 'new' || input.operation === 'load') {
       result.chunks = [...world.chunks].flatMap(([id, record]) => {
         const position = surfaceCoordinates(id);
@@ -59,6 +136,9 @@ try {
       });
       result.rules = registry.definitions.map(({ candidates, exclude, ...metadata }) => metadata);
       result.settings = registry.resolve(state.rules);
+      result.bootstrap = { definitions, world: projectDisplayWorld(world), membersStartBanks, rules: {
+        definitions: result.rules, defaults: registry.defaults, cacheResources: selectedDataset.capabilities.cacheResources,
+        cacheArchaeology: selectedDataset.capabilities.cacheArchaeology } };
     }
     parentPort.postMessage(result);
   }

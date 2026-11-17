@@ -1,168 +1,97 @@
-import { createGuestSave } from './guest-save.mjs';
+import { createGuestTransport } from './guest-transport.mjs';
+import { configurePickerStorage } from './screen-save-status.mjs';
 
-const $ = id => document.getElementById(id);
-let token, expiresAt, save, backup, chunks = [], rules = [], pool, chosen, tasks = [], busy = false, stale = false;
-const member = () => backup?.state.members[0];
-function status(message, error = false) { $('status').textContent = message; $('status').classList.toggle('error', error); }
-function controls() {
-  $('picker').setAttribute('aria-busy', String(busy));
-  $('import-open').disabled = $('import').disabled = busy || stale || !save;
-  for (const button of document.querySelectorAll('[data-play], #rules input, #rules select, #choices button')) button.disabled = busy || stale || !backup;
-  if (backup && !busy && !stale) {
-    $('roll').disabled = !pool?.eligible?.length || !!member().pendingRoll.length;
-    $('roll-two').disabled = (pool?.eligible?.length ?? 0) < 2 || !!member().pendingRoll.length;
-    for (const id of ['unlock', 'select', 'lock', 'save-note']) $(id).disabled = !chosen;
-  }
+try {
+  let screen;
+  const guest = await createGuestTransport({ changed: () => {
+    screen?.notice('This save changed in another tab. Reload before making another change.', true);
+    const badge = document.getElementById('save-status'); badge.textContent = 'Reload browser save'; badge.dataset.status = 'failed';
+  } });
+  // Dataset/bootstrap and optional presentation loaders share this document's
+  // guest-only transport. Member documents never import this entrypoint.
+  globalThis.fetch = guest.fetch;
+  // Resolve the public artwork inventory before the shared map chooses its
+  // fallback image. Independent datasets deliberately have no artwork.
+  const { loadArtStatus } = await import('./art-status.mjs');
+  await loadArtStatus(guest.fetch);
+  configurePickerStorage(`guest-${guest.backup.state.provenance.dataset.digest}`);
+  const { createPickerScreen } = await import('./main.mjs');
+  const disabled = new Set(['runeMetrics', 'originalSync', 'gallery']);
+  screen = createPickerScreen({
+    configureTransport(c) {
+      c.panelContext.pickerSession.fetch = guest.fetch;
+      c.supportsFeature = ((original) => feature => !disabled.has(feature) && original(feature))(c.supportsFeature);
+      return { commandClient: guest.commandClient };
+    },
+    configureScreen(c) {
+      c.connectEvents = () => {};
+      c.usage = undefined;
+      c.panelContext.usage = undefined;
+      c.gamePlugin.refresh = async () => {};
+      c.panelContext.gamePlugin = undefined;
+      c.panelContext.applyRuneMetrics = undefined;
+      c.panelContext.guest = true;
+      const showChunk = c.showChunk;
+      c.showChunk = (...args) => {
+        const tab = c.chunkId === String(args[0]) ? c.phoneLayout?.tab : undefined;
+        const result = showChunk(...args);
+        if (tab) c.phoneLayout.select(tab, { persist: false });
+        return result;
+      };
+      c.historyDialog = () => c.renderHistory(c.state.history);
+      c.panelContext.supportsFeature = c.supportsFeature;
+      const applyControls = c.applyDatasetControls;
+      c.applyDatasetControls = () => {
+        applyControls();
+        for (const id of ['admin-tools', 'account-tools', 'account-open', 'invites-open', 'accounts-open', 'overlays-open', 'usage-open', 'gallery-open',
+          'feedback-open', 'runemetrics-open', 'game-plugin-open', 'original-sync-open', 'partner-supply-open']) {
+          const node = c.$(id); if (node) node.hidden = true;
+        }
+        for (const id of ['sandbox-toggle', 'pool-ranking-toggle', 'area-check-toggle', 'helper-open', 'members-preview-open']) {
+          const node = c.$(id); if (node) { node.disabled = true; node.title = 'Sign in for bulk previews. Guest calculations are limited to one chunk at a time.'; node.setAttribute('aria-describedby', 'guest-preview-limit'); }
+        }
+        c.$('group-view').checked = false;
+        c.$('group-view').closest('label').hidden = true;
+        document.querySelector('.member-picker').hidden = true;
+        c.$('empty-map-title').textContent = 'Start your browser map';
+        c.$('empty-map-instructions').textContent = 'Choose a starting chunk on the map or use Search. Export / Import can restore a portable solo save.';
+        c.$('empty-import').hidden = true;
+      };
+      c.backupDialog = () => {
+        const box = c.el('div', undefined, 'form-stack');
+        const status = c.el('p', 'Cloud backups need an account. Download your browser save to keep or move it.', 'status-detail'); status.setAttribute('role', 'status');
+        const download = c.button('Download save', () => c.download(JSON.parse(guest.save.exportText()), 'chunk-picker-guest.json'));
+        const file = c.input('file'); file.accept = '.json,application/json'; file.id = 'guest-import-file';
+        const label = c.field('Import a portable solo save', file);
+        const restore = c.button('Import save', async () => {
+          const selected = file.files[0];
+          if (!selected) { status.textContent = 'Choose a save file first.'; file.focus(); return; }
+          if (selected.size > 2 * 1024 ** 2 - 4096) throw new Error('This guest save is too large. Keep it to import after signing in.');
+          const text = await selected.text(); guest.save.parseImport(text);
+          if (!confirm('Replace this browser’s guest save? Download your current save first if you want to keep it.')) return;
+          restore.disabled = true;
+          try { const loaded = await guest.importText(text); c.adopt(loaded.state, loaded.pools); c.saved('Saved in this browser', false, c.state.revision, { confirmed: true }); status.textContent = 'Imported and saved in this browser.'; }
+          finally { restore.disabled = false; }
+        });
+        box.append(status, download, label, restore); c.openDialog('Export / Import', box);
+      };
+      const saved = c.saved;
+      c.saved = (text, error, revision, details) => saved(text === 'Saved' ? 'Saved in this browser' : text, error, revision, details);
+    },
+  });
+  document.documentElement.dataset.guest = 'true';
+  document.title = 'Guest picker · Chunk Picker RS3';
+  const banner = screen.el('aside', undefined, 'guest-notice'); banner.id = 'guest-notice';
+  const notice = screen.el('span'); notice.append(screen.el('strong', 'This save is only on this browser. '), 'Clearing site data removes it.');
+  const details = screen.el('details'), summary = screen.el('summary', 'About guest mode');
+  details.append(summary, screen.el('p', 'Calculations use the server temporarily; your save is never stored there. Groups, invites, progress sync, plugin keys, OBS overlays and cloud backups need an account. Download your guest save before signing in to import it into your new picker.'));
+  const signIn = screen.el('a', 'Sign in'); signIn.href = '/auth/signin';
+  const previewLimit = screen.el('small', 'Bulk previews need an account; guests can preview one chunk at a time.'); previewLimit.id = 'guest-preview-limit';
+  banner.append(previewLimit);
+  banner.append(notice, screen.button('Export / Import', screen.backupDialog), screen.button('Reload save', () => location.reload()), signIn, details);
+  document.querySelector('.topbar').after(banner);
+  window.addEventListener('storage', event => { if (event.key === guest.save.key || event.key === null) guest.markStale(); });
+  await screen.start();
+} catch (error) {
+  const { showStartupError } = await import('./startup-read.mjs'); showStartupError(error);
 }
-async function request(operation, extra = {}) {
-  const result = await fetch('/guest/api/run', { method: 'POST', credentials: 'omit',
-    headers: { 'Content-Type': 'application/json', 'X-Guest-Token': token },
-    body: JSON.stringify({ operation, ...(operation === 'new' ? {} : { backup }), ...extra }), signal: AbortSignal.timeout(35000) });
-  const body = await result.json();
-  if (!result.ok) throw new Error(`${body.message}${result.headers.get('Retry-After') ? ` Try again in ${result.headers.get('Retry-After')} seconds.` : ''}`);
-  return body;
-}
-async function perform(operation) {
-  if (busy) return;
-  busy = true; controls();
-  try { await operation(); }
-  catch (error) { status(error.message || 'Guest action failed. Your browser save is unchanged; reload and try again.', true); }
-  finally { busy = false; controls(); }
-}
-async function commit(value) {
-  const write = () => save.commit(value);
-  if (navigator.locks) await navigator.locks.request(save.key, write);
-  else throw new Error('This browser cannot safely save guest progress across tabs. Use a current browser with Web Locks support.');
-  backup = value;
-}
-function applyResult(result) {
-  pool = result.pool;
-  if (result.chunks) { chunks = result.chunks; rules = result.rules; renderSearch(); }
-  if (!chosen) chosen = chunks.find(chunk => chunk.id === member()?.unlocked[0])?.id ?? chunks.find(chunk => chunk.id === '12850')?.id ?? chunks[0]?.id;
-  renderMap(); renderChoices(); renderRules();
-}
-async function command(value) {
-  if (stale || save.changed()) throw new Error('This save changed in another tab. Reload before making another change.');
-  status('Applying your change…');
-  const result = await request('command', { command: { ...value, ...(value.type === 'set-rule' || value.type === 'undo' ? {} : { memberId: member().id }) } });
-  await commit(result.backup);
-  tasks = []; renderTasks(); $('how').hidden = true;
-  applyResult(result);
-  status(`Saved in this browser · revision ${backup.state.revision}. Calculate tasks to refresh your list.`);
-}
-function button(label, action) {
-  const node = document.createElement('button'); node.textContent = label; node.dataset.play = '';
-  node.addEventListener('click', () => perform(action)); return node;
-}
-function renderSearch() {
-  $('chunks').replaceChildren(...chunks.map(chunk => { const option = document.createElement('option'); option.value = chunk.id; option.label = chunk.label; return option; }));
-}
-function renderMap() {
-  const center = chunks.find(chunk => chunk.id === chosen);
-  if (!center || !backup) return;
-  const lookup = new Map(chunks.map(chunk => [`${chunk.x}:${chunk.y}`, chunk]));
-  const eligible = new Set((pool?.eligible ?? []).map(chunk => chunk.id));
-  const cells = [];
-  for (let y = center.y - 4; y <= center.y + 4; y++) for (let x = center.x - 4; x <= center.x + 4; x++) {
-    const chunk = lookup.get(`${x}:${y}`);
-    if (!chunk) { const empty = document.createElement('span'); empty.className = 'empty'; cells.push(empty); continue; }
-    const unlocked = member().unlocked.includes(chunk.id);
-    const node = button(chunk.id, async () => { chosen = chunk.id; renderMap(); controls(); });
-    node.className = [unlocked && 'unlocked', eligible.has(chunk.id) && 'eligible', chosen === chunk.id && 'chosen'].filter(Boolean).join(' ');
-    node.setAttribute('aria-label', `${chunk.label}, chunk ${chunk.id}, ${unlocked ? 'unlocked' : eligible.has(chunk.id) ? 'rollable' : 'locked'}`);
-    node.setAttribute('aria-pressed', String(chosen === chunk.id));
-    node.title = node.getAttribute('aria-label'); cells.push(node);
-  }
-  $('map').replaceChildren(...cells);
-  $('selection').textContent = `${center.label === chosen ? 'Chunk' : center.label} · ${chosen} · ${member().unlocked.includes(chosen) ? 'Unlocked' : 'Locked'} · ${pool?.eligible?.length ?? 0} roll candidates`;
-  $('note').value = member().notes?.[chosen] ?? '';
-}
-function renderChoices() {
-  $('choices').replaceChildren(...member().pendingRoll.map(chunkId => button(`Choose ${chunkId}`, () => command({ type: 'unlock-selection', chunkId }))));
-  if (member().pendingRoll.length) $('choices').append(button('Pick for me', () => command({ type: 'pick-for-me' })), button('Cancel roll', () => command({ type: 'cancel-roll' })));
-}
-function renderRules() {
-  $('rules').replaceChildren(...rules.filter(rule => !rule.id.startsWith('access.shared') && !rule.id.startsWith('completion.shared') && !rule.id.startsWith('supplies.shared')).map(rule => {
-    const label = document.createElement('label'), name = document.createElement('span'); name.textContent = rule.label ?? rule.id; label.title = rule.description ?? ''; label.append(name);
-    const control = document.createElement(rule.type === 'enum' ? 'select' : 'input');
-    const value = Object.hasOwn(backup.state.rules, rule.id) ? backup.state.rules[rule.id] : rule.default;
-    if (rule.type === 'enum') for (const option of rule.options) { const node = document.createElement('option'); node.value = option; node.textContent = option; control.append(node); }
-    else control.type = rule.type === 'boolean' ? 'checkbox' : rule.type === 'number' ? 'number' : 'text';
-    if (rule.type === 'boolean') control.checked = value; else control.value = value;
-    control.addEventListener('change', () => perform(async () => {
-      await command({ type: 'set-rule', ruleId: rule.id, value: rule.type === 'boolean' ? control.checked : rule.type === 'number' ? Number(control.value) : control.value });
-    }).finally(() => { renderRules(); controls(); }));
-    label.append(control); return label;
-  }));
-}
-function renderTasks() {
-  const query = $('task-filter').value.toLowerCase();
-  const visible = tasks.filter(task => `${task.category} ${task.label}`.toLowerCase().includes(query));
-  $('task-summary').textContent = tasks.length ? `${visible.length} of ${tasks.length} tasks · revision ${backup.state.revision}` : 'Calculate tasks for your current map.';
-  // Bound DOM work; filtering can find any task in the complete result.
-  $('tasks').replaceChildren(...visible.slice(0, 200).map(task => {
-    const row = document.createElement('article'); row.className = 'task';
-    const title = document.createElement('div'); title.className = 'task-title';
-    const label = document.createElement('label'), check = document.createElement('input'); check.type = 'checkbox'; check.dataset.play = ''; check.checked = !!task.completed; check.disabled = busy || stale;
-    check.addEventListener('change', () => perform(async () => { await command({ type: 'set-task-status', taskId: task.id, challengeCompleted: check.checked }); }).finally(() => { check.checked = !!task.completed; }));
-    label.append(check, document.createTextNode(` ${task.label}`)); title.append(label, button('How?', async () => {
-      status('Building the task explanation…');
-      const result = await request('how', { taskId: task.id });
-      const proof = result.how;
-      const content = document.createElement('ol'), visited = new Set();
-      function visit(id, depth = 0) {
-        if (visited.has(id) || depth > 30) return;
-        visited.add(id); const node = proof.nodes?.[id]; if (!node) return;
-        for (const child of node.allOf ?? []) visit(child, depth + 1);
-        const item = document.createElement('li'); item.textContent = node.label; content.append(item);
-      }
-      visit(proof.root); $('how-content').replaceChildren(content); $('how').hidden = false; $('how').scrollIntoView({ block: 'nearest' }); status('Explanation ready. Your save has not changed.');
-    }));
-    const detail = document.createElement('p'); detail.textContent = `${task.category} · ${task.status}. ${task.explanation ?? ''}`;
-    row.append(title, detail); return row;
-  }));
-  if (visible.length > 200) { const message = document.createElement('p'); message.textContent = 'Showing the first 200 matches. Filter by name or skill to narrow the list.'; $('tasks').append(message); }
-}
-$('search-form').addEventListener('submit', event => {
-  event.preventDefault(); const query = $('search').value.trim().toLowerCase();
-  const chunk = chunks.find(chunk => chunk.id === query) ?? chunks.find(chunk => chunk.label.toLowerCase() === query)
-    ?? chunks.find(chunk => chunk.label.toLowerCase().includes(query));
-  if (!chunk) { status('No matching chunk. Try its numeric ID.', true); return; }
-  chosen = chunk.id; renderMap(); controls();
-});
-for (const [id, type, extra] of [['unlock', 'set-chunk', { status: 'unlocked' }], ['select', 'set-chunk', { status: 'selected' }], ['lock', 'set-chunk', { status: 'locked' }],
-  ['roll', 'roll', { count: 1 }], ['roll-two', 'roll', { count: 2 }], ['undo', 'undo', {}], ['save-note', 'set-note', {}]]) {
-  $(id).addEventListener('click', () => perform(() => command({ type, ...extra,
-    ...(['set-chunk', 'set-note'].includes(type) ? { chunkId: chosen } : {}), ...(type === 'set-note' ? { note: $('note').value } : {}) })));
-}
-$('load-tasks').addEventListener('click', () => perform(async () => { status('Calculating tasks…'); const result = await request('tasks'); tasks = result.tasks; renderTasks(); status('Tasks ready. Progress is saved only in this browser.'); }));
-$('task-filter').addEventListener('input', renderTasks);
-$('close-how').addEventListener('click', () => { $('how').hidden = true; });
-$('export').addEventListener('click', () => { try {
-  const url = URL.createObjectURL(new Blob([save.exportText()], { type: 'application/json' }));
-  const link = document.createElement('a'); link.href = url; link.download = 'chunk-picker-guest.json'; link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
-} catch (error) { status(error.message, true); } });
-$('import-open').addEventListener('click', () => $('import').click());
-$('import').addEventListener('change', () => perform(async () => {
-  const file = $('import').files[0]; if (!file) return;
-  if (file.size > 2 * 1024 ** 2 - 4096) throw new Error('This guest save is too large. Keep it for import after signing in.');
-  const incoming = save.parseImport(await file.text());
-  if (!confirm('Replace this browser’s guest save with the selected file? Download your current save first if you want to keep it.')) return;
-  const result = await request('load', { backup: incoming }); await commit(result.backup); tasks = []; chosen = undefined; applyResult(result); renderTasks(); status('Imported and saved in this browser.');
-}).finally(() => { $('import').value = ''; }));
-$('reload').addEventListener('click', () => location.reload());
-window.addEventListener('storage', event => { if (save && (event.key === save.key || event.key === null)) { stale = true; controls(); status('This save changed in another tab. Reload before making another change.', true); } });
-await perform(async () => {
-  let previousToken;
-  try { previousToken = sessionStorage.getItem('rs3:guest-admission'); } catch { /* Save storage has its own visible failure below. */ }
-  const response = await fetch('/guest/api/session', { method: 'POST', credentials: 'omit', headers: { 'Content-Type': 'application/json', ...(previousToken ? { 'X-Guest-Token': previousToken } : {}) }, body: '{}' });
-  const session = await response.json(); if (!response.ok) throw new Error(session.message);
-  ({ token, expiresAt } = session);
-  try { sessionStorage.setItem('rs3:guest-admission', token); } catch { /* Reopening can obtain another bounded admission. */ }
-  save = createGuestSave(localStorage, session.dataset);
-  $('export').disabled = false;
-  backup = save.load();
-  const result = await request(backup ? 'load' : 'new');
-  if (!backup) await commit(result.backup);
-  applyResult(result); renderTasks(); status(`Saved only in this browser. Guest access lasts until ${new Date(expiresAt).toLocaleTimeString()}; reload afterward to resume.`);
-});

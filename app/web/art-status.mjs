@@ -1,3 +1,4 @@
+import { browserAsset } from './asset-url.mjs';
 import { withStartupTimeout } from '../startup-read.mjs';
 
 // Picture availability affects presentation only. These values never enter saves,
@@ -40,7 +41,7 @@ export async function loadArtStatus(fetcher = globalThis.fetch) {
 export function placeholderPicture(name) {
   return name === 'item' || /^skill-/.test(name) && skills.has(name.slice(6))
     || /^task-/.test(name) && types.has(name.slice(5)) || /^pin-/.test(name) && groups.has(name.slice(4))
-    ? `/placeholder-art/${name}.svg` : null;
+    ? browserAsset(`/placeholder-art/${name}.svg`) : null;
 }
 export function categoryPlaceholder(category) {
   const key = String(category ?? '').toLowerCase();
@@ -57,7 +58,7 @@ export function pictureAvailable(route) {
   return !inventoried || routes.has(route);
 }
 export function resolvePicture(route, fallback = null) {
-  return pictureAvailable(route) ? route : fallback;
+  return browserAsset(pictureAvailable(route) ? route : fallback);
 }
 export function recordPictureFailure(route) {
   if (!route || failedRoutes.has(route)) return;

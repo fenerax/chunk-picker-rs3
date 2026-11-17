@@ -2,6 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createGuestSave } from '../app/web/guest-save.mjs';
+import { createGuestTransport } from '../app/web/guest-transport.mjs';
 
 const dataset = { id: 'synthetic', digest: 'a'.repeat(64) };
 const fresh = () => ({ format: 'rs3-chunk-picker', schemaVersion: 1, state: { schemaVersion: 1, revision: 0,
@@ -10,6 +11,49 @@ function storage() {
   const values = new Map();
   return { getItem: key => values.get(key) ?? null, setItem: (key, value) => values.set(key, value) };
 }
+
+test('shared picker adapter keeps commands browser-owned and shares task reads without authenticated requests', async () => {
+  const local = storage(), requests = [];
+  const network = async (route, options) => {
+    assert.match(route, /^\/guest\//);
+    assert.equal(options.credentials, 'omit');
+    if (route === '/guest/api/session') return Response.json({ token: 'synthetic', dataset });
+    const body = JSON.parse(options.body); requests.push(body.operation);
+    if (body.operation === 'new' || body.operation === 'load') return Response.json({ backup: body.backup ?? fresh(), pool: { eligible: [] }, bootstrap: { definitions: {}, world: {}, rules: {} } });
+    if (body.operation === 'tasks') return Response.json({ result: { memberId: 'guest', stateRevision: body.backup.state.revision, tasks: [] } });
+    if (body.operation === 'command') return Response.json({ backup: { ...body.backup, state: { ...body.backup.state, revision: body.backup.state.revision + 1 } }, pool: { eligible: [] } });
+    throw new Error('Unexpected operation');
+  };
+  let lockCount = 0;
+  const options = { fetch: network, storage: local, tabStorage: storage(), locks: { request: async (key, write) => { lockCount++; return write(); } } };
+  const guest = await createGuestTransport(options);
+  const [one, two] = await Promise.all([guest.api('/api/tasks?view=play-v1'), guest.api('/api/tasks')]);
+  assert.equal(one, two); assert.equal(requests.filter(value => value === 'tasks').length, 1);
+  await guest.commandClient.send({ command: { type: 'set-note' }, expectedRevision: 0 });
+  assert.equal(guest.backup.state.revision, 1); assert.equal(lockCount, 2);
+  const reloaded = await createGuestTransport(options);
+  assert.equal(reloaded.backup.state.revision, 1);
+  await reloaded.importText(guest.save.exportText());
+  await guest.commandClient.send({ command: { type: 'set-note' }, expectedRevision: 1 });
+  await assert.rejects(reloaded.commandClient.send({ command: { type: 'set-note' }, expectedRevision: 1 }), /another tab/);
+  await assert.rejects(guest.api('/api/invites', {}), /Sign in/);
+  assert.equal(guest.commandClient.pending(), null, 'Guest commands never enter the authenticated outbox');
+});
+
+test('shared picker adapter refuses failed browser commits before acknowledging a new revision', async () => {
+  const local = storage(), initial = fresh();
+  const saved = createGuestSave(local, dataset); saved.load(); saved.commit(initial);
+  const guest = await createGuestTransport({ storage: local, tabStorage: storage(), locks: { request: async (_, work) => work() },
+    fetch: async (route, options) => {
+      if (route.endsWith('/session')) return Response.json({ token: 'synthetic', dataset });
+      const body = JSON.parse(options.body);
+      return Response.json({ backup: body.operation === 'command' ? { ...initial, state: { ...initial.state, revision: 1 } } : initial, pool: {}, bootstrap: {} });
+    } });
+  local.setItem = () => { throw new Error('quota'); };
+  await assert.rejects(guest.commandClient.send({ command: { type: 'set-note' } }), /not saved/);
+  assert.equal(guest.backup.state.revision, 0);
+  assert.equal(JSON.parse(guest.save.exportText()).state.revision, 0);
+});
 test('browser guest save survives reload, export and import in the existing portable envelope', () => {
   const local = storage(), first = createGuestSave(local, dataset);
   assert.equal(first.load(), null); first.commit(fresh());

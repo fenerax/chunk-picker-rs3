@@ -376,7 +376,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
       interiorsPending = undefined; chunkSectionsPending = undefined;
     },
   };
-  const guestMode = createGuestMode({ ...guestOptions, runtime, publicOrigin, host });
+  const guestMode = createGuestMode({ ...guestOptions, runtime, publicOrigin, host, serveStatic: (...args) => context.serveStatic(...args) });
   const connections = startupConnections ?? new Set();
   const transport = { savingConnections: new Map(), connectionDeadlinePassed: false,
     inviteUrl: () => handle.inviteUrl, requestClose: () => handle.close() };
