@@ -51,7 +51,8 @@ identity index and tasksMap/history. Pasted lookup tables never become authority
 | Positive checks in all three task containers | Matched `challengeCompleted` flags | No personal quest, skill, achievement or item completion is invented. |
 | Backlog / favorites | Matched membership, reasons and favorites when opted in | Empty backlog reasons count. Reason values use trusted tasksMap/history translations; missing or ambiguous translations stay raw and are reported. Alias comparisons use complete decoded reasons. Long reasons have a bounded active sample and an exact archived copy. |
 | Unknown or ambiguous task keys | None | Reported with category/key; exact input remains in provenance. |
-| Notes, annotations, custom tasks, section/area controls, roll timeline, display preferences and other branches | None | Reported and retained in the exact gameplay text. No foreign History/Undo is manufactured. |
+| String `chunkNotes` (map-wide Notes) | Player journal, using the existing legacy decoder | Up to 10,000 characters; longer text remains exact in archived gameplay. |
+| Chunk/task notes, annotations, custom tasks, section/area controls, roll timeline, display preferences and other branches | None | Reported and retained in the exact gameplay text. No foreign History/Undo is manufactured. |
 
 Every supplied rule key receives one of these decisions. The full per-key table
 is retained with the paste; the preview displays a bounded sample with before

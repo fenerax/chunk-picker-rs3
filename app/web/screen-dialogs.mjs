@@ -2,7 +2,7 @@ import { openSandboxRules } from './sandbox-rules.mjs';
 import { openTeleportsDialog } from './teleports.mjs';
 import { backupSaveLabel } from './backup-status.mjs';
 import { createSearchDialog } from './screen-search.mjs';
-import { createBackupUpload, createOriginalPasteUpload, downloadFullBackup } from './backup-transfer.mjs';
+import { createBackupUpload, createOriginalPasteUpload, downloadFullBackup, originalTransferList } from './backup-transfer.mjs';
 import { BACKUP_LIMIT_LABEL } from './backup-limits.mjs';
 
 // Native textarea focus can reveal only the caret, and progressive details can
@@ -156,18 +156,35 @@ export function createScreenDialogs(c) {
     const content = c.el('div', undefined, 'form-stack'); content.append(c.el('p', generic ? 'Full backups include maps, tasks, progress, rules, notes and history. Every replacement retains the previous state on the server.' : 'Full backups include both maps, progress, rules, notes, teleport confirmations, original imported records and history. Every replacement retains the previous state on the server.', 'section-intro'), c.button('Full picker backup', async () => downloadFullBackup(`${generic ? 'grid-challenge' : 'rs3-duo'}-${new Date().toISOString().slice(0, 10)}.json.gz`, c.panelContext?.pickerSession ? c.panelContext?.pickerSession.fetch : fetch)));
     content.append(c.el('p', 'Move this file between copies of this picker using the same dataset. It includes saved gameplay and History. Unaccepted plugin evidence, accounts, invitations, keys and reference datasets are excluded. Sign in to the destination picker you own, then import here. A fresh destination keeps your existing picker untouched.', 'status-detail'));
     const exportMember = c.select(c.state.members.map(member => ({ value: member.id, label: member.name })), c.sessionMember ?? c.state.members[0].id);
-    const chunkExport = c.button('Copy link for the original picker', async () => {
+    const chunkExport = c.button('Move to the original picker', async () => {
       const generation = c.beginDialogRequest();
       const result = await c.api(`/api/export/original-chunks?memberId=${encodeURIComponent(exportMember.value)}`);
       if (!c.dialogCurrent(generation)) return;
-      const link = c.input('text'); link.value = result.url; link.readOnly = true;
-      const copy = c.button('Copy chunk link', async () => { await navigator.clipboard.writeText(result.url); c.notice('Chunk link copied.'); });
       const instructions = c.el('div', undefined, 'form-stack');
-      instructions.append(c.el('p', result.message, 'warning'), c.field('Paste into the original picker’s Import from URL', link), copy);
-      c.openDialog('Export unlocked chunks', instructions);
-      try { await navigator.clipboard.writeText(result.url); c.notice('Chunk link copied.'); } catch { link.focus(); link.select?.(); }
+      instructions.append(c.el('p', `Moving ${c.state.members.find(member => member.id === exportMember.value)?.name ?? 'this player'}. Paste the pieces below into an editable original map yourself. Nothing is sent to the original picker.`, 'section-intro'),
+        c.el('h3', '1. Keep a full backup'), c.el('p', 'The original cannot accept all your progress. Download this before moving so you can return with everything intact.'),
+        c.button('Download full backup before moving', () => downloadFullBackup(`rs3-picker-before-moving-${new Date().toISOString().slice(0, 10)}.json.gz`, c.panelContext?.pickerSession ? c.panelContext.pickerSession.fetch : fetch)), originalTransferList(c));
+      const piece = (heading, label, value, copyLabel, explanation) => {
+        const input = c.el('textarea'); input.rows = 4; input.value = value; input.readOnly = true; input.spellcheck = false;
+        const status = c.el('p', '', 'status-detail'); status.setAttribute('role', 'status');
+        const copy = c.button(copyLabel, async () => {
+          try { await navigator.clipboard.writeText(value); status.textContent = 'Copied.'; }
+          catch { status.textContent = 'Select this text and copy it manually.'; input.focus(); input.select?.(); }
+        });
+        instructions.append(c.el('h3', heading), c.el('p', explanation, 'status-detail'), c.field(label, input), copy, status);
+      };
+      if (result.url) piece('2. Import the chunk link', 'Chunk link for Import from URL', result.url, 'Copy chunk link', result.message);
+      else instructions.append(c.el('h3', '2. Recreate the empty map'), c.el('p', result.message, 'warning'));
+      if (result.selectedOrderChanged) instructions.append(c.el('p', 'Your hand-added roll pool order changes: the original sorts selected chunks by descending grid position.', 'warning'));
+      if (result.rulesJSON) {
+        piece('3. Import the rules', 'Rules JSON for Chunk Rules → Import', result.rulesJSON, 'Copy original rules', 'Open Chunk Rules → Import on the original, paste this JSON and confirm. This replaces all its rules. Missing saved settings use the reference defaults; any newer original keys absent here switch off. Review the rules there before rolling: some behavior differs.');
+        if (result.resetRules?.length || result.appOnlyRules?.length) instructions.append(c.el('p', `${result.resetRuleCount ?? result.resetRules.length} rules use reference defaults; ${result.appOnlyRuleCount ?? result.appOnlyRules.length} app-only settings stay in your backup.`, 'status-detail'));
+      } else instructions.append(c.el('p', 'No original rule inventory is available for this dataset; review rules in the original yourself.', 'warning'));
+      piece('4. Paste the journal', 'Journal text for Notes', result.journal ?? '', 'Copy journal text', 'Open Notes → Edit on the original, replace its text with this journal and press Save. An empty journal means clearing the original notes if you want them to match.');
+      instructions.append(c.el('h3', '5. Review before playing'), c.el('p', 'Check the original map, rules and notes. Task checks, backlog, favorites, pending choices and never-roll chunks need manual review. Keep your full backup for returning to this picker.'));
+      c.openDialog('Move to the original picker', instructions);
     });
-    content.append(c.el('h3', 'Export unlocked chunks'), c.el('p', 'Only chunks carry over. Tasks, rules, notes and History stay in your full backup. Available only with the full legacy RS3 dataset.', 'status-detail'), c.field('Player', exportMember), chunkExport, c.el('h3', 'Import a backup'));
+    content.append(c.el('h3', 'Move between pickers'), originalTransferList(c), c.el('p', 'Move to the original below, or use original-picker import here when enabled. Full legacy RS3 coordinates are required. Full backups move between copies of this picker with the same dataset.', 'status-detail'), c.field('Player to move to the original', exportMember), chunkExport, c.el('h3', 'Import a backup'));
     if (statusLine) content.prepend(statusLine);
     const owner = c.panelContext?.account?.isOwner?.() === true;
     let originalMode = false;

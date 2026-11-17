@@ -18,7 +18,7 @@ import { createMembersPreview } from '../app/web/members-preview.mjs';
 import { appendPreviewTasks } from '../app/web/preview-additions.mjs';
 import { createProfileView } from '../app/web/profile-view.mjs';
 import { BACKUP_LIMIT_LABEL } from '../app/web/backup-limits.mjs';
-import { createBackupUpload, createOriginalPasteUpload, downloadFullBackup } from '../app/web/backup-transfer.mjs';
+import { createBackupUpload, createOriginalPasteUpload, downloadFullBackup, originalTransferList } from '../app/web/backup-transfer.mjs';
 import { createFinishLineView } from '../app/web/finish-line-view.mjs';
 import { createPartnerSupplyView } from '../app/web/partner-supply-view.mjs';
 import { createBossGatesView } from '../app/web/boss-gates-view.mjs';
@@ -87,6 +87,7 @@ export function runScreenGraph(context, modules) {
   context.BACKUP_LIMIT_LABEL ??= BACKUP_LIMIT_LABEL;
   context.createBackupUpload ??= createBackupUpload;
   context.createOriginalPasteUpload ??= createOriginalPasteUpload;
+  context.originalTransferList ??= originalTransferList;
   context.downloadFullBackup ??= downloadFullBackup;
   context.createFinishLineView ??= createFinishLineView;
   context.createPartnerSupplyView ??= createPartnerSupplyView;

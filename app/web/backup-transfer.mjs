@@ -4,6 +4,28 @@ export { MAX_PORTABLE_BACKUP_BYTES as MAX_BACKUP_BYTES, MAX_PORTABLE_BACKUP_BYTE
 export const BACKUP_UPLOAD_TYPE = 'application/vnd.rs3-backup-upload+json';
 const encoder = new TextEncoder();
 
+// One in-app contract, shared by the two directions of Export / Import.
+export const ORIGINAL_TRANSFER_FIELDS = Object.freeze([
+  ['Unlocked chunks', 'Known chunks; unknown cells stay archived.', 'Full grid cells through Import from URL.'],
+  ['Hand-added roll pool', 'Selected chunks and their saved order.', 'Selected chunks; the original sorts them by descending grid position.'],
+  ['Pending choices / never-roll chunks', 'Known pending choices and blacklist.', 'No bulk import; Import from URL clears both.'],
+  ['Rules', 'Opt-in equivalent player rules; shared F2P and unsupported settings need review.', 'Known original rule settings, including F2P. Other original keys use reference defaults; newer unknown keys switch off. Behavior can differ.'],
+  ['Challenge checks / backlog / favorites', 'Opt-in matched checks, reasons and favorites; unknown identities stay archived.', 'No bulk import. Recreate these through the original task controls.'],
+  ['Journal', 'Original Notes text up to 10,000 characters; longer text stays archived.', 'Paste journal text into Notes → Edit → Save.'],
+  ['Chunk/task notes, custom tasks, personal progress', 'Retained as original evidence, not active observations.', 'No bulk import; recreate by hand where supported.'],
+  ['Group rules, history, accounts and access', 'No foreign Undo, group semantics or account access.', 'No transfer. Keep a full backup to return without these losses.'],
+]);
+
+export function originalTransferList(c) {
+  const details = c.el('details'), summary = c.el('summary', 'What transfers each way'), table = c.el('table', undefined, 'info-table original-transfer-table');
+  const head = c.el('tr');
+  for (const title of ['Saved data', 'Original → this picker', 'This picker → original']) { const cell = c.el('th', title); cell.setAttribute('scope', 'col'); head.append(cell); }
+  const header = c.el('thead'); header.append(head); table.append(header);
+  const body = c.el('tbody');
+  for (const row of ORIGINAL_TRANSFER_FIELDS) { const tr = c.el('tr'); row.forEach((value, index) => { const cell = c.el(index ? 'td' : 'th', value); if (!index) cell.setAttribute('scope', 'row'); tr.append(cell); }); body.append(tr); }
+  table.append(body); details.append(summary, table); return details;
+}
+
 function bounded(stream, maximum, message) {
   let bytes = 0;
   return stream.pipeThrough(new TransformStream({ transform(chunk, controller) {

@@ -1,7 +1,8 @@
 # Export / Import
 
-Open **More → Export / Import**. The existing dialog offers a **Full
-picker backup**, **Import a backup**, and **Copy link for the original picker**.
+Open **More → Export / Import** for backups and moving in either direction.
+**Move between pickers** contains **Move to the original picker** and the
+original-picker import entry when enabled, plus **What transfers each way**.
 No reference data, artwork, account credentials or service permissions transfer.
 
 Imports use an [isolated worker queue](backup-import.md) with 120 seconds of
@@ -148,7 +149,82 @@ evidence, allowing Undo while a sidecar is unavailable. Restoring retained files
 their evidence before preparing the destination. This uses the existing schema-1
 save and plugin wire formats.
 
-## Original picker chunks
+## Moving to and from the original picker
+
+Choose a player and **Move to the original picker**. The guided dialog offers:
+
+1. A full backup to keep everything the original cannot accept.
+2. A chunk link to paste into the original's **Import from URL**. It replaces
+   unlocked and selected chunks, clears pending choices and blacklist, and resets
+   recent rolls. Selected chunks are sorted by descending grid position there.
+   For an empty unlocked map, no link is offered: the original's empty-token
+   decoder would unlock grid cell zero. Clear chunks and recreate selections
+   through its own controls instead; rules and journal still have copy controls.
+3. Rules JSON for **Chunk Rules → Import**. It replaces all original rule values.
+   Current same-name settings take precedence over retained original settings;
+   other known keys use reference defaults. Duplicate or invalid retained values
+   do not become authority. Newer original keys absent from our inventory switch
+   off because that is how its import control handles missing keys. Review the
+   rules there before rolling; a saved setting does not promise identical behavior.
+4. Journal text for **Notes → Edit → Save**. An empty journal means clearing
+   the original Notes text if you want it to match. Chunk/task notes remain separate.
+5. A reminder to review map, rules, notes and progress before playing.
+
+Every piece has a selectable text fallback when clipboard access is unavailable.
+Nothing is automatically sent to the original, and no console scripts are used.
+
+The original's published [index.js](https://source-chunk.github.io/chunk-picker-rs3/index.js)
+was inspected with public GET on 2026-11-16. `importFromURL` (line 4863) accepts
+unlocked and selected URL sets; `applyImportRules` (11956) accepts rule JSON;
+`openChunkNotesModal` / `saveChunkNotes` (5006–5044) accept the Notes text. Its
+task, backlog, blacklist and pending-choice controls have no bulk import input.
+`exportFunc` (4824) exports chunks, task labels and rules; task labels are not a
+transfer of task checks. These findings use public source, not a live player map.
+
+### What transfers each way
+
+This is the same contract shown by **What transfers each way** in both dialogs.
+Original imports use the existing preview, player mapping, reviewed replacement
+and Undo flow; optional rules and task checks start off. Map-code import is the
+main route when enabled; [paste import](original-import-paste.md) is the fallback.
+
+| Saved data | Original → this picker | This picker → original |
+| --- | --- | --- |
+| Unlocked chunks (`unlocked`) | Known cells active; unknown cells archived | Full grid cells through the chunk link |
+| Hand-added roll pool (`selected`) | Saved candidate order retained | Membership retained; order becomes descending grid position |
+| Pending choices / never-roll chunks (`pendingRoll`, `blacklisted`) | Known cells active | No bulk input; URL import clears both |
+| Rules (`taskRules`, shared F2P) | Opt-in reviewed player-rule equivalents; F2P needs separate shared-rule review; unsupported originals archived | Known original settings, including current F2P; current explicit values override retained originals; other known keys use reference defaults; app-only keys stay in backup |
+| Challenge checks, backlog, favorites (`taskStatus`) | Opt-in matched challenge checks, reasons and favorites; unknown identities archived | No bulk input; use original task controls manually |
+| Journal (`journal` / original `chunkNotes`) | Existing legacy decoder; up to 10,000 characters active, longer text archived | Plain journal text through Notes → Edit → Save |
+| Chunk/task notes, annotations and custom tasks | Archived evidence, not active imported observations | No bulk input; recreate through original controls where supported |
+| Personal game progress and controls | No invented personal completions, quest/achievement/skill/item observations or rewards | No bulk input for `completedTasks`, `obtainedEquipment`, teleports/overrides, skill/quest/achievement/item progress, XP choices, boss unlocks, transport facts, F2P-map decisions, section/area/source-backlog controls, primary/passive/max-level settings, Slayer lock or chosen task methods |
+| Preferences, paint, stickers, roll timeline, integration freshness | Archived original evidence | No bulk input; preferences, colours/stickers and RuneMetrics/original-sync metadata stay in backup |
+| Group policy, roster, History/Undo, provenance, accounts and access | Match destination players; no foreign Undo, group semantics or account access | No transfer; retain the full backup, including original evidence, registries and archive |
+
+### Round-trip differences
+
+Synthetic tests in `tests/original-transfer.test.mjs` independently model the
+three original UI inputs, then run the real original-format adapter. Both
+picker → original → picker and original → picker → original are covered.
+
+Unlocked cell sets and plain journals survive. Selected membership survives but
+its order/ranks can change. Pending choices and blacklist disappear on export
+because the original URL importer clears them. Task checks/backlog/favorites,
+custom tasks, per-chunk/task notes and the other fields listed above have no bulk
+destination input and remain only in a full backup. Unsupported original rule
+settings stay inactive here but can be sent back from the latest retained rule
+decisions; conflicting/invalid/absent values use reference defaults. Current shared
+F2P wins over a captured F2P value. The original rule importer changes numeric zero
+and empty strings to `false` (`value || false`); newer unknown keys also turn off.
+Empty unlocked maps require manual original controls because of its empty-token
+grid-zero bug; the guide refuses to generate that unsafe link.
+Legacy note decoding removes markup and interprets its escape markers, as in the
+existing migration. Over-limit journals remain exact in archived gameplay text.
+Source member IDs/names are matched to the destination player, rather than copied
+as account identity; paste import clears `sourceMapId` instead of silently binding
+an arbitrary map to the duo-only sync. Full backups preserve the rest.
+
+### Chunk URL contract
 
 Only the full `duo-legacy` / `surface-grid-v1` / `rs3` contract supports the
 chunk link. The independently written encoder uses `x = floor(id/256) - 29`,
@@ -157,12 +233,11 @@ chunk link. The independently written encoder uses `x = floor(id/256) - 29`,
 `0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ`. Sections and
 unknown/out-of-grid cells are refused; IDs never wrap into another cell.
 
-The button copies the URL and exposes a selectable fallback. Paste it into
-the original picker's **Import from URL** yourself. That action replaces its
-chunk sets. **Only unlocked chunks carry over**: no selected candidates, tasks,
-rules, progress, notes, group semantics or History. Keep the full backup for
-returning to this picker. There is no original database import or rule export
-in this feature, and no original implementation code is incorporated.
+The two URL sets contain unlocked chunks, then optional selected chunks separated
+by `;`. The original importer sorts selected grid indices descending; the encoder
+does not claim to preserve a hand-selected order. Sections and partial cells are
+refused. Rules and journal use their separate UI inputs above. No original
+implementation code is incorporated and no original database writes are made.
 
 ## Import isolation and reports
 
