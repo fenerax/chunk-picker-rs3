@@ -2,6 +2,15 @@ import { originalChunkURL, legacyChunkIndex } from './original-chunk-url.mjs';
 import { originalRuleDefaults, taskRuleValueError } from './data/settings.mjs';
 import { collectionRules } from './tasks/collection.mjs';
 
+function originalArchive(state, memberId) {
+  const seen = new Set();
+  for (let node = state.provenance; node && typeof node === 'object' && !seen.has(node); node = node.restore?.incomingProvenance) {
+    seen.add(node);
+    const archive = node.originalPasteImports?.findLast(row => row.memberId === memberId);
+    if (archive) return archive;
+  }
+}
+
 // Output only formats accepted by the original's public controls. The player
 // pastes each piece; this module never contacts the original service.
 export function originalTransfer(state, memberId, dataset, world, { defaults = originalRuleDefaults } = {}) {
@@ -15,16 +24,18 @@ export function originalTransfer(state, memberId, dataset, world, { defaults = o
   // Reuse the existing per-key decisions, without reparsing an archived paste.
   // Retained original settings can go back even when they had no active effect
   // here. Current explicit settings take precedence; duplicate keys stay out.
-  const archive = state.provenance?.originalPasteImports?.findLast(row => row.memberId === memberId);
+  const archive = originalArchive(state, memberId);
   for (const row of archive?.rules ?? []) {
     if (retained.has(row.key)) collisions.add(row.key);
     retained.set(row.key, row.value);
   }
   for (const [key, fallback] of Object.entries(defaults)) {
     const saved = !collisions.has(key) && retained.has(key) ? retained.get(key) : fallback;
-    const value = effective[key] ?? saved;
+    const savedValue = effective[key] ?? saved;
+    // Original amount inputs have string defaults but also accept JSON numbers.
+    const value = typeof fallback === 'string' && typeof savedValue === 'number' ? String(savedValue) : savedValue;
     // Invalid/structured settings never become executable input or invalid JSON.
-    const valid = typeof value === typeof fallback && ['boolean', 'number', 'string'].includes(typeof value) && (typeof value !== 'number' || Number.isFinite(value)) && !taskRuleValueError(key, value);
+    const valid = typeof value === typeof fallback && ['boolean', 'number', 'string'].includes(typeof value) && (typeof savedValue !== 'number' || Number.isFinite(savedValue)) && !taskRuleValueError(key, value);
     rules[key] = valid ? value : fallback;
     if (!Object.hasOwn(effective, key) && (!retained.has(key) || collisions.has(key)) || !valid) resetRules.push(key);
   }

@@ -88,6 +88,29 @@ test('journal import reuses the existing decoder and 10000-character limit, with
   assert.ok(result.state.provenance.originalPasteImports[0].gameplayText.includes(long));
 });
 
+test('numeric rule amounts preserve accepted numbers and strings in current and retained settings', () => {
+  const state = initial(), amounts = { 'Kill X Amount': '1', 'Rare Drop Amount': '1000' };
+  const transfer = () => originalTransfer(state, 'synthetic', dataset, world, { defaults: amounts });
+  state.members[0].taskRules = { 'Kill X Amount': 250, 'Rare Drop Amount': 512 };
+  assert.deepEqual(JSON.parse(transfer().rulesJSON), { 'Kill X Amount': '250', 'Rare Drop Amount': '512' });
+  state.members[0].taskRules = { 'Kill X Amount': '500', 'Rare Drop Amount': '1/1024' };
+  assert.deepEqual(JSON.parse(transfer().rulesJSON), state.members[0].taskRules);
+  delete state.members[0].taskRules;
+  state.provenance = { originalPasteImports: [{ memberId: 'synthetic', rules: [{ key: 'Kill X Amount', value: 250 }, { key: 'Rare Drop Amount', value: 512 }] }] };
+  assert.deepEqual(JSON.parse(transfer().rulesJSON), { 'Kill X Amount': '250', 'Rare Drop Amount': '512' });
+  state.members[0].taskRules = { 'Kill X Amount': -1, 'Rare Drop Amount': Infinity };
+  assert.deepEqual(JSON.parse(transfer().rulesJSON), amounts);
+});
+
+test('retained-only original rules survive repeated backup restore provenance without replacing newer imports', () => {
+  const { state } = importOriginal({ chunks: { unlocked: { '12850': '12850' } }, rules: { Extra: false } });
+  const before = exportOriginal(state);
+  state.provenance = { restore: { incomingProvenance: { restore: { incomingProvenance: state.provenance } } } };
+  assert.equal(exportOriginal(state).rulesJSON, before.rulesJSON);
+  state.provenance.originalPasteImports = [{ memberId: state.members[0].id, rules: [{ key: 'Extra', value: true }] }];
+  assert.equal(JSON.parse(exportOriginal(state).rulesJSON).Extra, true);
+});
+
 test('empty maps never offer the original importer an empty token that it would convert to grid cell zero', () => {
   const state = initial(); state.members[0].selected = ['12594']; state.members[0].journal = 'Synthetic empty-map journal';
   const result = exportOriginal(state);

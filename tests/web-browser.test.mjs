@@ -4598,13 +4598,14 @@ test('save-transfer chunk export supplies a selectable fallback and ignores stal
   const h = harness(); h.context.navigator = { clipboard: { writeText: async () => { throw new Error('Synthetic clipboard denial'); } } };
   h.run('backupDialog()');
   h.route(() => ({ url: 'https://gitgeddes.github.io/ChunkPicker/?fv', message: 'Only unlocked chunks carry over.' }));
-  await h.click('Copy link for the original picker');
-  assert.equal(h.nodes.get('dialog-title').textContent, 'Export unlocked chunks');
-  const link = h.all().find(node => node.tagName === 'INPUT' && node.readOnly);
+  await h.click('Move to the original picker');
+  assert.equal(h.nodes.get('dialog-title').textContent, 'Move to the original picker');
+  const link = h.all().find(node => node.tagName === 'TEXTAREA' && node.readOnly);
   assert.equal(link.value, 'https://gitgeddes.github.io/ChunkPicker/?fv');
+  await h.click('Copy chunk link');
   assert.equal(h.context.document.activeElement, link);
   h.run('backupDialog()'); const pending = deferred(); h.route(() => pending.promise);
-  const request = h.click('Copy link for the original picker'); await flush(); h.run('settingsPanels.settings()');
+  const request = h.click('Move to the original picker'); await flush(); h.run('settingsPanels.settings()');
   pending.resolve({ url: 'https://gitgeddes.github.io/ChunkPicker/?fv', message: 'Only chunks.' }); await request;
   assert.equal(h.nodes.get('dialog-title').textContent, 'Settings');
 });
