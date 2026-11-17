@@ -147,6 +147,7 @@ export async function openSignIn({ publicOrigin, mode = 'off', accounts, invites
     checkRegistryOwner(undefined, name, subject);
     const invite = liveInvite(inviteId);
     if (invite.claimedAccountId) throw failure(409, 'This invitation has already been claimed.');
+    pickerRegistry?.assertLegacyClaim(invite.memberId, undefined);
     const created = await accounts.ensureIdentity(name, subject);
     try {
       // Prepare membership before the durable claim, so a failed claim can
@@ -159,6 +160,7 @@ export async function openSignIn({ publicOrigin, mode = 'off', accounts, invites
   async function claim(account, inviteId) {
     for (const identity of account.identities) checkRegistryOwner(account.id, identity.provider, identity.subject);
     const invite = liveInvite(inviteId);
+    pickerRegistry?.assertLegacyClaim(invite.memberId, account.id);
     // The invite owns the durable claim. A retry by the same owner repairs an
     // interrupted membership attachment without transferring ownership.
     await invites.claim(invite.id, account.id);
@@ -355,6 +357,7 @@ export async function openSignIn({ publicOrigin, mode = 'off', accounts, invites
               const active = invites.authenticate(request, security);
               if (active?.kind !== 'account' || active.accountId !== entry.accountId || !equal(active.sessionId, entry.sessionId)) throw failure(401, 'Sign in again before linking an account.');
               checkRegistryOwner(entry.accountId, name, subject);
+              if (entry.inviteId) pickerRegistry?.assertLegacyClaim(liveInvite(entry.inviteId).memberId, entry.accountId);
               account = await accounts.linkIdentity(entry.accountId, name, subject);
             } else {
               account = accounts.findIdentity(name, subject);

@@ -89,6 +89,19 @@ Startup resumes an interrupted publication before normal validation/exposure,
 using only the recorded source and target digests. Unexpected bytes refuse
 recovery. Reopening an already migrated pair performs no new allocation.
 
+Stopped service recovery opens checkpoint metadata with a restricted recovery
+API. A schema-1 checkpoint stays at schema 1 while tombstones are reconciled
+against the live ledger; neither character migration nor picker provisioning
+runs before gameplay is installed. Ordinary startup then migrates using the
+restored legacy and owned gameplay rosters. Recovery keeps the live ledger's
+version and issued-ID history, including when that ledger is already version 2.
+
+Revoking a claimed legacy invite does not release its character's ownership.
+A replacement invite for another login is refused before account creation,
+identity linking, membership attachment or durable invitation claim. The
+established controller may claim a replacement; ownership transfers remain
+deferred to the later lifecycle stage.
+
 ## Provisioning and character selection
 
 First sign-in records one durable provisioning intent for the login's initial

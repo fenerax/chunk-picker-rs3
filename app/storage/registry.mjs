@@ -159,7 +159,8 @@ async function load(file) {
 
 /** Operator paths only. No HTTP, gameplay state, sign-in, or store is opened here. */
 export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, legacyDir, caps: overrides = {}, now = Date.now,
-  crashPoint, pickerRandomBytes = randomBytes, betaPickerCap, onCapCheck } = {}) {
+  crashPoint, pickerRandomBytes = randomBytes, betaPickerCap, onCapCheck, recoveryOnly = false } = {}) {
+  if (typeof recoveryOnly !== 'boolean') throw new TypeError('Invalid registry recovery mode.');
   if ([registryDir, pickerRoot, tombstoneDir].some(dir => typeof dir !== 'string' || !dir)) throw new TypeError('Registry, picker and tombstone roots are required.');
   const caps = { ...DEFAULT_REGISTRY_CAPS, ...overrides };
   if (!object(overrides, Object.keys(DEFAULT_REGISTRY_CAPS)) || Object.values(caps).some(n => !Number.isSafeInteger(n) || n < 1)) throw new TypeError('Invalid registry caps.');
@@ -186,7 +187,7 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
     providerIndex = new Map(current.accounts.flatMap(a => a.identities.map(i => [identityKey(i.provider, i.subject), a.id])));
     capabilityIndex = new Map(current.capabilities.map(c => [capabilityKey(c.kind, c.hash), c]));
     memberAccounts = new Map();
-    characterIndex = new Map(current.characters.map(c => [c.id, c]));
+    characterIndex = new Map((current.characters ?? []).map(c => [c.id, c]));
     for (const account of current.accounts) indexMemberships(account, true);
   };
   function indexMemberships(account, add) {
@@ -236,7 +237,7 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
   }
   async function saveLedger(next) {
     validateLedger(next); enforceCaps(current, next);
-    if (next.issuedCharacterIds.length > caps.issuedCharacterIds || next.characters.length > caps.retiredCharacters) throw characterError('The character ID history limit has been reached. Existing IDs cannot be reused.');
+    if ((next.issuedCharacterIds?.length ?? 0) > caps.issuedCharacterIds || (next.characters?.length ?? 0) > caps.retiredCharacters) throw characterError('The character ID history limit has been reached. Existing IDs cannot be reused.');
     try { await writeRegistryJson(ledgerFile, next); ledger = next; rebuildLedgerIndexes(); }
     catch (failure) { failed = true; throw failure; }
   }
@@ -442,6 +443,7 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
     releases.push(await lockRegistry(registryDir));
     releases.push(await lockRegistry(tombstoneDir));
     current = await load(file); ledger = await load(ledgerFile);
+    if (recoveryOnly && current === undefined) throw new Error('A checkpoint registry is required for service recovery.');
     // Only a missing file starts empty; a JSON null document fails validation.
     if (current !== undefined && ledger === undefined) throw new Error('Registry ledger is missing.');
     if (ledger === undefined) ledger = { schemaVersion: 2, issuedPickerIds: [], pickers: [], accounts: [], issuedCharacterIds: [], characters: [] };
@@ -451,14 +453,17 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
       validate(next); validateLedger(nextLedger); validateCharacters(next, caps); createRegistryCaps(next, caps).checkInitial(nextLedger);
       if (nextLedger.issuedCharacterIds.length > caps.issuedCharacterIds || nextLedger.characters.length > caps.retiredCharacters) throw characterError('The character ID history limit has been reached. Existing IDs cannot be reused.');
     };
-    if (current?.schemaVersion === 1 || current?.schemaVersion === 2 && ledger.schemaVersion === 1) {
+    // Checkpoint reconciliation runs before gameplay is staged or installed.
+    // Keep schema 1 until ordinary startup can read both legacy and owned rosters.
+    const deferred = recoveryOnly && current?.schemaVersion === 1;
+    if (!deferred && (current?.schemaVersion === 1 || current?.schemaVersion === 2 && ledger.schemaVersion === 1)) {
       [current, ledger] = await migrateCharacterDocuments(current, { document: ledger, file: ledgerFile }, { registryDir, pickerRoot, legacyDir, point, validateV1: validate,
         validateTarget });
     } else if (current?.schemaVersion === 2) {
       [current, ledger] = await migrateCharacterDocuments(current, { document: ledger, file: ledgerFile }, { registryDir, pickerRoot, legacyDir, point, validateTarget });
     }
     validateLedger(ledger);
-    if (current !== undefined && (current.schemaVersion !== 2 || ledger.schemaVersion !== 2)) {
+    if (!deferred && current !== undefined && (current.schemaVersion !== 2 || ledger.schemaVersion !== 2)) {
       if (current.schemaVersion > 2) validate(current);
       throw new Error('Registry and ledger versions do not match. Restore the matching pair or character migration intent.');
     }
@@ -468,19 +473,22 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
     if (current === undefined) current = { schemaVersion: 2, accounts: [], pickers: [], capabilities: [], characters: [] };
     validate(current);
     if (current.pickers.some(p => !ledger.issuedPickerIds.includes(p.id) || p.lifecycle !== 'active' && !ledger.pickers.some(t => t.pickerId === p.id))) bad();
-    current = reconcile(current, ledger); validate(current); validateCharacters(current, caps);
-    if (current.characters.some(c => !ledger.issuedCharacterIds.includes(c.id))) bad();
+    current = reconcile(current, ledger); validate(current);
+    if (current.schemaVersion === 2) validateCharacters(current, caps);
+    if (current.characters?.some(c => !ledger.issuedCharacterIds.includes(c.id))) bad();
     capCounts = createRegistryCaps(current, caps, onCapCheck); capCounts.checkInitial(ledger); rebuildIndexes(); rebuildLedgerIndexes();
     await finishRelinkRetirements();
     // Reconcile before recovery can create a directory or expose any index.
     await saveLedger(ledger); await save(current);
-    for (const account of [...current.accounts]) if (account.pendingCreation) await createCharacter(account.id, { requestId: account.pendingCreation.requestId, runescapeName: account.pendingCreation.runescapeName, acknowledgeDuplicate: true });
-    for (const picker of current.pickers.filter(p => p.lifecycle === 'active' && p.provisioning === 'reserved')) await provision(picker.id);
+    if (!recoveryOnly) {
+      for (const account of [...current.accounts]) if (account.pendingCreation) await createCharacter(account.id, { requestId: account.pendingCreation.requestId, runescapeName: account.pendingCreation.runescapeName, acknowledgeDuplicate: true });
+      for (const picker of current.pickers.filter(p => p.lifecycle === 'active' && p.provisioning === 'reserved')) await provision(picker.id);
+    }
   } catch (failure) {
     for (const release of releases.reverse()) await release().catch(() => {});
     throw failure;
   }
-  return {
+  const api = {
     // Diagnostic read, never used by request admission. Tests compare a rescan.
     capCounts() { usable(); return capCounts.snapshot(); },
     // Queue-held read-only checkpoint. No provider subjects or capabilities may
@@ -625,6 +633,13 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
       });
       await save(next, { accounts: [account], removedCapabilities }); return account;
     }); },
+    assertLegacyClaim(memberId, accountId) {
+      usable();
+      const picker = current.pickers.find(p => p.kind === 'legacy-shared' && p.lifecycle === 'active');
+      if (!picker?.memberIds.includes(memberId)) throw error(409, 'Shared-game access is unavailable.');
+      const character = characterIndex.get(picker.seats.find(s => s.memberId === memberId)?.characterId);
+      if (character && character.accountId !== accountId) throw characterError('Character ownership transfers are unavailable. Existing ownership and access are unchanged.');
+    },
     registerLegacy(plan) { return enqueue(async () => {
       if (!legacyDir || !object(plan, ['accounts', 'memberIds', 'droppedMemberships']) || !Array.isArray(plan.accounts)) throw new TypeError('Invalid legacy registration.');
       registryMembers(plan.memberIds);
@@ -727,6 +742,10 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
       if (failure) throw failure.reason;
     })(); },
   };
+  // A schema-1 checkpoint can only reconcile existing deletion decisions. It
+  // must not expose login, character, identity or provisioning operations.
+  return recoveryOnly ? Object.fromEntries(['withRecoveryCheckpoint', 'reconcileTombstones', 'isAccountDeleted',
+    'deletionRecords', 'deletionDirectory', 'advanceDeletion', 'completePickerDeletion', 'close'].map(name => [name, api[name]])) : api;
 }
 
 export function registryRecoveryDocument(document, caps = { characters: Number.MAX_SAFE_INTEGER, charactersPerAccount: Number.MAX_SAFE_INTEGER }) {

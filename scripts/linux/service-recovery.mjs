@@ -30,13 +30,13 @@ export async function reconcileServiceRecoveryTombstones({ settings, checkpoint,
     try {
       const registryDir = path.join(scratch, 'registry'); await change('reconcile.directories', () => directory(registryDir));
       await change('reconcile.checkpoint', () => atomic(path.join(registryDir, 'registry.json'), encode(effectiveDocument)));
-      // Planning provisions only disposable directories. Actual purge is deferred
-      // until legacy preflight and destination checks have succeeded.
+      // Reconcile metadata only. Character migration/provisioning waits until
+      // gameplay is installed; actual purge waits for legacy preflight.
       const pickerRoot = purge ? settings.multiPicker.pickerRoot : path.join(scratch, 'pickers');
       await change('reconcile.directories', () => directory(pickerRoot));
       await before('reconcile.registry');
       registry = await openRegistry({ registryDir, pickerRoot,
-        tombstoneDir: settings.multiPicker.tombstoneDir, caps: settings.multiPicker.caps });
+        tombstoneDir: settings.multiPicker.tombstoneDir, caps: settings.multiPicker.caps, recoveryOnly: true });
       await before('reconcile.registry');
       const decisions = await registry.reconcileTombstones();
       if (effectiveDocument.pickers.some(p => p.kind === 'legacy-shared' && decisions.blockedPickerIds.includes(p.id))) throw legacyRefusal();
@@ -91,8 +91,8 @@ export async function reconcileServiceRecoveryTombstones({ settings, checkpoint,
     }
   }
   const planned = await reconcile(false);
-  // Planning has completed any MP1 reserved-directory provisioning in scratch;
-  // application must not provision unrelated live directories on a refusal.
+  // Neither phase provisions unrelated directories or migrates character
+  // mappings from missing gameplay on a refused or incomplete restore.
   return { ...planned, apply: () => reconcile(true, planned.checkpoint) };
 }
 const mutate = async (step, label, work) => { await step(label); return work(); };
