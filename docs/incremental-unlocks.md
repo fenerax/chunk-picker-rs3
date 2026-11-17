@@ -54,8 +54,8 @@ can append blockers.
 
 Reuse requires a resident, budgeted base and an ownership-only transition with
 unchanged rules, progress, controls, overrides, catalogue and evaluation options.
-Missing or evicted bases, omitted/nonarray ownership, removals/reordering of existing ownership, changed
-nonownership facts, How proof capture and an explicit reference override use
+Missing or evicted bases, omitted/nonarray ownership, removals/reordering of
+existing ownership, changed nonownership facts, How proof capture and an explicit reference override use
 full calculation. New retained data is private calculator state, never a save,
 snapshot-wire field or transferred eligibility proof. Eviction releases the
 base and its dependent cache together. No cap increases are permitted.
@@ -100,9 +100,13 @@ within that full catalogue is eligible initially and becomes excluded when
 the first unlock supplies its output independently. Processing counters are
 compared explicitly as well as the complete enumerable result.
 
-The unchanged Q2 supervisor compared `841de02b` with `334ed2c`: 1,548 pairs,
+The omitted-ownership fallback at `26212cb` passes 25 focused cases, including
+both members as the missing owner. The resident-planning GC fixture repair at
+`02873525` passes both cases without changing its retention/collection assertions.
+
+The unchanged Q2 supervisor compared `841de02b` with `26212cb`: 1,548 pairs,
 1,247 successful results, 301 matching error pairs, zero differences and verified
-inputs. It completed in 148.23 seconds with 1,306 MiB sampled peak process-group
+inputs. It completed in 143.70 seconds with 1,285 MiB sampled peak process-group
 RSS on Linux under WSL, Node 24.20.0, within the existing memory bounds. The
 candidate-only activation patch changes the constructor default to `true` so
 this comparison exercises the opt-in implementation. Its SHA-256 is
