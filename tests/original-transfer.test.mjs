@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 process.env.RS3_DATASET = 'open-starter';
-const { createGroupState } = await import('../app/core/state.mjs');
+const { createGroupState, applyCommand } = await import('../app/core/state.mjs');
 const { originalTransfer } = await import('../app/original-transfer.mjs');
 const { normalizeOriginalPaste, originalChunkList } = await import('../app/original-paste.mjs');
 const { mapTransferRoster } = await import('../app/save-transfer.mjs');
@@ -12,8 +12,11 @@ const initial = () => createGroupState([{ id: 'synthetic', name: 'Synthetic play
 function importOriginal(map) {
   const paste = { format: 'rs3-original-paste', chunksText: Object.keys(map.chunks.unlocked).join(','), rulesText: JSON.stringify(map.rules), gameplayText: JSON.stringify(map), includeRules: true, includeTasks: true };
   const result = normalizeOriginalPaste(paste, { current: initial(), world, dataset });
-  const state = result.state;
+  let state = result.state;
   state.provenance = { originalPasteImports: [{ ...result.archive, memberId: state.members[0].id }] };
+  const member = structuredClone(state.members[0]);
+  state.members[0].unlocked = [];
+  state = applyCommand(state, { type: 'replace-member', memberId: member.id, member, source: 'Original picker import' });
   return { state, member: state.members[0], report: result.report };
 }
 // Independent model of the public controls, not upstream executable code.
@@ -60,8 +63,9 @@ test('original format → import → export → original controls preserves supp
 });
 
 test('current rules override archived settings; collisions, invalid types and absent settings use reference defaults', () => {
-  const state = initial();
+  let state = initial();
   state.provenance = { originalPasteImports: [{ memberId: 'synthetic', rules: [{ key: 'Extra', value: false }, { key: 'Extra', value: true }] }] };
+  state = applyCommand(state, { type: 'replace-member', memberId: 'synthetic', member: state.members[0], source: 'Original picker import' });
   assert.equal(JSON.parse(exportOriginal(state).rulesJSON).Extra, true);
   state.provenance.originalPasteImports[0].rules = [{ key: 'Extra', value: 'invalid boolean' }];
   assert.equal(JSON.parse(exportOriginal(state).rulesJSON).Extra, true);
@@ -90,7 +94,7 @@ test('journal import reuses the existing decoder and 10000-character limit, with
 });
 
 test('numeric rule amounts preserve accepted numbers and strings in current and retained settings', () => {
-  const state = initial(), amounts = { 'Kill X Amount': '1', 'Rare Drop Amount': '1000' };
+  let state = initial(); const amounts = { 'Kill X Amount': '1', 'Rare Drop Amount': '1000' };
   const transfer = () => originalTransfer(state, 'synthetic', dataset, world, { defaults: amounts });
   state.members[0].taskRules = { 'Kill X Amount': 250, 'Rare Drop Amount': 512 };
   assert.deepEqual(JSON.parse(transfer().rulesJSON), { 'Kill X Amount': '250', 'Rare Drop Amount': '512' });
@@ -98,18 +102,22 @@ test('numeric rule amounts preserve accepted numbers and strings in current and 
   assert.deepEqual(JSON.parse(transfer().rulesJSON), state.members[0].taskRules);
   delete state.members[0].taskRules;
   state.provenance = { originalPasteImports: [{ memberId: 'synthetic', rules: [{ key: 'Kill X Amount', value: 250 }, { key: 'Rare Drop Amount', value: 512 }] }] };
+  state = applyCommand(state, { type: 'replace-member', memberId: 'synthetic', member: state.members[0], source: 'Original picker import' });
   assert.deepEqual(JSON.parse(transfer().rulesJSON), { 'Kill X Amount': '250', 'Rare Drop Amount': '512' });
   state.members[0].taskRules = { 'Kill X Amount': -1, 'Rare Drop Amount': Infinity };
   assert.deepEqual(JSON.parse(transfer().rulesJSON), amounts);
 });
 
-test('retained-only original rules survive repeated backup restore provenance without replacing newer imports', () => {
+test('restore boundaries use reference defaults and name retained-only settings for review', () => {
   const { state } = importOriginal({ chunks: { unlocked: { '12850': '12850' } }, rules: { Extra: false } });
-  const before = exportOriginal(state);
+  assert.equal(JSON.parse(exportOriginal(state).rulesJSON).Extra, false);
   state.provenance = { restore: { incomingProvenance: { restore: { incomingProvenance: state.provenance } } } };
-  assert.equal(exportOriginal(state).rulesJSON, before.rulesJSON);
+  const before = structuredClone(state), result = exportOriginal(state);
+  assert.equal(JSON.parse(result.rulesJSON).Extra, true);
+  assert.deepEqual(result.resetRules, ['Extra']);
+  assert.deepEqual(state, before);
   state.provenance.originalPasteImports = [{ memberId: state.members[0].id, rules: [{ key: 'Extra', value: true }] }];
-  assert.equal(JSON.parse(exportOriginal(state).rulesJSON).Extra, true);
+  assert.deepEqual(exportOriginal(state).resetRules, ['Extra'], 'A restore remains conservative without an event binding');
 });
 
 test('empty maps never offer the original importer an empty token that it would convert to grid cell zero', () => {
@@ -119,7 +127,7 @@ test('empty maps never offer the original importer an empty token that it would 
   assert.equal(result.journal, state.members[0].journal); assert.ok(result.rulesJSON);
 });
 
-test('retained rules follow roster mappings and nested restores without changing historical evidence', () => {
+test('roster remaps and nested restores use defaults without changing historical ownership evidence', () => {
   let { state } = importOriginal({ chunks: { unlocked: { '12850': '12850' } }, rules: { Extra: false } });
   const sourceId = state.members[0].id;
   state.members.push(createGroupState([{ id: 'peer', name: 'Synthetic peer' }]).members[0]);
@@ -128,8 +136,10 @@ test('retained rules follow roster mappings and nested restores without changing
   const historical = structuredClone(state.provenance.originalPasteImports);
   const check = (owner, peer) => {
     const before = structuredClone(state);
-    for (const [id, expected] of [[owner, false], [peer, true]]) {
-      assert.equal(JSON.parse(originalTransfer(state, id, dataset, world, { defaults }).rulesJSON).Extra, expected);
+    for (const id of [owner, peer]) {
+      const result = originalTransfer(state, id, dataset, world, { defaults });
+      assert.equal(JSON.parse(result.rulesJSON).Extra, true);
+      assert.deepEqual(result.resetRules, ['Extra']);
     }
     assert.deepEqual(state, before, 'Export leaves historical evidence and mappings untouched');
   };
@@ -144,5 +154,36 @@ test('retained rules follow roster mappings and nested restores without changing
   check('final', 'partner');
   assert.deepEqual(state.provenance.restore.incomingProvenance.restore.incomingProvenance.originalPasteImports, historical);
   state.provenance.originalPasteImports = [{ memberId: 'final', rules: [{ key: 'Extra', value: true }] }];
-  assert.equal(JSON.parse(originalTransfer(state, 'final', dataset, world, { defaults }).rulesJSON).Extra, true, 'A newer import takes precedence over restored evidence');
+  assert.deepEqual(originalTransfer(state, 'final', dataset, world, { defaults }).resetRules, ['Extra']);
+});
+
+test('only a unique uninterrupted import supplies retained values; Undo and replay use named defaults', () => {
+  const { state: imported } = importOriginal({ chunks: { unlocked: { '12850': '12850' } }, rules: { Extra: false } });
+  const id = imported.members[0].id, source = 'Original picker import';
+  assert.equal(JSON.parse(exportOriginal(imported).rulesJSON).Extra, false);
+  assert.deepEqual(exportOriginal(imported).resetRules, []);
+  const edited = applyCommand(imported, { type: 'set-journal', memberId: id, note: 'Synthetic later journal' });
+  assert.equal(JSON.parse(exportOriginal(edited).rulesJSON).Extra, false, 'Ordinary edits do not swap the imported map');
+  const undone = applyCommand(imported, { type: 'undo' });
+  const replayed = applyCommand(undone, { type: 'replace-member', memberId: id, member: imported.members[0], source });
+  const repeated = applyCommand(imported, { type: 'replace-member', memberId: id, member: imported.members[0], source });
+  repeated.provenance.originalPasteImports.push(structuredClone(imported.provenance.originalPasteImports[0]));
+  const missing = structuredClone(imported); missing.history = [];
+  const archived = structuredClone(imported); archived.provenance.historyArchive = [{ id: 'synthetic-history-reference' }];
+  for (const state of [undone, replayed, repeated, missing, archived]) {
+    const before = structuredClone(state), result = exportOriginal(state);
+    assert.equal(JSON.parse(result.rulesJSON).Extra, true);
+    assert.deepEqual(result.resetRules, ['Extra']);
+    assert.deepEqual(state, before, 'Ambiguous export never modifies evidence');
+    state.members[0].taskRules = { Extra: false };
+    assert.equal(JSON.parse(exportOriginal(state).rulesJSON).Extra, false, 'Explicit current settings still win');
+    assert.deepEqual(exportOriginal(state).resetRules, []);
+  }
+});
+
+test('every defaulted reference rule is listed, including inventories larger than a report sample', () => {
+  const state = initial(), inventory = Object.fromEntries(Array.from({ length: 125 }, (_, index) => [`Synthetic rule ${index}`, true]));
+  const result = originalTransfer(state, 'synthetic', dataset, world, { defaults: inventory });
+  assert.deepEqual(result.resetRules, Object.keys(inventory));
+  assert.equal(result.resetRuleCount, 125);
 });

@@ -3,23 +3,18 @@ import { originalRuleDefaults, taskRuleValueError } from './data/settings.mjs';
 import { collectionRules } from './tasks/collection.mjs';
 
 function originalArchive(state, memberId) {
-  const seen = new Set();
-  for (let node = state.provenance; node && typeof node === 'object' && !seen.has(node); node = node.restore?.incomingProvenance) {
-    seen.add(node);
-    // Archives keep their source attribution. Walk each transfer backwards,
-    // newest first, to interpret this node and its incoming restore in those
-    // source IDs without rewriting any evidence (including ID swaps).
-    const transfers = new Set();
-    for (let transfer = node.transferRoster; transfer && typeof transfer === 'object'; transfer = transfer.previous) {
-      if (transfers.has(transfer)) return;
-      transfers.add(transfer);
-      const sources = Object.entries(transfer.mapping ?? {}).filter(([, target]) => target === memberId);
-      if (sources.length !== 1) return;
-      memberId = sources[0][0];
-    }
-    const archive = node.originalPasteImports?.findLast(row => row.memberId === memberId);
-    if (archive) return archive;
-  }
+  // Archives have no event binding. Require a single possible import in a
+  // complete, uninterrupted history; never infer ownership across a restore,
+  // remap, Undo or replay. Ambiguous evidence stays saved but uses defaults.
+  const provenance = state.provenance, history = state.history ?? [];
+  if (provenance?.restore || provenance?.transferRoster || provenance?.historyArchive?.length
+    || history.length !== state.revision || history.some((event, index) => event.revision !== index + 1 || event.type === 'undo' || event.undoneRevision !== undefined)) return;
+  const archives = provenance?.originalPasteImports?.filter(row => row.memberId === memberId) ?? [];
+  const replacements = history.filter(event => event.type === 'replace-member' && event.command?.memberId === memberId);
+  if (archives.length !== 1 || replacements.length !== 1 || replacements[0].command.source !== 'Original picker import') return;
+  if (history.some(event => event.revision > replacements[0].revision && (event.type === 'restore'
+    || event.type === 'sync-original' && event.command?.members?.some(member => member.memberId === memberId)))) return;
+  return archives[0];
 }
 
 // Output only formats accepted by the original's public controls. The player
@@ -55,7 +50,9 @@ export function originalTransfer(state, memberId, dataset, world, { defaults = o
   return { url, rulesJSON: Object.keys(rules).length ? JSON.stringify(rules, null, 2) : null,
     journal: member.journal ?? '',
     selectedOrderChanged: JSON.stringify(selected) !== JSON.stringify(member.selected),
-    resetRules: resetRules.slice(0, 100).map(key => key.slice(0, 512)), resetRuleCount: resetRules.length,
+    // These names come from the trusted reference inventory. Return every one
+    // so the guide never hides a rule that needs review behind a sample limit.
+    resetRules, resetRuleCount: resetRules.length,
     appOnlyRules: appOnlyRules.slice(0, 100).map(key => key.slice(0, 512)), appOnlyRuleCount: appOnlyRules.length,
     message: url ? 'Import from URL replaces unlocked and selected chunks in the original picker, clears its pending choices and blacklist, and resets recent rolls. Keep a full backup first.'
       : 'No safe chunk link is available for an empty unlocked map: the original URL importer would unlock grid cell zero. Clear its unlocked chunks and recreate selected chunks with its own map controls instead. Rules and journal can still be copied below.' };

@@ -4626,3 +4626,13 @@ test('save-transfer guide keeps the requested player when the selector changes b
   assert.deepEqual(h.all().filter(node => node.tagName === 'TEXTAREA' && node.readOnly).map(node => node.value),
     ['https://gitgeddes.github.io/ChunkPicker/?fv', '{"Extra":false}', 'Synthetic destination journal']);
 });
+
+test('save-transfer guide visibly lists every defaulted rule for review before importing', async () => {
+  const h = harness(), resetRules = Array.from({ length: 125 }, (_, index) => `Synthetic reference rule ${index}`);
+  h.run('backupDialog()');
+  h.route(() => ({ url: 'https://gitgeddes.github.io/ChunkPicker/?fv', rulesJSON: '{"Extra":true}', resetRules, resetRuleCount: resetRules.length, appOnlyRules: [] }));
+  await h.click('Move to the original picker');
+  assert.ok(h.all().some(node => node.tagName === 'P' && node.textContent.startsWith('Check these rules in the original picker before importing this JSON.')));
+  for (const key of resetRules) assert.ok(h.find('li', key), `${key} is listed without opening a disclosure`);
+  assert.ok(h.find('button', 'Copy original rules'));
+});

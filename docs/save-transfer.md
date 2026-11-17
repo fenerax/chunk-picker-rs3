@@ -161,8 +161,10 @@ Choose a player and **Move to the original picker**. The guided dialog offers:
    decoder would unlock grid cell zero. Clear chunks and recreate selections
    through its own controls instead; rules and journal still have copy controls.
 3. Rules JSON for **Chunk Rules → Import**. It replaces all original rule values.
-   Current same-name settings take precedence over retained original settings;
-   other known keys use reference defaults. Duplicate or invalid retained values
+   Current same-name settings take precedence. Retained original settings are
+   used only when their current import is unambiguous; other known keys use
+   reference defaults. The guide visibly lists every defaulted rule to check
+   in the original picker before importing. Duplicate or invalid retained values
    do not become authority. Newer original keys absent from our inventory switch
    off because that is how its import control handles missing keys. Review the
    rules there before rolling; a saved setting does not promise identical behavior.
@@ -172,6 +174,16 @@ Choose a player and **Move to the original picker**. The guided dialog offers:
 
 Every piece has a selectable text fallback when clipboard access is unavailable.
 Nothing is automatically sent to the original, and no console scripts are used.
+
+An archived import is unambiguous only with exactly one archive at the current
+provenance root and exactly one original-picker replacement for that member in
+complete, consecutive History from revision 1 through the current revision.
+There must be no Undo or undone event, restore, roster remapping or file-backed
+History archive, and no later original sync for that member. Ordinary edits
+can follow the import. Repeated imports and command replays use defaults because
+the existing save does not bind archives to individual events. Missing History,
+restored or remapped evidence also uses defaults, even if it appears to match.
+Current explicit settings still take precedence; historical evidence is unchanged.
 
 The original's published [index.js](https://source-chunk.github.io/chunk-picker-rs3/index.js)
 was inspected with public GET on 2026-11-16. `importFromURL` (line 4863) accepts
@@ -193,7 +205,7 @@ main route when enabled; [paste import](original-import-paste.md) is the fallbac
 | Unlocked chunks (`unlocked`) | Known cells active; unknown cells archived | Full grid cells through the chunk link |
 | Hand-added roll pool (`selected`) | Saved candidate order retained | Membership retained; order becomes descending grid position |
 | Pending choices / never-roll chunks (`pendingRoll`, `blacklisted`) | Known cells active | No bulk input; URL import clears both |
-| Rules (`taskRules`, shared F2P) | Opt-in reviewed player-rule equivalents; F2P needs separate shared-rule review; unsupported originals archived | Known original settings, including current F2P; current explicit values override retained originals; other known keys use reference defaults; app-only keys stay in backup |
+| Rules (`taskRules`, shared F2P) | Opt-in reviewed player-rule equivalents; F2P needs separate shared-rule review; unsupported originals archived | Current explicit settings, including F2P; retained values only for an unambiguous current import; otherwise reference defaults with every affected rule listed for review; app-only keys stay in backup |
 | Challenge checks, backlog, favorites (`taskStatus`) | Opt-in matched challenge checks, reasons and favorites; unknown identities archived | No bulk input; use original task controls manually |
 | Journal (`journal` / original `chunkNotes`) | Existing legacy decoder; up to 10,000 characters active, longer text archived | Plain journal text through Notes → Edit → Save |
 | Chunk/task notes, annotations and custom tasks | Archived evidence, not active imported observations | No bulk input; recreate through original controls where supported |
@@ -212,8 +224,9 @@ its order/ranks can change. Pending choices and blacklist disappear on export
 because the original URL importer clears them. Task checks/backlog/favorites,
 custom tasks, per-chunk/task notes and the other fields listed above have no bulk
 destination input and remain only in a full backup. Unsupported original rule
-settings stay inactive here but can be sent back from the latest retained rule
-decisions; conflicting/invalid/absent values use reference defaults. Current shared
+settings stay inactive here but can be sent back from an unambiguous current
+import's retained decisions. Ambiguous, conflicting, invalid or absent values use
+reference defaults, and the guide lists every affected rule. Current shared
 F2P wins over a captured F2P value. The original rule importer changes numeric zero
 and empty strings to `false` (`value || false`); newer unknown keys also turn off.
 Empty unlocked maps require manual original controls because of its empty-token

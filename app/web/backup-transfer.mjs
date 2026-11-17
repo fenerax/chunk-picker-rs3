@@ -9,7 +9,7 @@ export const ORIGINAL_TRANSFER_FIELDS = Object.freeze([
   ['Unlocked chunks', 'Known chunks; unknown cells stay archived.', 'Full grid cells through Import from URL.'],
   ['Hand-added roll pool', 'Selected chunks and their saved order.', 'Selected chunks; the original sorts them by descending grid position.'],
   ['Pending choices / never-roll chunks', 'Known pending choices and blacklist.', 'No bulk import; Import from URL clears both.'],
-  ['Rules', 'Opt-in equivalent player rules; shared F2P and unsupported settings need review.', 'Known original rule settings, including F2P. Other original keys use reference defaults; newer unknown keys switch off. Behavior can differ.'],
+  ['Rules', 'Opt-in equivalent player rules; shared F2P and unsupported settings need review.', 'Current settings, including F2P. Archived values only when the current import is unambiguous; otherwise reference defaults, with each affected rule listed for review before importing. Newer unknown keys switch off. Behavior can differ.'],
   ['Challenge checks / backlog / favorites', 'Opt-in matched checks, reasons and favorites; unknown identities stay archived.', 'No bulk import. Recreate these through the original task controls.'],
   ['Journal', 'Original Notes text up to 10,000 characters; longer text stays archived.', 'Paste journal text into Notes → Edit → Save.'],
   ['Chunk/task notes, custom tasks, personal progress', 'Retained as original evidence, not active observations.', 'No bulk import; recreate by hand where supported.'],

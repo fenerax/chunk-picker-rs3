@@ -9,7 +9,8 @@ process.env.RS3_DATASET = 'open-starter';
 const { createGroupState } = await import('../app/core/state.mjs');
 const { openStore } = await import('../app/storage/store.mjs');
 const { readBackupRequest } = await import('../app/backup-transfer.mjs');
-const { createTransferReviews } = await import('../app/save-transfer.mjs');
+const { createTransferReviews, mapTransferRoster } = await import('../app/save-transfer.mjs');
+const { originalTransfer } = await import('../app/original-transfer.mjs');
 const { projectBrowserState } = await import('../app/web/browser-state.mjs');
 const { createOriginalPasteUpload } = await import('../app/web/backup-transfer.mjs');
 const { readOriginalPaste, normalizeOriginalPaste, originalChunkList, originalRuleDecision, MAX_ORIGINAL_PASTE_BYTES } = await import('../app/original-paste.mjs');
@@ -245,6 +246,41 @@ test('paste uses existing roster review, replacement, retained save, durable pro
   assert.equal(store.getState().provenance.originalPasteImports[0].gameplayText, input.gameplayText);
   await assert.rejects(store.applyTransfer(reviewed.ticket, 0));
   await assert.rejects(store.prepareTransfer(serialize(body), { ...options, originalPasteEnabled: false }), error => error.status === 404);
+});
+
+test('worker imports use retained rules only before replacement ambiguity, Undo, restore or remap', async t => {
+  const { store, options } = await storeFixture(t);
+  const transfer = state => originalTransfer(state, state.members[0].id,
+    { ...dataset, datasetContractVersion: 1, identityNamespace: 'rs3' }, world, { defaults: { Extra: true } });
+  const importMap = async (value, chunksText) => {
+    const reviewed = await store.prepareTransfer(serialize({ document: document({ chunksText, rulesText: JSON.stringify({ Extra: value }) }),
+      memberId: 'destination', sourceMemberId: 'original_paste' }), options);
+    await store.applyTransfer(reviewed.ticket, store.getInfo().revision);
+  };
+  await importMap(false, '12850');
+  const first = store.getState();
+  assert.equal(JSON.parse(transfer(first).rulesJSON).Extra, false);
+  assert.deepEqual(transfer(first).resetRules, []);
+  await importMap(true, '13106');
+  await store.command({ type: 'undo' }, store.getInfo().revision);
+  assert.deepEqual(store.getState().members[0].unlocked, ['12850']);
+  const check = state => {
+    const before = structuredClone(state), result = transfer(state);
+    assert.equal(JSON.parse(result.rulesJSON).Extra, true);
+    assert.deepEqual(result.resetRules, ['Extra']);
+    assert.deepEqual(state, before);
+  };
+  check(store.getState());
+  await store.command({ type: 'replace-member', memberId: 'destination', member: first.members[0], source: 'Original picker import' }, store.getInfo().revision);
+  check(store.getState());
+  const portable = await store.backup(), evidence = structuredClone(portable.state.provenance.originalPasteImports);
+  const reviewed = await store.prepareTransfer(serialize({ backup: portable }), { ...options, route: '/api/restore/preview' });
+  await store.applyTransfer(reviewed.ticket, store.getInfo().revision);
+  const restored = store.getState(); check(restored);
+  assert.deepEqual(restored.provenance.restore.incomingProvenance.originalPasteImports, evidence);
+  const mapped = mapTransferRoster(restored, [{ id: 'mapped' }, { id: 'partner' }], { destination: 'mapped', other: 'partner' });
+  check(mapped);
+  assert.deepEqual(mapped.provenance.restore.incomingProvenance.originalPasteImports, evidence);
 });
 
 test('browser paste transport uses normal bounded upload/parser and preserves split Unicode', async () => {
