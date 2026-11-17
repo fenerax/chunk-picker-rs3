@@ -428,6 +428,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
     }
     for (const [id, provider] of removals) await pickerRegistry.unlinkIdentity(id, provider);
     await pickerRegistry.registerLegacy(plan);
+    await pickerRegistry.updateCharacterNames('legacy', context.store.getCalculationSnapshot().readState.members);
   }
   // A single additive, enabled-only field describes the session's own controls.
   function ownerSessionView(identity, security, request) {
@@ -440,7 +441,9 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
     return { ...view, ...(request?.headers['x-account-action'] === 'delete'
       ? { accountDeletionToken: pickerRouter.accountDeletionToken(identity) } : {}), ownerControls: { role: membership?.role ?? null, shared: picker?.kind === 'legacy-shared',
       ownsDefaultPicker: pickerRegistry.listPickers().some(item => item.kind === 'default' && item.ownerAccountId === identity.accountId && item.lifecycle === 'active'),
-      backups: backupDeletionDisclosure(backupRetentionMs) } };
+      deletionPaused: pickerRegistry.listCharacters(identity.accountId).length > 0,
+      backups: backupDeletionDisclosure(backupRetentionMs) }, characterId: identity.characterId ?? null,
+      characters: pickerRegistry.listCharacters(identity.accountId), datasetId: dataset.datasetId, datasetDigest: dataset.digest };
   }
   try {
     if (ownedServing) verifyOwnedRuntimeRelease(ownedServing, await prepareOwnedServingRelease({ dataset, migrateState, registry: ruleRegistry }));
@@ -455,7 +458,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
       runeMetrics, progressSources, originalSync, idleMemoryOptions, predictionPrewarm,
       schedulingClock, publicOrigin, signIn, signInProvider, liveSwap, pluginItemsBetaAsLive,
       startupSignal, startupTimingMs, transport,
-      pickerRouting: pickerRegistry ? { registry: pickerRegistry, syncLegacy, sessionView: ownerSessionView, reclaimIdentity: (...args) => pickerRouter.reclaimIdentity(...args) } : undefined });
+      pickerRouting: pickerRegistry ? { registry: pickerRegistry, syncLegacy, syncCharacterNames: members => pickerRegistry.updateCharacterNames('legacy', members), sessionView: ownerSessionView, reclaimIdentity: (...args) => pickerRouter.reclaimIdentity(...args) } : undefined });
     if (pickerRegistry) {
       await reconcileTombstones({ registry: pickerRegistry, revokeSessions: scope => context.revokeDeletionSessions(scope),
         revokeAccount: id => context.revokeDeletedAccount(id) });
@@ -481,7 +484,10 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
               await bindDatasetStorage(directory, dataset);
             }
             if (openDiagnostics) openDiagnostics.timingMs.registryDatasetVerifyMs = performance.now() - verifyStarted;
-            const initial = createGroupState(picker.memberIds.map(id => ({ id, name: 'Player 1' })), ruleRegistry);
+            const initial = createGroupState(picker.memberIds.map(id => {
+              const character = picker.seats.map(s => pickerRegistry.getCharacter(s.characterId)).find(c => c.placement.memberId === id);
+              return { id, name: character?.runescapeName ?? 'Unnamed character', ...(character?.runescapeName ? { runescapeName: character.runescapeName } : {}) };
+            }), ruleRegistry);
             initial.provenance = { dataset: { id: dataset.datasetId, contractVersion: dataset.datasetContractVersion, digest: dataset.digest } };
             opened = await createPickerContext({ pickerId, dataDir: directory, runtime: pickerRuntime, prepareStateResponse: false,
               ownedFormat2: pinned?.ownedFormat2 ?? false,
@@ -492,7 +498,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
               }, { operations: beforeCommit ? undefined : Object.freeze(['replace']) }), retention, runeMetrics, progressSources, originalSync,
               prepareState: prepareOwnedPickerState(pickerDataset, pickerRegistry, pickerId),
               idleMemoryOptions, predictionPrewarm, schedulingClock, publicOrigin,
-              pickerRouting: { requiredMemberIds: () => pickerRegistry.listAccounts().flatMap(a => a.memberships.filter(m => m.pickerId === pickerId && m.role !== 'viewer').map(m => m.memberId)), sessionView: ownerSessionView, authenticate: pickerRouter.authenticate, indexKey: pickerRouter.indexKey, removeKey: pickerRouter.removeKey,
+              pickerRouting: { syncCharacterNames: members => pickerRegistry.updateCharacterNames(pickerId, members), requiredMemberIds: () => pickerRegistry.listAccounts().flatMap(a => a.memberships.filter(m => m.pickerId === pickerId && m.role !== 'viewer').map(m => m.memberId)), sessionView: ownerSessionView, authenticate: pickerRouter.authenticate, indexKey: pickerRouter.indexKey, removeKey: pickerRouter.removeKey,
                 authenticateKey: (request, memberId) => pickerRouter.authenticateKey(request, pickerId, memberId) },
               transport: { savingConnections: transport.savingConnections, requestClose: transport.requestClose } });
             const actual = opened.store.getCalculationSnapshot().members.map(member => member.id);

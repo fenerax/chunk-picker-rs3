@@ -430,6 +430,53 @@ test('service recovery refuses a missing live ledger before any probe and never 
   await assert.rejects(readdir(target.multiPicker.tombstoneDir), { code: 'ENOENT' });
 });
 
+for (const ledgerVersion of [1, 2]) test(`schema-1 service recovery defers character migration until gameplay is installed (ledger ${ledgerVersion})`, async t => {
+  const f = await fixture(t), legacy = f.pickers[0];
+  const checkpoint = await f.registry.withRecoveryCheckpoint(value => value);
+  checkpoint.schemaVersion = 1; delete checkpoint.characters;
+  for (const account of checkpoint.accounts) {
+    delete account.initialProvisioned; delete account.lastCharacterId; delete account.pendingCreation;
+  }
+  for (const picker of checkpoint.pickers) {
+    delete picker.seats; delete picker.reservations; delete picker.ownerCharacterId;
+  }
+  const legacyAccount = { id: randomUUID(), identities: [], memberships: [{ pickerId: legacy.id, role: 'player', memberId: 'one' }],
+    defaultPickerId: null, createdAt: '2026-01-01T00:00:00.000Z' };
+  checkpoint.accounts.push(legacyAccount);
+  const gameplay = new Map();
+  for (const picker of f.pickers) {
+    const file = path.join(f.dir(picker), 'state.json'), saved = await json(file);
+    saved.state.members[0].runescapeName = picker.kind === 'legacy-shared' ? 'Legacy One' : 'Owned One';
+    await atomic(file, encode(saved)); gameplay.set(picker.id, await readFile(file));
+  }
+  await f.close();
+  const ledgerFile = path.join(f.settings.multiPicker.tombstoneDir, 'ledger.json');
+  const ledger = await json(ledgerFile);
+  if (ledgerVersion === 1) { ledger.schemaVersion = 1; delete ledger.issuedCharacterIds; delete ledger.characters; await atomic(ledgerFile, encode(ledger)); }
+  const backup = await f.capture({ registry: { withRecoveryCheckpoint: work => work(checkpoint) } }), target = await f.target();
+  const planned = await reconcileServiceRecoveryTombstones({ settings: target, checkpoint });
+  assert.equal(planned.checkpoint.schemaVersion, 1);
+  assert.deepEqual(await json(ledgerFile), ledger, 'Planning cannot allocate character IDs from absent gameplay.');
+  let interrupted = false;
+  const options = { settings: target, backup, release: f.release, assertStopped: stopped, probe: portableProbe };
+  await assert.rejects(restoreServiceStopped({ ...options, onProgress: async progress => {
+    if (!interrupted && progress.pickers.some(row => row.status === 'restored')) { interrupted = true; throw new Error('Synthetic pre-upgrade restore interruption'); }
+  } }), /pre-upgrade restore interruption/);
+  assert.equal((await restoreServiceStopped(options)).restored, 3);
+  assert.equal((await restoreServiceStopped(options)).restored, 3, 'Retrying the completed restore is idempotent.');
+  assert.equal((await json(path.join(target.multiPicker.registryDir, 'registry.json'))).schemaVersion, 1);
+  assert.deepEqual(await json(ledgerFile), ledger, 'Recovery retains the live ledger representation and non-reuse history.');
+  for (const picker of f.pickers) assert.deepEqual(await readFile(path.join(picker.kind === 'legacy-shared' ? target.dataDir : path.join(target.multiPicker.pickerRoot, picker.id), 'state.json')), gameplay.get(picker.id));
+  const registry = await openRegistry({ ...target.multiPicker, legacyDir: target.dataDir });
+  try {
+    assert.equal((await registry.withRecoveryCheckpoint(value => value)).schemaVersion, 2);
+    assert.equal(registry.listCharacters(legacyAccount.id)[0].runescapeName, 'Legacy One');
+    for (const picker of f.pickers.slice(1)) assert.equal(registry.listCharacters(picker.ownerAccountId)[0].runescapeName, 'Owned One');
+    const migratedLedger = await json(ledgerFile);
+    for (const id of ledger.issuedCharacterIds ?? []) assert(migratedLedger.issuedCharacterIds.includes(id));
+  } finally { await registry.close(); }
+});
+
 test('MP5 tombstone reconcile export blocks deleted picker recovery and quarantine release', async t => {
   const f = await fixture(t), backup = await f.capture(), target = await f.target(), blocked = f.pickers[1], survivor = f.pickers[2];
   await f.close();
@@ -585,7 +632,7 @@ test('recovery refuses invalid ledgers and never infers tombstones from checkpoi
   const checkpoint = await json(path.join(f.settings.multiPicker.registryDir, 'registry.json'));
   const file = path.join(f.settings.multiPicker.tombstoneDir, 'ledger.json'), ledger = await readFile(file);
   await atomic(file, '{}');
-  await assert.rejects(reconcileServiceRecoveryTombstones({ settings: f.settings, checkpoint }), /Invalid registry/);
+  await assert.rejects(reconcileServiceRecoveryTombstones({ settings: f.settings, checkpoint }), /Invalid (?:character )?registry/);
   assert.equal(await readFile(file, 'utf8'), '{}');
   await atomic(file, ledger);
   const blocked = f.pickers[1]; checkpoint.pickers.find(p => p.id === blocked.id).lifecycle = 'deleted';
@@ -593,7 +640,7 @@ test('recovery refuses invalid ledgers and never infers tombstones from checkpoi
     account.memberships = account.memberships.filter(m => m.pickerId !== blocked.id);
     if (account.defaultPickerId === blocked.id) account.defaultPickerId = null;
   }
-  await assert.rejects(reconcileServiceRecoveryTombstones({ settings: f.settings, checkpoint }), /Invalid registry/);
+  await assert.rejects(reconcileServiceRecoveryTombstones({ settings: f.settings, checkpoint }), /Invalid (?:character )?registry/);
   assert.deepEqual(await readFile(file), ledger);
   assert(await readFile(path.join(f.dir(blocked), 'state.json')));
 });

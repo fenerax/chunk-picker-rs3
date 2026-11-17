@@ -5,7 +5,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
-// Each durable deletion boundary exits a real HTTP server process. Recovery
+// Existing operator tombstones remain recoverable while self-service deletion is paused. Recovery
 // opens a new process, never the failed registry or a cached context.
 const program = [
   "import test from 'node:test';",
@@ -115,16 +115,17 @@ const program = [
   "    const id = await f.picker('101'), accountId = (await f.registry()).accounts.find(a => a.defaultPickerId === id).id;",
   "    const key = (await f.send('/api/game-plugin/keys', a, { body: { memberId: 'owner', label: 'Player 1' } })).json().key;",
   "    await writeFile(path.join(root, 'recovery.json'), JSON.stringify({ a, b, id, accountId, key }));",
-  "    const deletionBody = kind === 'account' ? { accountDeletionToken: (await f.send('/api/session', a, { headers: { 'X-Account-Action': 'delete' } })).json().accountDeletionToken } : {};",
-  "    armed = true;",
-  "    await f.send('/api/' + kind + '/delete', a, { body: deletionBody });",
+  "    await f.app().close(); armed = true;",
+  "    const registry = await openRegistry({ ...f.multiPicker, crashPoint(name) { if (name === step) process.exit(86); } });",
+  "    if (kind === 'account') await registry.deleteAccount(accountId, { runtimePurge: true }); else await registry.beginPickerDeletion(id);",
+  "    await registry.close(); await f.restart();",
   "    assert.fail('The deletion must terminate its process at ' + step);",
   "  } else {",
   "    const { a, b, id, accountId, key } = JSON.parse(await readFile(path.join(root, 'recovery.json')));",
   "    for (const target of [path.join(f.multiPicker.pickerRoot, id), path.join(f.multiPicker.pickerRoot, id) + '.dataset.json']) {",
   "      await assert.rejects(stat(target), { code: 'ENOENT' });",
   "    }",
-  "    assert.equal((await f.send('/api/state', a)).status, 401);",
+  "    assert.equal((await f.send('/api/state', a)).status, kind === 'account' ? 401 : 409);",
   "    assert.equal((await f.send('/api/plugin/v1/status', null, { headers: { Authorization: 'Bearer ' + key } })).status, 401);",
   "    assert.equal((await f.send('/api/state', b)).json().state.members[0].notes['12341'], 'Player 2');",
   "    const doc = await f.registry();",
@@ -136,14 +137,16 @@ const program = [
   "      assert.equal(doc.accounts.some(a => a.id === accountId), false);",
   "      assert.equal(ledger.accounts.find(a => a.accountId === accountId).purgeProgress, 'complete');",
   "    }",
-  "    const fresh = await f.login('101'); assert.notEqual(await f.picker('101'), id);",
+  "    const fresh = await f.login('101');",
+"    if (kind === 'picker') assert.equal((await f.send('/api/characters', fresh, { body: { requestId: 'after-deletion' } })).status, 200);",
+"    assert.notEqual(await f.picker('101'), id);",
   "    const state = (await f.send('/api/state', fresh)).json().state;",
   "    assert.equal(state.revision, 0); assert.deepEqual(state.tasks, []);",
   "    assert.deepEqual(state.members[0].unlocked, []); assert.deepEqual(state.members[0].completedTasks, []);",
   "    assert.equal(state.members[0].notes, undefined);",
   "    // Reconciliation is idempotent in a second fresh server lifecycle.",
   "    await f.restart(); assert.equal((await f.send('/api/state', fresh)).status, 200);",
-  "    assert.equal((await f.send('/api/state', a)).status, 401);",
+  "    assert.equal((await f.send('/api/state', a)).status, kind === 'account' ? 401 : 200);",
   "  }",
   "} finally { await f.app().close(); }"
 ].join('\n');

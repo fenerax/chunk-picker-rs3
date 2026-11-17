@@ -105,9 +105,9 @@ for (const step of REGISTRY_PROVISION_POINTS) test(`process crash at ${step} res
   } finally { const [, signal] = await crash.stop(); assert.equal(signal, 'SIGKILL'); }
   const before = await json(f.file), issued = (await json(f.ledger)).issuedPickerIds;
   assert.equal(before.accounts.length, 1); assert.equal(issued.length, step === 'account-recorded' ? 0 : 1);
-  const pendingId = before.accounts[0].defaultPickerId; await f.open();
+  const pendingId = before.accounts[0].pendingCreation.pickerId; await f.open();
   const login = await f.registry.firstLogin('discord', 'synthetic-crash');
-  if (pendingId) assert.equal(login.picker.id, pendingId); else assert.notEqual(login.picker.id, issued[0]);
+  assert.equal(login.picker.id, pendingId);
   assert.equal(login.picker.provisioning, 'ready'); assert.equal((await json(f.file)).pickers.length, 1);
   assert.deepEqual(await readdir(f.options.pickerRoot), [login.picker.id]);
   assert.deepEqual(await readdir(f.registry.pickerDirectory(login.picker.id)), []);
@@ -169,10 +169,12 @@ test('IDs survive deletion and checkpoint rollback without reuse', async t => {
   await assert.rejects(f.registry.completePickerDeletion(first.picker.id), { status: 409 });
   await purge(f, first.picker.id); await f.registry.completePickerDeletion(first.picker.id); await f.registry.completePickerDeletion(first.picker.id);
   assert.equal(f.registry.getPicker(first.picker.id).lifecycle, 'deleted');
-  assert.equal((await f.registry.ensureDefaultPicker(first.account.id)).id, 'p_' + '02'.repeat(16));
+  assert.equal(await f.registry.ensureDefaultPicker(first.account.id), null);
+  assert.equal((await f.registry.addCharacter(first.account.id, { requestId: 'replacement' })).picker.id, 'p_' + '02'.repeat(16));
   await f.close(); await writeFile(f.file, oldCheckpoint); await f.open({ pickerRandomBytes: () => samples.shift() });
   assert.equal(f.registry.getPicker(first.picker.id).lifecycle, 'deleted');
-  assert.equal((await f.registry.ensureDefaultPicker(first.account.id)).id, 'p_' + '03'.repeat(16));
+  assert.equal(await f.registry.ensureDefaultPicker(first.account.id), null);
+  assert.equal((await f.registry.addCharacter(first.account.id, { requestId: 'after-restore' })).picker.id, 'p_' + '03'.repeat(16));
   assert.equal(new Set((await json(f.ledger)).issuedPickerIds).size, 3);
 });
 
@@ -211,9 +213,10 @@ test('legacy import preserves permissions and data and leaves both default slots
   for (const [i, a] of source.accounts.entries()) {
     assert.equal(f.registry.getAccount(a.id).defaultPickerId, null);
     assert.deepEqual(f.registry.getAccount(a.id).memberships.map(({ role, memberId }) => ({ role, memberId })), plan.accounts[i].memberships);
-    assert.equal((await f.registry.ensureDefaultPicker(a.id)).kind, 'default');
+    assert.equal(await f.registry.ensureDefaultPicker(a.id), null);
+    assert.equal((await f.registry.addCharacter(a.id, { requestId: 'explicit-solo' })).picker.kind, 'default');
   }
-  await f.registry.removeMembership(source.accounts[0].id, legacy.id, 'alpha');
+  await assert.rejects(f.registry.removeMembership(source.accounts[0].id, legacy.id, 'alpha'), { status: 409 });
   await f.registry.deleteAccount(source.accounts[1].id); assert.equal(f.registry.getPicker(legacy.id).lifecycle, 'active');
   assert.equal(await readFile(accountsFile, 'utf8'), bytes); assert.equal((await lstat(accountsFile)).mtimeMs, before);
   assert.equal(await readFile(invitesFile, 'utf8'), inviteBytes);
@@ -292,7 +295,7 @@ test('tombstones reconcile restored accounts, memberships and capabilities befor
   const first = await f.registry.firstLogin('discord', 'synthetic-restore-a'), second = await f.registry.firstLogin('google', 'synthetic-restore-b');
   const a = capability(first), b = capability(second, 'overlay-capability', 'synthetic-other-key');
   await f.registry.setCapability(a); await f.registry.setCapability(b);
-  await f.registry.attachMembership(second.account.id, { pickerId: first.picker.id, role: 'player', memberId: 'owner' }); const checkpoint = await readFile(f.file);
+  await f.registry.attachMembership(second.account.id, { pickerId: first.picker.id, role: 'viewer', memberId: null }); const checkpoint = await readFile(f.file);
   await f.registry.deleteAccount(first.account.id);
   assert.equal(f.registry.getAccount(first.account.id), null); assert.equal(f.registry.resolveCapability(a.kind, a.hash), null);
   assert.equal(f.registry.getPicker(first.picker.id).lifecycle, 'deleting');
@@ -409,13 +412,13 @@ test('missing registry after an ID-reservation crash refuses until checkpoint re
   assert.deepEqual(await readdir(f.options.registryDir), []);
   assert.deepEqual(await readdir(f.options.tombstoneDir), ['ledger.json']);
   await writeFile(f.file, checkpoint);
-  // Force a collision with the orphan reservation before supplying a fresh ID.
+  // The durable account intent resumes its own reservation without allocating again.
   const samples = [Buffer.from(ledger.issuedPickerIds[0].slice(2), 'hex'), Buffer.alloc(16, 42)];
   await f.open({ pickerRandomBytes: () => samples.shift() });
   const login = await f.registry.firstLogin('discord', 'synthetic-reservation');
-  assert.notEqual(login.picker.id, ledger.issuedPickerIds[0]);
-  assert.equal(samples.length, 0);
-  assert.equal((await json(f.ledger)).issuedPickerIds.length, 2);
+  assert.equal(login.picker.id, ledger.issuedPickerIds[0]);
+  assert.equal(samples.length, 2);
+  assert.equal((await json(f.ledger)).issuedPickerIds.length, 1);
   await f.restart(); assert.equal(f.registry.listPickers().length, 1);
 });
 
@@ -433,10 +436,10 @@ test('first-startup process crash after the empty ledger write still starts with
     await openRegistry(options); process.exit(1);`);
   assert.equal(result.code, 86, result.stderr);
   await assert.rejects(readFile(f.file), { code: 'ENOENT' });
-  assert.deepEqual(await json(f.ledger), { schemaVersion: 1, issuedPickerIds: [], pickers: [], accounts: [] });
+  assert.deepEqual(await json(f.ledger), { schemaVersion: 2, issuedPickerIds: [], pickers: [], accounts: [], issuedCharacterIds: [], characters: [] });
   await f.open();
   assert.deepEqual(f.registry.listAccounts(), []); assert.deepEqual(f.registry.listPickers(), []);
-  assert.deepEqual(await json(f.file), { schemaVersion: 1, accounts: [], pickers: [], capabilities: [] });
+  assert.deepEqual(await json(f.file), { schemaVersion: 2, accounts: [], pickers: [], capabilities: [], characters: [] });
   await f.restart(); assert.deepEqual(f.registry.listPickers(), []);
 });
 

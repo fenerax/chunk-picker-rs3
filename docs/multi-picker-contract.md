@@ -4,6 +4,14 @@ This is the contract for the next implementation phases. Phase 0 measures the
 existing single-picker server; it adds no account provisioning or tenant routing.
 Source references below were verified at core commit `6836123`.
 
+The later [groups/accounts product contract](groups-and-accounts.md) supersedes
+the original one-owned-default limit and slot selection model below. Its
+[stage-1 registry design](character-registry-stage-1.md) adds registry v2
+characters/seats, multiple owned groups and exact character scope. The older
+phase records remain isolation/recovery evidence, not permission to select an
+arbitrary membership. Owner invitations and lifecycle operations remain later
+stages; character-affecting self-service deletion is temporarily refused.
+
 ## Identity and ownership
 
 A picker is the boundary for a saved game, its members, and every private object

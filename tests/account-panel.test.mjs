@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { renderSignInPage } from '../app/signin-page.mjs';
 import { createAccountPanel } from '../app/web/account-panel.mjs';
 import { createAccountsPanel } from '../app/web/accounts-panel.mjs';
+import { createCharacterForm } from '../app/web/character-menu.mjs';
 
 class Node {
   constructor(tag, text = '', className = '') { this.tag = tag; this.textContent = text ?? ''; this.className = className; this.children = []; this.attributes = {}; this.listeners = {}; this.hidden = false; this.disabled = false; this.classList = { add: name => { this.className += ` ${name}`; } }; }
@@ -17,6 +18,42 @@ const el = (...args) => new Node(...args);
 const button = (text, click) => Object.assign(el('button', text), { click });
 const walk = node => [node, ...node.children.flatMap(walk)];
 const text = node => walk(node).map(item => item.textContent).join(' ');
+
+test('character menu disambiguates, marks current and unavailable characters, and pauses affected deletion', async () => {
+  const moves = [], scopes = [], panel = createAccountPanel({ el, openDialog() {}, beforeSwitch: async () => scopes.push('drained'), location: { assign: href => moves.push(href) } });
+  panel.setSession({ account: { id: 'sample', providers: ['google'] }, multiPicker: true, characterId: 'one', characters: [
+    { id: 'one', runescapeName: null, groupLabel: 'Solo game', playerCount: 1, role: 'owner', available: true, href: '/characters/one' },
+    { id: 'two', runescapeName: null, groupLabel: 'Group game', playerCount: 5, role: 'player', available: true, href: '/characters/two' },
+    { id: 'three', runescapeName: null, groupLabel: 'Shared game', playerCount: 2, role: 'player', available: false, href: '/characters/three' },
+  ], ownerControls: { role: 'owner', shared: false, deletionPaused: true } });
+  const rows = panel.rows(), buttons = walk(rows).filter(node => node.tag === 'button');
+  assert.equal(buttons.find(n => n.textContent.includes('Character 1')).disabled, true);
+  assert.equal(buttons.find(n => n.textContent.includes('Character 3')).disabled, true);
+  await buttons.find(n => n.textContent.includes('Character 2')).listeners.click();
+  assert.deepEqual(scopes, ['drained']); assert.deepEqual(moves, ['/characters/two']);
+  assert.ok(buttons.filter(n => n.textContent.startsWith('Delete ')).every(n => n.disabled));
+  assert.match(text(rows), /5 players/); assert.match(text(rows), /unavailable until character deletion/);
+});
+
+test('Add character preserves its request through uncertainty and duplicate review, including reload', async () => {
+  const values = new Map(), storage = { getItem: key => values.get(key), setItem: (key, value) => values.set(key, value), removeItem: key => values.delete(key) };
+  const requests = [], created = [];
+  let mode = 'offline';
+  const options = { el, accountId: 'sample', storage, randomId: () => 'same-request', onCreated: character => created.push(character.id), fetch: async (path, options) => {
+    requests.push(JSON.parse(options.body));
+    if (mode === 'offline') throw new Error('Offline');
+    if (mode === 'duplicate') return { ok: false, status: 409, json: async () => ({ code: 'DUPLICATE_CHARACTER_NAME', message: 'Confirm a duplicate' }) };
+    return { ok: true, json: async () => ({ character: { id: 'same-character' } }) };
+  } };
+  let form = createCharacterForm(options), input = walk(form).find(n => n.name === 'runescapeName'); input.value = 'Sample';
+  await form.listeners.submit({ preventDefault() {} }); assert.equal(input.disabled, true);
+  form = createCharacterForm(options); input = walk(form).find(n => n.name === 'runescapeName'); assert.equal(input.disabled, true);
+  mode = 'duplicate'; await form.listeners.submit({ preventDefault() {} }); assert.equal(input.disabled, false);
+  const checkbox = walk(form).find(n => n.type === 'checkbox'); checkbox.checked = true; assert.equal(checkbox.parent.hidden, false);
+  mode = 'ok'; await form.listeners.submit({ preventDefault() {} });
+  assert.deepEqual(requests.map(r => r.requestId), ['same-request', 'same-request', 'same-request']);
+  assert.equal(requests[2].acknowledgeDuplicate, true); assert.deepEqual(created, ['same-character']); assert.equal(values.size, 0);
+});
 
 function accountMenu() {
   const topMenu = el('details'), summary = el('summary'), label = el('span'), content = el('div');

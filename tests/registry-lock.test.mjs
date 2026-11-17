@@ -21,13 +21,13 @@ async function fixture(t) {
 
 // Keep real file writes and rename, but provide a directory handle even on
 // Windows so an EIO after the successful rename is exercised on every platform.
-function failPublishedSync(t, file) {
+function failPublishedSync(t, file, publication = 1) {
   const { open, rename } = fs.promises;
   const failure = Object.assign(new Error('Synthetic directory sync failure'), { code: 'EIO' });
-  let published = false, syncFailures = 0;
+  let published = false, syncFailures = 0, publications = 0;
   t.mock.method(fs.promises, 'rename', async (from, to) => {
     await rename(from, to);
-    if (to === file) published = true;
+    if (to === file && ++publications === publication) published = true;
   });
   t.mock.method(fs.promises, 'open', async (target, flags, ...options) => {
     if (published && target === path.dirname(file) && flags === 'r') {
@@ -53,14 +53,14 @@ test('registry JSON propagates a post-rename directory sync failure', async t =>
   assert.deepEqual(await readdir(path.dirname(file)), ['registry.json']);
 });
 
-for (const target of ['ledger', 'registry']) test(`${target} post-rename sync failure stops allocation and fences the instance`, async t => {
+for (const target of ['intent', 'ledger', 'registry']) test(`${target} post-rename sync failure stops allocation and fences the instance`, async t => {
   const { options, registries } = await fixture(t), points = [];
   const registry = await openRegistry({ ...options, crashPoint: name => points.push(name) });
   registries.push(registry);
   const account = await registry.ensureIdentity('discord', 'synthetic-sync-failure');
   const registryFile = path.join(options.registryDir, 'registry.json'), ledgerFile = path.join(options.tombstoneDir, 'ledger.json');
-  const before = await readFile(registryFile);
-  const fault = failPublishedSync(t, target === 'ledger' ? ledgerFile : registryFile);
+  const before = JSON.parse(await readFile(registryFile));
+  const fault = failPublishedSync(t, target === 'ledger' ? ledgerFile : registryFile, target === 'registry' ? 2 : 1);
   const allocation = registry.ensureDefaultPicker(account.id);
   // A queued operation must also observe the failed-instance fence.
   const queued = registry.ensureIdentity('google', 'synthetic-queued');
@@ -70,14 +70,23 @@ for (const target of ['ledger', 'registry']) test(`${target} post-rename sync fa
   assert.throws(() => registry.getAccount(account.id), /requires restart/);
   await assert.rejects(registry.ensureDefaultPicker(account.id), /requires restart/);
   const ledger = JSON.parse(await readFile(ledgerFile)), disk = JSON.parse(await readFile(registryFile));
-  assert.equal(ledger.issuedPickerIds.length, 1);
+  const pending = disk.accounts[0].pendingCreation;
+  assert.match(pending.pickerId, /^p_[0-9a-f]{32}$/);
+  assert.match(pending.characterId, /^c_[0-9a-f]{32}$/);
+  assert.deepEqual(ledger.issuedPickerIds, target === 'intent' ? [] : [pending.pickerId]);
+  assert.deepEqual(ledger.issuedCharacterIds, target === 'intent' ? [] : [pending.characterId]);
   assert.deepEqual(await readdir(options.pickerRoot), []);
-  assert.deepEqual(points, target === 'ledger' ? [] : ['id-reserved']);
-  if (target === 'ledger') assert.deepEqual(await readFile(registryFile), before);
+  assert.deepEqual(points, target === 'intent' ? [] : target === 'ledger' ? ['account-recorded'] : ['account-recorded', 'id-reserved']);
+  if (target !== 'registry') {
+    before.accounts[0].pendingCreation = pending;
+    assert.deepEqual(disk, before);
+  }
   else {
     assert.equal(disk.pickers.length, 1);
     assert.equal(disk.pickers[0].id, ledger.issuedPickerIds[0]);
     assert.equal(disk.pickers[0].provisioning, 'reserved');
+    assert.equal(disk.characters[0].id, pending.characterId);
+    assert.equal(disk.pickers[0].seats[0].characterId, pending.characterId);
   }
   assert.equal(fault.syncFailures, 1);
   assert.deepEqual(fault.warnings, []);
@@ -87,5 +96,11 @@ for (const target of ['ledger', 'registry']) test(`${target} post-rename sync fa
   registries.push(reopened);
   const picker = await reopened.ensureDefaultPicker(account.id);
   assert.equal(picker.provisioning, 'ready');
-  assert.equal(picker.id === ledger.issuedPickerIds[0], target === 'registry');
+  assert.equal(picker.id, pending.pickerId);
+  assert.equal(reopened.listCharacters(account.id).length, 1);
+  assert.equal(reopened.listCharacters(account.id)[0].id, pending.characterId);
+  assert.equal(reopened.getAccount(account.id).pendingCreation, null);
+  const recoveredLedger = JSON.parse(await readFile(ledgerFile));
+  assert.deepEqual(recoveredLedger.issuedPickerIds, [pending.pickerId]);
+  assert.deepEqual(recoveredLedger.issuedCharacterIds, [pending.characterId]);
 });

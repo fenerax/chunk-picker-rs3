@@ -30,7 +30,7 @@ export function createScreenCommands(c, { commandClient: providedClient } = {}) 
       return c.queue;
     },
   });
-  const commandClient = () => providedClient ?? (durableCommands ??= createLiveSwapCommandClient({ pickerId: c.panelContext?.pickerSession?.pickerId,
+  const commandClient = () => providedClient ?? (durableCommands ??= createLiveSwapCommandClient({ pickerId: c.panelContext?.pickerSession?.storageScope ?? c.panelContext?.pickerSession?.pickerId,
     fetch: (...args) => c.panelContext?.pickerSession ? c.panelContext?.pickerSession.fetch(...args) : fetch(...args), onRetry: event => {
     if (event?.status === 'paused') { c.saved('Save not confirmed', true); showSaveRetry(true); }
     else { showSaveRetry(false); if (event?.status !== 'confirmed') c.saved('Reconnecting… Confirming save', true); }

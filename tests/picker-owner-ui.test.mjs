@@ -8,7 +8,7 @@ import { createHash } from 'node:crypto';
 import vm from 'node:vm';
 import { withStartupTimeout, startupRetryAfter } from '../app/startup-read.mjs';
 import { createAccountPanel } from '../app/web/account-panel.mjs';
-import { createLiveSwapCommandClient, commandOutboxKey } from '../app/web/live-swap-client.mjs';
+import { commandOutboxKey } from '../app/web/live-swap-client.mjs';
 
 process.env.RS3_DATASET = 'open-f2p';
 for (const key of ['RS3_PACKS_DIR', 'RS3_PACK_SELECTION', 'RS3_PUBLIC_ORIGIN', 'RS3_LOOPBACK_PORT', 'RS3_LOOPBACK_ROLE', 'RS3_SIGNIN', 'RS3_GOOGLE_CLIENT_ID', 'RS3_GOOGLE_CLIENT_SECRET_FILE']) delete process.env[key];
@@ -161,48 +161,38 @@ function serverTransport(f, cookie) {
     return new Response(value.text, { status: value.status, headers: value.headers });
   };
 }
-for (const target of ['picker', 'account']) test(`owner deletes ${target} through dialog, reauthentication, cleanup and signed-out landing`, async t => {
+for (const target of ['picker', 'account']) test(`stage 1 disables owner ${target} deletion and preserves the active document after server refusal`, async t => {
   const f = await fixture(t, target === 'account' ? { backupRetentionMs: 86400000 } : {});
   const cookie = await f.login(String(ACCOUNT)), session = (await f.send('/api/session', cookie)).json();
   assert.equal(session.ownerControls.role, 'owner'); assert.equal(session.ownerControls.shared, false);
   const b = browser(session, serverTransport(f, cookie));
-  const prefix = `picker.scope.${session.pickerId}.`;
+  assert.equal(session.ownerControls.deletionPaused, true);
+  const prefix = `picker.scope.${encodeURIComponent(JSON.stringify([session.accountId, session.characterId, session.pickerId, session.memberId, session.datasetId, session.datasetDigest]))}.`;
   b.siteStore.setItem(prefix + 'duo-member', 'owner');
-  const clientCalls = [], gate = Promise.withResolvers(), entered = Promise.withResolvers();
-  const client = createLiveSwapCommandClient({ storage: b.tab, pickerId: session.pickerId,
-    uuid: () => 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', acquireSession: () => () => {}, maxAttempts: 1,
-    fetch: async path => { clientCalls.push(path); entered.resolve(); return gate.promise; } });
-  t.after(() => client.stop()); b.coordinator.registerCommands(client);
-  const command = { expectedRevision: 7, command: { type: 'set-note', memberId: 'owner', chunkId: '12341', note: 'Player 1' } };
-  const first = client.send(command), second = client.send(command);
-  const rejected = Promise.all([assert.rejects(first, { name: 'AbortError' }), assert.rejects(second, { name: 'AbortError' })]);
-  await entered.promise;
+  const pending = JSON.stringify({ unsent: true });
+  b.tab.setItem(prefix + commandOutboxKey, pending);
   const finishQueue = b.coordinator.queueCommand();
-  assert.ok(b.tab.getItem(prefix + commandOutboxKey));
+  t.after(finishQueue);
+  const rows = b.panel.rows(), control = walk(rows).find(node => node.textContent === `Delete ${target}`);
+  assert.equal(control.disabled, true);
+  assert.match(text(rows), /unavailable until character deletion/);
+  assert.deepEqual(b.calls, []);
+  const registryBefore = await f.registry(), before = (await f.send('/api/backup', cookie)).text;
+  const refused = await f.send(`/api/${target}/delete`, cookie, { body: {}, headers: { 'X-Picker-Id': session.pickerRoute } });
+  assert.equal(refused.status, 409, refused.text);
+  assert.match(refused.json().message, /unavailable until character deletion/);
+  assert.deepEqual(await f.registry(), registryBefore);
+  assert.equal((await f.send('/api/backup', cookie)).text, before);
+  assert.equal(b.coordinator.stopped, false); assert.deepEqual(b.c.state, { revision: 7 });
+  assert.deepEqual(b.c.result, { private: true }); assert.equal(b.c.normalPlayResults.size, 1);
   assert.equal(b.rendered.children.length, 1);
-  b.open(`Delete ${target}`);
-  assert.match(text(b.dialog.node), /cannot be undone/);
-  assert.ok(text(b.dialog.node).includes(target === 'account' ? session.account.id : session.pickerId));
-  assert.ok(text(b.dialog.node).includes(session.ownerControls.backups.message));
-  assert.deepEqual(b.calls, [], 'opening the dialog makes no requests');
-  await click(b.dialog.node, `Delete ${target}`);
-  assert.deepEqual(b.calls.map(([route]) => route), ['/api/session', `/api/${target}/delete`]);
-  if (target === 'account') {
-    assert.match(JSON.parse(b.calls[1][1].body).accountDeletionToken, /^[A-Za-z0-9_-]{43}$/);
-    assert.equal(b.calls[0][1].headers['X-Account-Action'], 'delete');
-  } else assert.equal(b.calls[1][1].body, '{}'); assert.equal(b.calls[1][1].headers['X-Picker-Id'], session.pickerRoute);
-  assert.equal(b.coordinator.stopped, true); assert.equal(b.c.state, undefined); assert.equal(b.c.result, undefined);
-  assert.equal(b.c.normalPlayResults.size, 0); assert.equal(b.rendered.children.length, 0);
-  assert.equal(b.siteStore.getItem(prefix + 'duo-member'), null); assert.equal(b.tab.getItem(prefix + commandOutboxKey), null);
-  assert.equal(b.notices.length, 1); assert.match(b.notices[0], /Queued changes were not sent/);
-  gate.resolve(response({ slot: 0, generation: 1, sequence: 0, acknowledged: 0 })); await rejected; finishQueue();
-  assert.deepEqual(clientCalls, ['/api/action-session'], 'neither command was replayed');
-  assert.equal(b.dialog.title, 'Deletion complete'); assert.ok(text(b.dialog.node).includes(session.ownerControls.backups.message));
-  assert.deepEqual(b.destinations, []); await click(b.dialog.node, 'Continue to sign in');
-  assert.deepEqual(b.destinations, ['/auth/signin']); assert.equal((await f.send('/api/state', cookie)).status, 401);
+  assert.equal(b.siteStore.getItem(prefix + 'duo-member'), 'owner');
+  assert.equal(b.tab.getItem(prefix + commandOutboxKey), pending);
+  assert.deepEqual(b.notices, []); assert.deepEqual(b.destinations, []);
+  assert.equal((await b.coordinator.fetch('/api/state')).status, 200);
 });
 
-test('shared account deletion has no picker deletion, discloses preserved game, and preserves its hash after restart', async t => {
+test('stage 1 disables shared character account deletion and preserves gameplay and access after restart', async t => {
   const f = await fixture(t, { initiallyEnabled: false });
   const invite = (await f.private('/api/invites', { body: { label: 'Player 1', memberId: 'one' } })).json();
   const joined = await f.private(new URL(invite.link).pathname, { headers: { Authorization: '' } });
@@ -211,16 +201,21 @@ test('shared account deletion has no picker deletion, discloses preserved game, 
   assert.equal(session.ownerControls.shared, true); assert.equal(session.ownerControls.role, 'player'); assert.equal(session.ownerControls.ownsDefaultPicker, false);
   const b = browser(session, serverTransport(f, cookie));
   assert.doesNotMatch(text(b.panel.rows()), /Delete picker|Leave|Rules|Plugin keys/);
-  b.open('Delete account');
-  assert.match(text(b.dialog.node), /removes this account's access and claimed invitations/);
-  assert.match(text(b.dialog.node), /shared game and the other player are not changed/);
+  const rows = b.panel.rows();
+  assert.equal(walk(rows).find(node => node.textContent === 'Delete account').disabled, true);
+  assert.match(text(rows), /unavailable until character deletion/);
+  assert.deepEqual(b.calls, []);
   const before = hash((await f.private('/api/backup')).text);
-  await click(b.dialog.node, 'Delete account');
+  const refused = await f.send('/api/account/delete', cookie, { body: {} });
+  assert.equal(refused.status, 409, refused.text);
+  assert.match(refused.json().message, /unavailable until character deletion/);
   assert.equal(hash((await f.private('/api/backup')).text), before);
-  assert.equal((await f.send('/api/state', cookie)).status, 401);
-  assert.equal((await f.private(new URL(invite.link).pathname, { headers: { Authorization: '' } })).status, 401);
-  await click(b.dialog.node, 'Continue to sign in'); assert.deepEqual(b.destinations, ['/auth/signin']);
+  assert.equal((await f.send('/api/state', cookie)).status, 200);
+  const claimed = await f.private(new URL(invite.link).pathname, { headers: { Authorization: '' } });
+  assert.equal(claimed.status, 403); assert.match(claimed.text, /Sign in to use this invitation/);
+  assert.deepEqual(b.destinations, []); assert.equal(b.coordinator.stopped, false);
   await f.restart(); assert.equal(hash((await f.private('/api/backup')).text), before);
+  assert.equal((await f.send('/api/state', cookie)).status, 200);
 });
 
 test('owner actions reuse gameplay tools and never offer operator powers', () => {
