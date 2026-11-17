@@ -97,6 +97,7 @@ test('builder profile records a closed window and refuses changed source anchors
   const checked = spawnSync(process.execPath, ['--check', '--input-type=module'], { input: instrumentProjection(source), encoding: 'utf8' });
   assert.equal(checked.status, 0, checked.stderr);
   assert.throws(() => instrumentProjection(source.replace('    let disconnectedDetail;', '    let changed;')), /Anchor/);
+  assert.throws(() => instrumentProjection(source.replace('      processingRawAccessEvaluations: { value: replay.rawAccessEvaluations } });', '      changed: true });')), /Anchor/);
 });
 
 test('lazy producer witnesses preserve independent source constraints and exhausted false proofs', () => {
