@@ -195,8 +195,8 @@
       "calculation"
     ]
   },
-  "app/web/screen-dialogs.mjs :: 'Export unlocked chunks'": {
-    "reason": "The dataset-specific copy action writes the clipboard, which the read-only gallery does not exercise. Synthetic screen tests cover its selectable-link fallback and stale-dialog guard; offline encoder fixtures cover all grid cells."
+  "app/web/screen-dialogs.mjs :: 'Move to the original picker'": {
+    "reason": "The guide uses dataset-specific export payloads and manual clipboard/download actions, which the read-only gallery does not exercise. Synthetic browser and screen tests cover its transfer pieces, selectable-text fallback and stale-dialog guard; offline fixtures cover round trips and all grid cells."
   },
   "app/web/screen-dialogs.mjs :: 'Export / Import'": {
     "entries": [
