@@ -4609,3 +4609,20 @@ test('save-transfer chunk export supplies a selectable fallback and ignores stal
   pending.resolve({ url: 'https://gitgeddes.github.io/ChunkPicker/?fv', message: 'Only chunks.' }); await request;
   assert.equal(h.nodes.get('dialog-title').textContent, 'Settings');
 });
+
+test('save-transfer guide keeps the requested player when the selector changes before the export responds', async () => {
+  const h = harness(), pending = deferred();
+  h.run("state.members[0].name = 'Synthetic destination'; state.members[1].name = 'Synthetic other'; backupDialog()");
+  h.route(() => pending.promise);
+  const request = h.click('Move to the original picker'); await flush();
+  assert.equal(h.calls.at(-1).path, '/api/export/original-chunks?memberId=actor1');
+  const selector = h.nodes.get('dialog-content').querySelector('select');
+  selector.value = 'reed'; await selector.emit('change');
+  h.run("state.members[0].name = 'Renamed after request'");
+  pending.resolve({ url: 'https://gitgeddes.github.io/ChunkPicker/?fv', rulesJSON: '{"Extra":false}', journal: 'Synthetic destination journal', message: 'Synthetic destination chunks.' });
+  await request;
+  assert.equal(h.nodes.get('dialog-title').textContent, 'Move to the original picker');
+  assert.ok(h.all().some(node => node.tagName === 'P' && node.textContent.startsWith('Moving Synthetic destination.')));
+  assert.deepEqual(h.all().filter(node => node.tagName === 'TEXTAREA' && node.readOnly).map(node => node.value),
+    ['https://gitgeddes.github.io/ChunkPicker/?fv', '{"Extra":false}', 'Synthetic destination journal']);
+});

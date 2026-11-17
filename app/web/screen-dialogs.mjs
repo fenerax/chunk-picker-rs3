@@ -159,10 +159,11 @@ export function createScreenDialogs(c) {
     const exportMember = c.select(c.state.members.map(member => ({ value: member.id, label: member.name })), c.sessionMember ?? c.state.members[0].id);
     const chunkExport = c.button('Move to the original picker', async () => {
       const generation = c.beginDialogRequest();
-      const result = await c.api(`/api/export/original-chunks?memberId=${encodeURIComponent(exportMember.value)}`);
+      const memberId = exportMember.value, memberName = c.state.members.find(member => member.id === memberId)?.name ?? 'this player';
+      const result = await c.api(`/api/export/original-chunks?memberId=${encodeURIComponent(memberId)}`);
       if (!c.dialogCurrent(generation)) return;
       const instructions = c.el('div', undefined, 'form-stack');
-      instructions.append(c.el('p', `Moving ${c.state.members.find(member => member.id === exportMember.value)?.name ?? 'this player'}. Paste the pieces below into an editable original map yourself. Nothing is sent to the original picker.`, 'section-intro'),
+      instructions.append(c.el('p', `Moving ${memberName}. Paste the pieces below into an editable original map yourself. Nothing is sent to the original picker.`, 'section-intro'),
         c.el('h3', '1. Keep a full backup'), c.el('p', 'The original cannot accept all your progress. Download this before moving so you can return with everything intact.'),
         c.button('Download full backup before moving', () => downloadFullBackup(`rs3-picker-before-moving-${new Date().toISOString().slice(0, 10)}.json.gz`, c.panelContext?.pickerSession ? c.panelContext.pickerSession.fetch : fetch)), originalTransferList(c));
       const piece = (heading, label, value, copyLabel, explanation) => {
