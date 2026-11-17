@@ -128,8 +128,9 @@ try {
     if (typeof input.chunkId !== 'string' || !/^\d{1,8}$/.test(input.chunkId)) throw new Error('chunk');
     parentPort.postMessage({ sections: chunkSectionsPayload(getWorld(), input.chunkId) });
   } else if (input.operation === 'predict') {
+    // Predict with the same collection and equipment tasks the task list shows.
     if (typeof input.chunkId !== 'string' || !/^\d{1,8}$/.test(input.chunkId)) throw new Error('chunk');
-    parentPort.postMessage({ prediction: { ...predictChunk(state, memberId, input.chunkId, { world: getWorld(), engine: getEngine(), registry }),
+    parentPort.postMessage({ prediction: { ...predictChunk(state, memberId, input.chunkId, { world: getWorld(), engine: { evaluate }, registry }),
       memberId, stateRevision: state.revision } });
   } else if (input.operation === 'teleports') {
     const world = getWorld(), automatic = state.rules['travel.automatic'] === true;

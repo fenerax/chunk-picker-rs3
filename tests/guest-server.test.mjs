@@ -271,3 +271,33 @@ test('HTTP guest limits hold capacity through worker disposal, deadline, disconn
   await mode.close();
   assert.equal((await post('/guest/api/session', {})).status, 503);
 });
+
+test('guest unlock predictions include derived collection tasks', async t => {
+  guestFlag(t, '1');
+  const root = await mkdtemp(path.join(tmpdir(), 'guest-prediction-'));
+  let app;
+  t.after(async () => { try { await app?.close(); } finally { await rm(root, { recursive: true, force: true }); } });
+  const dropDefinitions = { ...definitions,
+    chunks: { ...definitions.chunks, '12851': { Nickname: 'Next town', Monster: { Goblin: true } } },
+    drops: { Goblin: { Bones: { '1': 'Always' } } } };
+  app = await createServer({ dataDir: path.join(root, 'legacy'), definitions: dropDefinitions, taskMap: {}, port: 0,
+    initialState: createGroupState([{ id: 'one', name: 'Player 1' }]),
+    backupRetentionMs: 90 * 86400000, predictionPrewarm: false, liveTimingOptions: { enabled: false },
+    taskWorkerOptions: { warmStoreDirectory: undefined }, guestOptions: { limits: { requestsPerIP: 100, requestsGlobal: 100 } } });
+  await app.listen();
+  const origin = `http://127.0.0.1:${app.address().port}`;
+  const post = (body, token) => fetch(origin + (token ? '/guest/api/run' : '/guest/api/session'), { method: 'POST',
+    headers: { Origin: origin, 'Content-Type': 'application/json', ...(token ? { 'X-Guest-Token': token } : {}) }, body: JSON.stringify(body) });
+  const { token } = await (await post({})).json();
+  async function run(body) {
+    const response = await post(body, token), result = await response.json();
+    assert.equal(response.status, 200, JSON.stringify(result));
+    return result;
+  }
+  let backup = (await run({ operation: 'new' })).backup;
+  for (const command of [{ type: 'set-chunk', chunkId: '12850', status: 'unlocked', memberId: 'guest' },
+    { type: 'set-task-rule', ruleId: 'Every Drop', value: true, memberId: 'guest' }])
+    backup = (await run({ operation: 'command', backup, command })).backup;
+  const added = (await run({ operation: 'predict', backup, chunkId: '12851' })).prediction.delta.tasksAdded;
+  assert.ok(added.some(task => /Goblin/.test(task.label) && /Bones/.test(task.label)), JSON.stringify(added));
+});
