@@ -61,7 +61,13 @@ export async function createGuestTransport({ fetch: network = globalThis.fetch.b
     if (route.startsWith('/api/history/')) return { stateRevision: backup.state.revision, event: backup.state.history.find(event => event.revision === Number(route.split('/').at(-1))) };
     if (route === '/api/tasks') return tasks(signal);
     if (route === '/api/task-how') return (await run('how', { taskId: query.get('taskId') }, signal)).how;
-    if (route === '/api/task-why') return (await run('why', { taskId: query.get('taskId') }, signal)).why;
+    if (route === '/api/task-why') return query.get('view') === 'display-v1'
+      ? (await run('why', { taskId: query.get('taskId') }, signal)).why
+      : (await run('why-chain', { selector: Object.fromEntries(['taskId', 'master', 'assignment'].filter(key => query.has(key)).map(key => [key, query.get(key)])) }, signal)).chain;
+    if (route === '/api/backlog-search') return (await run('backlog-search', {}, signal)).backlog;
+    if (route === '/api/roll-stats') return (await run('roll-stats', {}, signal)).rollStats;
+    if (route === '/api/xp-choices') return (await run('xp-choices', {}, signal)).xpChoices;
+    if (route === '/api/map-info') return (await run('map-info', {}, signal)).mapInfo;
     if (route === '/api/chunk-sections') return (await run('chunk-sections', { chunkId: query.get('chunk') }, signal)).sections;
     if (route === '/api/chunk-planning') return (await run('chunk-planning', { chunkId: query.get('chunkId') }, signal)).planning;
     if (route === '/api/predict') return (await run('predict', { chunkId: query.get('chunkId') }, signal)).prediction;

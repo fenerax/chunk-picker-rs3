@@ -3,7 +3,7 @@ const escape = value => String(value ?? '').replace(/[&<>"']/g, character => ({ 
 
 // A server-rendered form in the picker's established warm charcoal and gold palette.
 // Provider destinations are fixed locally; no provider scripts, images or fonts load here.
-export function renderSignInPage({ providers = [], heading = 'Sign in', message, continueInvite = false, claim = false, help = true, home = false, linkAccount = false, returnTo } = {}) {
+export function renderSignInPage({ providers = [], heading = 'Sign in', message, continueInvite = false, claim = false, help = true, home = false, linkAccount = false, returnTo, guestModeEnabled = false } = {}) {
   const available = [...new Set(providers.map(provider => typeof provider === 'string' ? provider : provider?.id ?? provider?.provider))].filter(provider => Object.hasOwn(providerNames, provider));
   const query = !linkAccount && returnTo && returnTo !== '/' ? `?${new URLSearchParams({ returnTo })}` : '';
   const links = available.map(provider => `<a class="signin-provider" href="${escape(`/auth/${linkAccount ? 'link/' : ''}${provider}${query}`)}">Sign in with ${providerNames[provider]}</a>`).join('\n');
@@ -25,7 +25,7 @@ export function renderSignInPage({ providers = [], heading = 'Sign in', message,
     ${home ? '<a class="signin-provider" href="/">Open your picker</a>' : ''}${links ? `<div class="signin-providers" aria-label="Sign-in providers">${links}</div>` : ''}
     ${claim ? '<form class="signin-claim" method="post" action="/auth/claim"><button type="submit">Use this invitation with this account</button></form>' : ''}
     ${continueInvite ? '<form class="signin-invite" method="post" action="/auth/invite"><button type="submit">Continue with invite link</button></form>' : ''}
-    ${heading === 'Sign in' && !linkAccount ? '<p><a class="signin-provider" href="/guest/">Try without signing in</a></p><p class="signin-help">Guest progress stays only in this browser. Download a save to keep a copy.</p>' : ''}
+    ${guestModeEnabled && heading === 'Sign in' && !linkAccount ? '<p><a class="signin-provider" href="/guest/">Try without signing in</a></p><p class="signin-help">Guest progress stays only in this browser. Download a save to keep a copy.</p>' : ''}
     ${help && !links && !claim && !continueInvite ? '<p class="signin-help">No sign-in providers are available. Contact the picker administrator for access.</p>' : ''}
     <p class="signin-help">Use the invitation shared with you to access this picker.</p>
   </main>

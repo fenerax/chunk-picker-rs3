@@ -19,7 +19,16 @@ import { requestContext } from '../app/security/request.mjs';
 
 const definitions = { chunks: { '12850': { Nickname: 'Starting town' }, '12851': { Nickname: 'Next town' } },
   walkableChunks: ['12850', '12851'], walkableChunksF2P: ['12850', '12851'],
-  challenges: { Quest: { 'Guest example quest': { Chunks: ['12850'], QuestPoints: 1 } } } };
+  challenges: { Quest: { 'Guest example quest': { Chunks: ['12850'], QuestPoints: 1, XpReward: { Any: 100 } } } } };
+function guestFlag(t, value) {
+  const previous = process.env.RS3_GUEST_MODE;
+  if (value === undefined) delete process.env.RS3_GUEST_MODE;
+  else process.env.RS3_GUEST_MODE = value;
+  t.after(() => {
+    if (previous === undefined) delete process.env.RS3_GUEST_MODE;
+    else process.env.RS3_GUEST_MODE = previous;
+  });
+}
 async function inventory(directory, prefix = '') {
   const result = {};
   for (const entry of await readdir(directory, { withFileTypes: true })) {
@@ -30,6 +39,7 @@ async function inventory(directory, prefix = '') {
   return result;
 }
 test('guest solo workflow never changes durable gameplay, registry, auth, backup or telemetry files', async t => {
+  guestFlag(t, '1');
   const root = await mkdtemp(path.join(tmpdir(), 'guest-isolation-'));
   let app;
   t.after(async () => { try { await app?.close(); } finally { await rm(root, { recursive: true, force: true }); } });
@@ -83,16 +93,52 @@ test('guest solo workflow never changes durable gameplay, registry, auth, backup
   assert.equal(planning.format, 'chunk-planning-v1');
   assert.equal(planning.stateRevision, backup.state.revision);
   assert.ok(planning.rows.some(row => row.task.id === quest.id));
-  assert.ok((await run({ operation: 'predict', backup, chunkId: '12851' })).prediction);
+  const prediction = (await run({ operation: 'predict', backup, chunkId: '12851' })).prediction;
+  assert.equal(prediction.memberId, 'guest');
+  assert.equal(prediction.stateRevision, backup.state.revision);
   assert.equal((await run({ operation: 'teleports', backup })).teleports.memberId, 'guest');
   const profile = (await run({ operation: 'profile-preview', backup,
     profile: { format: 'rs3-chunk-rule-profile', schemaVersion: 1, rules: backup.state.rules, taskRules: {} } })).profile;
   assert.equal(profile.stateRevision, backup.state.revision);
   const how = await run({ operation: 'how', backup, taskId: quest.id }); assert.ok(how.how.nodes[how.how.root]);
+  const chain = (await run({ operation: 'why-chain', backup, selector: { taskId: quest.id } })).chain;
+  assert.equal(chain.memberId, 'guest'); assert.equal(chain.stateRevision, backup.state.revision); assert.ok(chain.root);
+  await command({ type: 'set-task-alternative', category: quest.category, group: 'Synthetic', taskId: quest.id });
+  assert.equal(backup.state.members[0].taskAlternatives[quest.category].Synthetic, quest.id);
+  const xp = (await run({ operation: 'xp-choices', backup })).xpChoices;
+  assert.equal(xp.memberId, 'guest'); assert.equal(xp.stateRevision, backup.state.revision);
+  assert.ok(xp.rows.some(row => row.id === quest.id));
+  await command({ type: 'set-xp-choices', taskId: quest.id, choices: ['Mining'] });
+  assert.deepEqual(backup.state.members[0].xpChoices[quest.id], ['Mining']);
+  await command({ type: 'set-task-status', taskId: quest.id, backlogged: true });
+  const backlog = (await run({ operation: 'backlog-search', backup })).backlog;
+  assert.equal(backlog.memberId, 'guest'); assert.equal(backlog.stateRevision, backup.state.revision);
+  assert.ok(backlog.tasks.some(row => row.id === quest.id));
+  await command({ type: 'set-task-status', taskId: quest.id, backlogged: false });
+  const rollStats = (await run({ operation: 'roll-stats', backup })).rollStats;
+  assert.equal(rollStats.stateRevision, backup.state.revision); assert.ok(rollStats.members.some(row => row.id === 'guest'));
+  assert.equal((await run({ operation: 'map-info', backup })).mapInfo.schemaVersion, 1);
   await command({ type: 'set-task-status', taskId: quest.id, challengeCompleted: true });
   await command({ type: 'set-preference', preferenceId: 'theme', value: 'gray' });
   assert.equal(backup.state.members[0].preferences.theme, 'gray');
   assert.equal(backup.state.members[0].taskStatus[quest.id].challengeCompleted, true);
+  await command({ type: 'unpick' });
+  assert.equal(backup.state.members[0].unlocked.length, 1);
+  await command({ type: 'undo' });
+  assert.equal(backup.state.members[0].unlocked.length, 2);
+  for (const value of [
+    { type: 'set-finish-line-item', itemId: 'skill:Mining', target: 60, enabled: false },
+    { type: 'add-finish-line-custom', itemId: 'finish:guest-goal', text: 'Synthetic guest goal' },
+    { type: 'set-finish-line-custom', itemId: 'finish:guest-goal', memberId: 'guest', completed: true },
+  ]) {
+    result = await run({ operation: 'command', backup, command: value }); backup = result.backup; browser.commit(backup);
+  }
+  assert.deepEqual(backup.state.finishLine.items['skill:Mining'], { target: 60, enabled: false });
+  assert.deepEqual(backup.state.finishLine.customItems[0].completedBy, ['guest']);
+  await run({ operation: 'command', backup, command: { type: 'set-finish-line-custom', itemId: 'finish:guest-goal', memberId: 'other', completed: true } }, 422);
+  result = await run({ operation: 'command', backup, command: { type: 'delete-finish-line-custom', itemId: 'finish:guest-goal' } });
+  backup = result.backup; browser.commit(backup);
+  assert.deepEqual(backup.state.finishLine.customItems, []);
   const exported = browser.exportText(); assert.deepEqual(importBackup(JSON.parse(exported)), backup.state);
   browser = createGuestSave(local, session.dataset);
   assert.deepEqual(browser.load(), backup, 'Reload resumes browser state');
@@ -116,7 +162,7 @@ test('guest solo workflow never changes durable gameplay, registry, auth, backup
   const cookie = joined.headers.get('set-cookie').split(';')[0];
   const signedIn = await fetch(origin + '/api/state', { headers: { Cookie: cookie } });
   assert.equal(signedIn.status, 200); assert.deepEqual((await signedIn.json()).state.members.map(member => member.id), ['one', 'two']);
-  assert.match(renderSignInPage(), /href="\/guest\/"/);
+  assert.match(renderSignInPage({ guestModeEnabled: true }), /href="\/guest\/"/);
   for (const route of ['/guest/', '/guest/guest.mjs', '/guest/guest-save.mjs', '/guest/guest.css']) {
     const response = await fetch(origin + route); assert.equal(response.status, 200, route); assert.ok(response.headers.get('content-security-policy'));
   }
@@ -134,8 +180,58 @@ test('guest solo workflow never changes durable gameplay, registry, auth, backup
   assert.match(await (await fetch(origin + '/guest/copy-lists.mjs')).text(), /\/guest\/copy-lists.css/);
   await run({ operation: 'new', accountId: 'unknown' }, 400);
   await run({ operation: 'why', backup, taskId: {} }, 422);
+  await run({ operation: 'why-chain', backup, selector: { taskId: quest.id, accountId: 'unknown' } }, 422);
   await run({ operation: 'chunk-sections', backup, chunkId: '../private' }, 422);
   assert.equal((await post('/guest/api/run', { operation: 'new' }, session.token, { Origin: 'https://other.example' })).status, 403);
+});
+
+test('guest mode requires the exact operator opt-in and shares its startup setting with sign-in', async t => {
+  assert.doesNotMatch(renderSignInPage(), /guest\/|Try without signing in/);
+  for (const value of [undefined, '0', 'true', '1']) await t.test(value ?? 'unset', async t => {
+    guestFlag(t, value);
+    const enabled = value === '1';
+    const root = await mkdtemp(path.join(tmpdir(), 'guest-flag-'));
+    let app;
+    t.after(async () => {
+      try { await app?.close(); }
+      finally { await rm(root, { recursive: true }); }
+    });
+    // Spreading these options would initialize the guest limits and worker path.
+    const guestOptions = enabled ? {} : {
+      get limits() { assert.fail('Disabled guest limits must not be constructed'); },
+      get workerFactory() { assert.fail('Disabled guest workers must not be constructed'); },
+    };
+    app = await createServer({ dataDir: path.join(root, 'game'), definitions, taskMap: {}, port: 0,
+      loopbackPort: 0, loopbackRole: 'public', publicOrigin: 'https://picker.example', signIn: 'optional',
+      predictionPrewarm: false, liveTimingOptions: { enabled: false },
+      taskWorkerOptions: { warmStoreDirectory: undefined }, guestOptions });
+    await app.listen();
+    // Changes to the process environment cannot expose a disabled running server.
+    process.env.RS3_GUEST_MODE = enabled ? '0' : '1';
+    const origin = `http://127.0.0.1:${app.address().port}`;
+    const signIn = await fetch(`http://127.0.0.1:${app.loopbackAddress().port}/auth/signin`, {
+      headers: { 'X-Forwarded-Host': 'picker.example', 'X-Forwarded-For': '203.0.113.7', 'X-Forwarded-Proto': 'https' },
+    });
+    assert.equal(signIn.status, 200);
+    const page = await signIn.text();
+    if (enabled) assert.match(page, /href="\/guest\/"/);
+    else assert.doesNotMatch(page, /guest\/|Try without signing in/);
+    for (const route of ['/guest', '/guest?test=1', '/guest/', '/guest/guest.mjs', '/guest/guest-save.mjs', '/guest/core/state.mjs']) {
+      for (const method of ['GET', 'HEAD']) {
+        const response = await fetch(origin + route, { method, redirect: 'manual' });
+        const expected = !enabled ? 404 : route.startsWith('/guest/') ? 200 : method === 'GET' ? 303 : 404;
+        assert.equal(response.status, expected, `${method} ${route}`);
+        await response.arrayBuffer();
+      }
+    }
+    for (const route of ['/guest/api/session', '/guest/api/run', '/guest/arbitrary']) {
+      const response = await fetch(origin + route, { method: 'POST', headers: {
+        Origin: origin, 'Content-Type': 'application/json',
+      }, body: JSON.stringify(route.endsWith('/run') ? { operation: 'new' } : {}) });
+      assert.equal(response.status, enabled ? route.endsWith('/session') ? 200 : route.endsWith('/run') ? 401 : 404 : 404, route);
+      await response.arrayBuffer();
+    }
+  });
 });
 
 test('HTTP guest limits hold capacity through worker disposal, deadline, disconnect and shutdown', async t => {

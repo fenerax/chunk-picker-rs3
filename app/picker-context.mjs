@@ -105,7 +105,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
     originalSyncIntegration: configuredOriginalSync, privateAddon, appVersion, browserDataset: sharedBrowserDataset, webRoot, art,
     loadChunkSections, loadMapInfo, loadNpcShopInfo, loadArchaeology, loadInteriors,
     iconCatalogue, terrainCatalogue, trainingCatalogue, membersStartBanks,
-    limits, admitStream: legacyAdmitStream, usageAdmission, requestContextFor, pickerLimits,
+    limits, admitStream: legacyAdmitStream, usageAdmission, requestContextFor, pickerLimits, guestModeEnabled,
   } = runtime;
   // Uploaded gameplay (whole-save restore, member restore and import) is never
   // authority to use the operator's source integration. Only legacy owns it.
@@ -229,7 +229,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
     accounts = await openAccountStore({ dataDir });
     invites = await openInviteStore({ dataDir, masterToken: token, masterLabel: dataset.gameDefaults.masterLabel, accounts, signInMode: signIn, pickerRegistry: pickerRouting?.registry });
     if (pickerRouting?.authenticate) invites.authenticate = (request, security) => pickerRouting.authenticate(request, security, pickerId);
-    signInFlow = await openSignIn({ publicOrigin, mode: signIn, accounts, invites, provider: signInProvider,
+    signInFlow = await openSignIn({ publicOrigin, mode: signIn, accounts, invites, provider: signInProvider, guestModeEnabled,
       unauthenticated: key => limits.unauthenticated(key), checkRequestOrigin, serializeMutation, webRoot, pickerRegistry: pickerLimits && pickerRouting?.registry ? pickerLimits.provisioningRegistry(pickerRouting.registry) : pickerRouting?.registry, syncLegacy: pickerRouting?.syncLegacy, reclaimIdentity: pickerRouting?.reclaimIdentity });
     feedback = await openFeedbackStore({ dataDir });
     const usageMembers = store.getCalculationSnapshot().members;

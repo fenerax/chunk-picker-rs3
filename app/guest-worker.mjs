@@ -21,15 +21,21 @@ import { personalTeleportRows } from './core/teleport-returns.mjs';
 import { projectTeleportRoute } from './teleports-response.mjs';
 import { buildChunkPlanningIndex } from './tasks/chunk-planning-index.mjs';
 import { projectPlayTask } from './play-view.mjs';
+import { buildWhyChain } from './tasks/why-chain.mjs';
+import { backlogSearchTasks } from './tasks/backlog-search.mjs';
+import { computeRollStats } from './core/roll-stats.mjs';
+import { buildXpChoiceCatalogue, buildXpChoiceView } from './core/xp-choices.mjs';
 
 assertWorkerHeapLimit();
-const allowedCommands = new Set(['set-chunk', 'set-note', 'roll', 'unlock-selection', 'pick-for-me',
+const allowedCommands = new Set(['set-chunk', 'set-note', 'roll', 'unpick', 'unlock-selection', 'pick-for-me',
   'unlock-both', 'cancel-roll', 'undo', 'set-rule', 'set-task-rule', 'set-task-status', 'complete-task', 'set-skill-levels',
   'set-preference', 'set-profile', 'reset-task-rule', 'set-task-alternative', 'set-primary-override', 'set-rule-review', 'setup-start',
   'clear-backlog', 'clear-challenge-ticks', 'tick-active-tasks', 'add-task', 'update-task', 'delete-task', 'set-journal',
   'set-starting-chunk', 'random-start', 'set-section', 'set-area', 'set-source-backlog', 'set-teleport', 'delete-teleport',
   'set-teleport-override', 'set-transport-facts', 'set-boss-unlock', 'set-slayer-lock', 'set-obtained-equipment',
-  'set-chunk-colour', 'rename-chunk-colour', 'set-sticker', 'add-sticker', 'update-sticker', 'remove-sticker', 'clear-stickers']);
+  'set-chunk-colour', 'rename-chunk-colour', 'set-sticker', 'add-sticker', 'update-sticker', 'remove-sticker', 'clear-stickers',
+  'set-finish-line-item', 'add-finish-line-custom', 'set-finish-line-custom', 'delete-finish-line-custom',
+  'set-xp-choices']);
 const { datasetOptions, input } = workerData;
 const definitions = prepareWorkerDefinitions(workerData.definitions, selectedDataset, workerData.preparedDatasetStages, datasetOptions);
 const registry = createRuleRegistry();
@@ -75,7 +81,27 @@ try {
     state.provenance = { dataset: stamp };
   } else state = readSave(input.backup);
   const memberId = state.members[0].id;
-  if (input.operation === 'profile-preview') {
+  if (input.operation === 'roll-stats') {
+    parentPort.postMessage({ rollStats: { ...computeRollStats(state), stateRevision: state.revision } });
+  } else if (input.operation === 'xp-choices') {
+    parentPort.postMessage({ xpChoices: { ...buildXpChoiceView(state, memberId, buildXpChoiceCatalogue(definitions, getEngine().catalogue)), stateRevision: state.revision } });
+  } else if (input.operation === 'backlog-search') {
+    const taskIds = Object.keys(state.members[0].taskStatus ?? {}).filter(id => state.members[0].taskStatus[id].backlogged);
+    parentPort.postMessage({ backlog: { memberId, stateRevision: state.revision, tasks: backlogSearchTasks({
+      definitions, catalogue: getEngine().catalogue, dynamicCatalogue: evaluate(state, memberId).tasks, registry: state.identityRegistry, taskIds,
+    }) } });
+  } else if (input.operation === 'map-info') {
+    const [pins, edges] = await Promise.all([import('./data/map-pin-details.mjs'), import('./data/map-connections.mjs')]);
+    parentPort.postMessage({ mapInfo: { schemaVersion: 1, pinDetails: pins.MAP_PIN_DETAILS,
+      connections: edges.mapConnectionsPayload({ f2p: state.rules['content.f2p'] !== false }) } });
+  } else if (input.operation === 'why-chain') {
+    const selector = input.selector;
+    if (!selector || typeof selector !== 'object' || Array.isArray(selector)
+      || Object.keys(selector).some(key => !['taskId', 'master', 'assignment'].includes(key))
+      || Object.values(selector).some(value => typeof value !== 'string' || !value || value.length > 512)
+      || (selector.taskId ? Object.keys(selector).length !== 1 : !selector.master || !selector.assignment)) throw new Error('selector');
+    parentPort.postMessage({ chain: { ...buildWhyChain(evaluate(state, memberId), definitions, selector), memberId, stateRevision: state.revision } });
+  } else if (input.operation === 'profile-preview') {
     parentPort.postMessage({ profile: { ...previewRuleProfile(state, input.profile, memberId, registry), stateRevision: state.revision } });
   } else if (input.operation === 'how') {
     if (typeof input.taskId !== 'string' || !input.taskId || input.taskId.length > 512) throw new Error('task');
@@ -103,7 +129,8 @@ try {
     parentPort.postMessage({ sections: chunkSectionsPayload(getWorld(), input.chunkId) });
   } else if (input.operation === 'predict') {
     if (typeof input.chunkId !== 'string' || !/^\d{1,8}$/.test(input.chunkId)) throw new Error('chunk');
-    parentPort.postMessage({ prediction: predictChunk(state, memberId, input.chunkId, { world: getWorld(), engine: getEngine(), registry }) });
+    parentPort.postMessage({ prediction: { ...predictChunk(state, memberId, input.chunkId, { world: getWorld(), engine: getEngine(), registry }),
+      memberId, stateRevision: state.revision } });
   } else if (input.operation === 'teleports') {
     const world = getWorld(), automatic = state.rules['travel.automatic'] === true;
     const travel = evaluateTransportRoutes(world, automatic ? state : { ...state, rules: { ...state.rules, 'travel.automatic': true } }, memberId);
@@ -117,11 +144,12 @@ try {
       const command = input.command;
       if (!command || !allowedCommands.has(command.type) || command.memberId !== undefined && command.memberId !== memberId) throw new Error('command');
       // Task checks register the existing engine's canonical row in the save.
-      const taskCatalogue = ['complete-task', 'set-task-status', 'tick-active-tasks'].includes(command.type)
+      const taskCatalogue = ['complete-task', 'set-task-status', 'tick-active-tasks', 'set-task-alternative', 'set-xp-choices'].includes(command.type)
         ? evaluate(state, memberId).tasks.map(row => Object.fromEntries(
           ['id', 'label', 'category', 'rawLabel', 'aliases', 'kind', 'objectiveKind', 'sourceId', 'itemId', 'completionIds']
             .filter(key => row[key] !== undefined).map(key => [key, row[key]]))) : undefined;
-      state = applyCommand(state, command, { world, registry, taskCatalogue, membersStartBanks, expectedRevision: state.revision });
+      const xpChoiceCatalogue = command.type === 'set-xp-choices' ? buildXpChoiceCatalogue(definitions, getEngine().catalogue) : undefined;
+      state = applyCommand(state, command, { world, registry, taskCatalogue, xpChoiceCatalogue, membersStartBanks, expectedRevision: state.revision });
     }
     const pool = { ...evaluateRollPool(world, state, memberId, registry),
       partnerConnections: partnerConnections(world, state, memberId, registry) };

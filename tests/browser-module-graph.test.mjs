@@ -9,6 +9,12 @@ process.env.RS3_DATASET = 'open-f2p';
 const { createServer } = await import('../app/server.mjs');
 
 test('real browser entry and optional full-state tools serve every module dependency', { timeout: 120000 }, async t => {
+  const previousGuestMode = process.env.RS3_GUEST_MODE;
+  process.env.RS3_GUEST_MODE = '1';
+  t.after(() => {
+    if (previousGuestMode === undefined) delete process.env.RS3_GUEST_MODE;
+    else process.env.RS3_GUEST_MODE = previousGuestMode;
+  });
   const directory = await mkdtemp(path.join(tmpdir(), 'browser-module-graph-'));
   let app;
   t.after(async () => {

@@ -359,7 +359,9 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
     initialState.provenance = { dataset: { id: dataset.datasetId, contractVersion: dataset.datasetContractVersion, digest: dataset.digest } };
   }
   const usageAdmission = createUsageRateLimit({ ...(now === undefined ? {} : { now: () => typeof now === 'function' ? now() : now }), ...usageRateLimits });
+  const guestModeEnabled = process.env.RS3_GUEST_MODE === '1';
   const runtime = {
+    guestModeEnabled,
     timings, deepProfiles, dataset, indexedWorld, ruleRegistry, taskWorker, taskWorkerOptions, parsedDefinitions,
     guestDatasetOptions: datasetOptions,
     parsedTaskMap, identityHistory, migrateState, registry, xpChoiceCatalogue, sandboxCatalogue,
@@ -376,7 +378,9 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
       interiorsPending = undefined; chunkSectionsPending = undefined;
     },
   };
-  const guestMode = createGuestMode({ ...guestOptions, runtime, publicOrigin, host, serveStatic: (...args) => context.serveStatic(...args) });
+  const guestMode = guestModeEnabled
+    ? createGuestMode({ ...guestOptions, runtime, publicOrigin, host, serveStatic: (...args) => context.serveStatic(...args) })
+    : null;
   const connections = startupConnections ?? new Set();
   const transport = { savingConnections: new Map(), connectionDeadlinePassed: false,
     inviteUrl: () => handle.inviteUrl, requestClose: () => handle.close() };
@@ -547,8 +551,13 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
   const headerOptions = { maxHeaderSize: requestContextFor === requestContext ? http.maxHeaderSize : 64 * 1024 };
   const timedRequestHandler = (request, response, listener) => timings.request(request, response, () => requestHandler(request, response, listener));
   const recordedRequestHandler = PROFILE_ENABLED ? (request, response, listener) => profile.request(request, response, () => timedRequestHandler(request, response, listener)) : timedRequestHandler;
-  const profiledRequestHandler = (request, response, listener) => isGuestRoute(request)
-    ? guestMode.handle(request, response, listener) : recordedRequestHandler(request, response, listener);
+  const profiledRequestHandler = (request, response, listener) => {
+    if (!isGuestRoute(request)) return recordedRequestHandler(request, response, listener);
+    if (guestMode) return guestMode.handle(request, response, listener);
+    request.resume();
+    response.writeHead(404, { 'Cache-Control': 'private, no-store' });
+    response.end();
+  };
   const server = httpServer ?? http.createServer(headerOptions, profiledRequestHandler);
   const loopbackServer = httpLoopbackServer ?? (loopbackPort === undefined ? null : http.createServer(headerOptions,
     (request, response) => profiledRequestHandler(request, response, { host: '127.0.0.1', ingressRole: loopbackRole })));
@@ -583,7 +592,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
     close() {
       if (closePromise) return closePromise;
       closed = true;
-      const guestsClosed = guestMode.close();
+      const guestsClosed = guestMode?.close();
       const contextClosed = pickerRouter
         ? pickerRouter.close().then(() => context.close()).then(() => pickerRegistry.close())
         : context.close();

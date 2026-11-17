@@ -1,5 +1,18 @@
 # Guest mode
 
+## Operator opt-in
+
+Guest mode is off by default. Set `RS3_GUEST_MODE=1` in the server environment
+before startup to enable it. Only the exact value `1` opts in; no launcher
+enables it. Restart the server after changing the flag.
+
+When disabled, `/guest` and every `/guest/*` route return 404 before guest
+limits or workers are constructed. The sign-in page has no guest link.
+When enabled, the guest behavior and limits described below apply unchanged.
+This flag changes no durable save, registry or authentication format.
+
+## Picker experience
+
 Issue #297. Guests get the same map-first picker at `/guest/`: the map image,
 chunk states and selection, rolls, automatic task refresh, task views, How? and
 Why not?, settings, chunk notes and the map journal. The member shell, screen
@@ -42,6 +55,10 @@ presentation, BiS and activity views; duplicate task reads for the same browser
 revision share one promise. New read operations (`why`, `chunk-sections`,
 `chunk-planning`, `profile-preview`, `predict`, `teleports`) are explicitly allowlisted, validated and calculated in
 the disposable worker, as are the solo settings, note and task commands.
+The shared-screen audit also covers full Why not? chains, Backlog search, Roll
+stats, XP-choice reads and edits, finish-line edits, Forfeit and task alternatives.
+Predictions carry the captured member and revision; replacing an imported browser
+save reloads the screen to reset revision guards and derived caches.
 Undo eligibility accompanies saved-state replies; it never needs a saved-picker
 context. Browser display preferences have a guest-specific storage scope.
 
@@ -97,6 +114,12 @@ Bulk Sandbox, roll-pool and membership comparisons, area checks and the training
 helper are disabled with an account explanation: guests use explicit one-chunk
 previews within the existing calculation limits. Ordinary task views, chunk tasks,
 How?/Why not?, rule profiles and settings remain available.
+Training plans inside Activity Info, death estimates and guided rule task-effect
+comparisons explain their sign-in requirement before offering an action. Group
+task claims and the members reset flow are hidden along with group goals.
+Task reports are hidden, including after backlogging a task that looks wrong.
+Interior maps explain their sign-in requirement without requesting the unsupported
+endpoint. The guest menu omits the account site's changelog and roadmap.
 
 ## Signing in later
 
@@ -119,6 +142,11 @@ unchanged authenticated access. New browser/static routes also require the
 server and browser-module-graph tests and the complete CI gate. Explore the solo
 workflow on an isolated synthetic server before handoff.
 
+The guest HTTP tests cover the flag unset, `0`, `true` and `1`, guest
+assets and API routes, and the actual public sign-in page. Disabled fixtures
+refuse any guest-options initialization. Changing the environment after startup
+does not change either the routes or the sign-in link.
+
 ## Implementation verification
 
 ### Request timing (public F2P, synthetic solo save)
@@ -132,14 +160,14 @@ under varying shared-PC load, not a speedup or deployment-capacity claim.
 
 | Operation | Original simple page API (ms) | Shared picker API (ms) |
 | --- | --- | --- |
-| New | 926 | 506 |
-| Load | 581, 813, 664 | 519, 432, 433 |
-| Command | 494, 844, 582 | 402, 407, 459 |
-| Tasks | 591, 1174, 486 | 557, 683, 569 |
-| How? | 1361, 1135, 686 | 532, 515, 634 |
+| New | 926 | 740 |
+| Load | 581, 813, 664 | 654, 610, 564 |
+| Command | 494, 844, 582 | 635, 481, 487 |
+| Tasks | 591, 1174, 486 | 818, 832, 716 |
+| How? | 1361, 1135, 686 | 663, 604, 764 |
 
 The richer task response includes equipment, collection and activity views.
-Consecutive command + tasks samples total 959, 1090 and 1028 ms; none exceeds
+Consecutive command + tasks samples total 1453, 1313 and 1203 ms; none exceeds
 the approximately three-second calculation threshold. Keep per-request disposal
 and the existing limits. No server-side guest cache or longer-lived worker was
 introduced. Tab-local sharing of identical reads and including startup metadata

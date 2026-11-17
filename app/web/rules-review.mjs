@@ -125,7 +125,8 @@ export function createRulesReview(ctx) {
           }
         }
         sheet.append(controls);
-        if (!rule.sharedRuleId) {
+        if (!rule.sharedRuleId && ctx.guest) sheet.append(el('p', 'Sign in for task-effect comparisons. You can still save rules and refresh guest tasks.', 'field-help'));
+        if (!rule.sharedRuleId && !ctx.guest) {
           const preview = el('div', undefined, 'rules-walk-preview');
           const previewMember = select(state.members.map(member => ({ value: member.id, label: member.name })), owner.id);
           previewMember.dataset.previewMember = '';

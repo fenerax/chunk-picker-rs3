@@ -612,7 +612,7 @@ export function createInfoPanels(context) {
       }
       const synced = view.skills.some(skill => observedOf(skill));
       if (!view.skills.length) grid.append(empty('No skills match these filters.'));
-      host.replaceChildren(...(synced ? [] : [paragraph(context.canWrite?.() === false ? 'Account levels have not been synced yet.' : 'Your real levels are not synced yet. Use progress sync below to show them on each skill and plan training from them.', 'skills-hint')]), grid);
+      host.replaceChildren(...(synced ? [] : [paragraph(context.guest ? 'Account levels and progress sync need sign-in. Guest levels show what your unlocked chunks support.' : context.canWrite?.() === false ? 'Account levels have not been synced yet.' : 'Your real levels are not synced yet. Use progress sync below to show them on each skill and plan training from them.', 'skills-hint')]), grid);
     };
     showGrid(); return host;
   }
@@ -639,6 +639,7 @@ export function createInfoPanels(context) {
     return node;
   }
   function trainingPlanner(skill, result, observed) {
+    if (context.guest) return paragraph('Sign in for training plans. Guest calculations are limited to one chunk at a time.', 'field-help');
     if (context.canWrite?.() === false) return el('span');
     const section = el('section', undefined, 'training-plan'), form = el('div', undefined, 'plan-form'), output = el('div', undefined, 'plan-output');
     const from = numberInput(observed?.level ?? ''), to = numberInput('');
@@ -773,7 +774,7 @@ export function createInfoPanels(context) {
       isCurrent: () => context.memberId() === snapshot.memberId && context.dialogGeneration?.() === generation && context.isDialogOpen?.() !== false,
       onApplied: () => activityInfo(initialTab),
     }) : undefined;
-    const nodes = [snapshotControls(snapshot, () => activityInfo(initialTab)), paragraph(context.canWrite?.() === false ? 'Reachable levels describe what the unlocked chunks can support. Synced account levels show the player’s recorded progress.' : 'Levels here are the highest you could reach from your unlocked chunks, not your account levels. Progress sync (below) records your real ones.', 'section-intro')];
+    const nodes = [snapshotControls(snapshot, () => activityInfo(initialTab)), paragraph(context.guest ? 'Levels show what your unlocked chunks support. Sign in to sync real account progress.' : context.canWrite?.() === false ? 'Reachable levels describe what the unlocked chunks can support. Synced account levels show the player’s recorded progress.' : 'Levels here are the highest you could reach from your unlocked chunks, not your account levels. Progress sync (below) records your real ones.', 'section-intro')];
     if (context.openXpChoices) nodes.push(button('XP choices', () => context.openXpChoices(snapshot.memberId)));
     // Sync is occasional, so it sits below the main tabs in its own collapsed section.
     const sync = syncControls ? details('Progress sync', syncControls) : null;

@@ -16,10 +16,11 @@ try {
   await loadArtStatus(guest.fetch);
   configurePickerStorage(`guest-${guest.backup.state.provenance.dataset.digest}`);
   const { createPickerScreen } = await import('./main.mjs');
-  const disabled = new Set(['runeMetrics', 'originalSync', 'gallery']);
+  const disabled = new Set(['runeMetrics', 'originalSync', 'gallery', 'training']);
   screen = createPickerScreen({
     configureTransport(c) {
       c.panelContext.pickerSession.fetch = guest.fetch;
+      c.panelContext.guest = true;
       c.supportsFeature = ((original) => feature => !disabled.has(feature) && original(feature))(c.supportsFeature);
       return { commandClient: guest.commandClient };
     },
@@ -31,6 +32,10 @@ try {
       c.panelContext.gamePlugin = undefined;
       c.panelContext.applyRuneMetrics = undefined;
       c.panelContext.guest = true;
+      c.panelContext.membersStart = undefined;
+      c.panelContext.membersStartAvailable = () => false;
+      c.groupGoals = { render() {} };
+      c.deathChunks = { refresh() {}, panel: () => c.el('p', 'Sign in for death estimates. Guest calculations are limited to one chunk at a time.', 'field-help') };
       const showChunk = c.showChunk;
       c.showChunk = (...args) => {
         const tab = c.chunkId === String(args[0]) ? c.phoneLayout?.tab : undefined;
@@ -44,12 +49,13 @@ try {
       c.applyDatasetControls = () => {
         applyControls();
         for (const id of ['admin-tools', 'account-tools', 'account-open', 'invites-open', 'accounts-open', 'overlays-open', 'usage-open', 'gallery-open',
-          'feedback-open', 'runemetrics-open', 'game-plugin-open', 'original-sync-open', 'partner-supply-open']) {
+          'feedback-open', 'runemetrics-open', 'game-plugin-open', 'original-sync-open', 'partner-supply-open', 'whats-new-open', 'roadmap-open']) {
           const node = c.$(id); if (node) node.hidden = true;
         }
         for (const id of ['sandbox-toggle', 'pool-ranking-toggle', 'area-check-toggle', 'helper-open', 'members-preview-open']) {
           const node = c.$(id); if (node) { node.disabled = true; node.title = 'Sign in for bulk previews. Guest calculations are limited to one chunk at a time.'; node.setAttribute('aria-describedby', 'guest-preview-limit'); }
         }
+        c.$('group-goals').hidden = true;
         c.$('group-view').checked = false;
         c.$('group-view').closest('label').hidden = true;
         document.querySelector('.member-picker').hidden = true;
@@ -70,7 +76,9 @@ try {
           const text = await selected.text(); guest.save.parseImport(text);
           if (!confirm('Replace this browser’s guest save? Download your current save first if you want to keep it.')) return;
           restore.disabled = true;
-          try { const loaded = await guest.importText(text); c.adopt(loaded.state, loaded.pools); c.saved('Saved in this browser', false, c.state.revision, { confirmed: true }); status.textContent = 'Imported and saved in this browser.'; }
+          // A replacement can have an older revision or a different member.
+          // Start a new screen so revision guards and derived caches reset.
+          try { await guest.importText(text); location.reload(); }
           finally { restore.disabled = false; }
         });
         box.append(status, download, label, restore); c.openDialog('Export / Import', box);

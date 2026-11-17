@@ -152,7 +152,7 @@ export function createScreenTaskDialogs(c) {
     }));
     if (task.wiki && c.supportsFeature?.('rsCatalogues') !== false) { const link = c.el('a', 'Open RuneScape Wiki', 'standalone-link'); link.href = task.wiki; link.target = '_blank'; link.rel = 'noopener noreferrer'; stack.append(link); }
     stack.append(bottomSlot);
-    if (c.canWrite()) stack.append(c.button('Report a problem with this task', () => c.openFeedback({
+    if (c.canWrite() && !c.panelContext?.guest) stack.append(c.button('Report a problem with this task', () => c.openFeedback({
       text: `Problem with task: ${reportContext.task}\n\nWhat looks wrong: `, context: reportContext,
     }), 'task-report'));
     const fillDetails = (full, fullResultValue) => {

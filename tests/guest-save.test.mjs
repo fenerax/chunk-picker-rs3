@@ -33,11 +33,35 @@ test('shared picker adapter keeps commands browser-owned and shares task reads w
   assert.equal(guest.backup.state.revision, 1); assert.equal(lockCount, 2);
   const reloaded = await createGuestTransport(options);
   assert.equal(reloaded.backup.state.revision, 1);
-  await reloaded.importText(guest.save.exportText());
+  const oldSave = JSON.stringify(fresh());
+  await reloaded.importText(oldSave);
+  const restored = await createGuestTransport(options);
+  assert.equal(restored.backup.state.revision, 0, 'Replacement starts from the imported revision after reload');
+  await restored.commandClient.send({ command: { type: 'set-note' }, expectedRevision: 0 });
+  assert.equal(restored.backup.state.revision, 1, 'Commands work immediately after an older import reloads');
+  const synchronized = await createGuestTransport(options);
   await guest.commandClient.send({ command: { type: 'set-note' }, expectedRevision: 1 });
-  await assert.rejects(reloaded.commandClient.send({ command: { type: 'set-note' }, expectedRevision: 1 }), /another tab/);
+  await assert.rejects(synchronized.commandClient.send({ command: { type: 'set-note' }, expectedRevision: 1 }), /another tab/);
   await assert.rejects(guest.api('/api/invites', {}), /Sign in/);
   assert.equal(guest.commandClient.pending(), null, 'Guest commands never enter the authenticated outbox');
+});
+
+test('guest adapter distinguishes compact Why from full Why not? selectors', async () => {
+  const requests = [];
+  const guest = await createGuestTransport({ storage: storage(), tabStorage: storage(), locks: { request: async (_, work) => work() },
+    fetch: async (route, options) => {
+      if (route.endsWith('/session')) return Response.json({ token: 'synthetic', dataset });
+      const body = JSON.parse(options.body); requests.push(body);
+      if (body.operation === 'new') return Response.json({ backup: fresh(), pool: {}, bootstrap: {} });
+      if (body.operation === 'why') return Response.json({ why: { format: 'task-why-display-v1', task: { id: body.taskId }, memberId: 'guest', stateRevision: 0 } });
+      if (body.operation === 'why-chain') return Response.json({ chain: { root: { label: 'Synthetic requirement' }, memberId: 'guest', stateRevision: 0 } });
+      throw new Error('Unexpected guest operation');
+    } });
+  assert.equal((await guest.api('/api/task-why?view=display-v1&taskId=example')).task.id, 'example');
+  assert.equal((await guest.api('/api/task-why?taskId=example')).root.label, 'Synthetic requirement');
+  assert.deepEqual(requests.at(-1).selector, { taskId: 'example' });
+  await guest.api('/api/task-why?master=Example&assignment=Target');
+  assert.deepEqual(requests.at(-1).selector, { master: 'Example', assignment: 'Target' });
 });
 
 test('shared picker adapter refuses failed browser commits before acknowledging a new revision', async () => {

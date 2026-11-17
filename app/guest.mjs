@@ -9,7 +9,8 @@ import { preparedDefinitionStages } from './dataset-pipeline.mjs';
 
 const assets = new Map([['/guest/', ['index.html', 'text/html']], ['/guest/guest.mjs', ['guest.mjs', 'text/javascript']],
   ['/guest/guest-save.mjs', ['guest-save.mjs', 'text/javascript']], ['/guest/guest.css', ['guest.css', 'text/css']]]);
-const operations = new Set(['new', 'load', 'command', 'tasks', 'how', 'why', 'chunk-sections', 'chunk-planning', 'profile-preview', 'predict', 'teleports']);
+const operations = new Set(['new', 'load', 'command', 'tasks', 'how', 'why', 'why-chain', 'chunk-sections', 'chunk-planning',
+  'profile-preview', 'predict', 'teleports', 'backlog-search', 'roll-stats', 'xp-choices', 'map-info']);
 export const isGuestRoute = request => /^\/guest(?:\/|\?|$)/.test(request.url ?? '');
 
 export function createGuestMode({ runtime, publicOrigin, host, limits: limitOptions, now = Date.now,
@@ -101,7 +102,7 @@ export function createGuestMode({ runtime, publicOrigin, host, limits: limitOpti
         const body = await bodyJSON(request, admission.config.bodyBytes);
         uploads.delete(request);
         clock.clearTimeout(bodyDeadline); bodyDeadline = undefined;
-        if (!operations.has(body.operation) || Object.keys(body).some(key => !['operation', 'backup', 'command', 'taskId', 'chunkId', 'profile'].includes(key))) throw guestError(400, 'Choose an available guest action.');
+        if (!operations.has(body.operation) || Object.keys(body).some(key => !['operation', 'backup', 'command', 'taskId', 'chunkId', 'profile', 'selector'].includes(key))) throw guestError(400, 'Choose an available guest action.');
         const result = await calculate(body, request, response, lease);
         await json(request, response, 200, result);
       } catch (error) {
