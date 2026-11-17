@@ -982,6 +982,42 @@
       "category": "token",
       "sha256": "3bd79f95d627f9417cbf9bf0e7467744d2d94800b3933b79e6d9d0e4f8f866da",
       "reason": "Loopback URL with an invented invite path in the watchdog test."
+    },
+    {
+      "path": "app/web/original-public.mjs",
+      "category": "network-identifier",
+      "sha256": "f972983e3f2fa21c4292071cd4effb16bd91d0079c614d34c64ee08ea9741792",
+      "reason": "Names the upstream picker's public Firebase database host, which the capture tool reads. No key or credential."
+    },
+    {
+      "path": "app/web/original-public.mjs",
+      "category": "service-binding",
+      "sha256": "f972983e3f2fa21c4292071cd4effb16bd91d0079c614d34c64ee08ea9741792",
+      "reason": "Names the upstream picker's public Firebase database host, which the capture tool reads. No key or credential."
+    },
+    {
+      "path": "docs/original-map-code.md",
+      "category": "network-identifier",
+      "sha256": "0f8abf35770ecca5afe0aae00578abe0baae45789e3c0f8f4ccf41b9caf69997",
+      "reason": "Public original-picker gameplay endpoint documented or asserted for GET-only import; no credentials."
+    },
+    {
+      "path": "docs/original-map-code.md",
+      "category": "service-binding",
+      "sha256": "0f8abf35770ecca5afe0aae00578abe0baae45789e3c0f8f4ccf41b9caf69997",
+      "reason": "Public original-picker gameplay endpoint documented or asserted for GET-only import; no credentials."
+    },
+    {
+      "path": "tests/original-paste-server.test.mjs",
+      "category": "network-identifier",
+      "sha256": "00943354cfbe2998d6ced010f981eb82d81f52ecaafa99c8592d5787dc38691d",
+      "reason": "Public original-picker gameplay endpoint documented or asserted for GET-only import; no credentials."
+    },
+    {
+      "path": "tests/original-paste-server.test.mjs",
+      "category": "service-binding",
+      "sha256": "00943354cfbe2998d6ced010f981eb82d81f52ecaafa99c8592d5787dc38691d",
+      "reason": "Public original-picker gameplay endpoint documented or asserted for GET-only import; no credentials."
     }
   ]
 }

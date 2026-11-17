@@ -65,6 +65,7 @@ export function createScreenContext() {
     noticeTimer: undefined,
     originalSync: undefined,
     originalPasteEnabled: false,
+    originalMapCodeEnabled: false,
     owners: undefined,
     panelContext: undefined,
     pendingChunkChanges: undefined,
