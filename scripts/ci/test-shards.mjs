@@ -11,7 +11,8 @@ export function assertPartition(files, shards) {
 // Longest processing time first, stable filename and shard-index tie breakers.
 // Model the runner's solo prefix followed by six shared workers. Track each
 // worker's finish time: max(longest, total / 6) misses list-scheduling tails.
-// This assumes available memory; hosted contention and setup remain additional.
+// Weights must reflect this policy: contention-heavy files need solo admission
+// or representative shared timings. Memory pressure and setup remain additional.
 export function balanceTests(files, timings, count = 4, policy = () => ({})) {
   if (!Number.isInteger(count) || count < 1 || count > 32) throw Error('Invalid shard count');
   if (!(timings.defaultMs > 0) || Object.values(timings.files).some(ms => !Number.isFinite(ms) || ms <= 0)) throw Error('Invalid timing table');

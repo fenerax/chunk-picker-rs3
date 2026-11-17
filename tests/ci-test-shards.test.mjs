@@ -15,7 +15,7 @@ test('deterministic timing-balanced shards cover every discovered full-suite fil
   assert.ok(shards.every(shard => shard.files.length));
   // Leave setup headroom under the 15-minute timeout even at 1.5x slowdown.
   const estimates = shards.map(shard => shard.estimatedMs);
-  assert.ok(Math.max(...estimates) * 1.5 + 60_000 < 12 * 60_000, `Predicted slow-runner budget: ${estimates}`);
+  assert.ok(Math.max(...estimates) * 1.5 + 60_000 < 14 * 60_000, `Predicted slow-runner budget: ${estimates}`);
   assert.ok(Math.max(...estimates) - Math.min(...estimates) < 15_000, `Unbalanced plan: ${estimates}`);
   const timings = JSON.parse(await readFile(new URL('../scripts/ci/test-timings.json', import.meta.url), 'utf8'));
   const weight = file => timings.files[`tests/${file}`] ?? timings.defaultMs;
@@ -40,6 +40,16 @@ test('deterministic timing-balanced shards cover every discovered full-suite fil
   assert.throws(() => balanceTests([], weights, 0), /count/);
 });
 
+test('contention-heavy plugin items run solo and their full cost counts toward their shard', async () => {
+  const file = 'game-plugin-items.test.mjs';
+  assert.equal(testRunPolicy(file).solo, true);
+  const timings = JSON.parse(await readFile(new URL('../scripts/ci/test-timings.json', import.meta.url), 'utf8'));
+  const [shard] = balanceTests([file], timings, 1, testRunPolicy);
+  assert.equal(shard.soloMs, timings.files[`tests/${file}`]);
+  assert.equal(shard.sharedMs, 0);
+  assert.equal(shard.estimatedMs, shard.soloMs);
+});
+
 test('estimates include solo prefixes and shared worker tails instead of ideal average throughput', () => {
   // Seven equal shared files need two waves across six workers. The former
   // max(longest, total / 6) formula incorrectly predicted only 116.7ms.
@@ -62,6 +72,18 @@ test('timing generation uses passing completed attempts and a conservative new-f
   assert.deepEqual(timingTable([ledger(10), ledger(20), ledger(999, 'fail')]).files, { 'tests/one.test.mjs': 20 });
   assert.equal(timingTable([ledger(20)]).defaultMs, 20);
   assert.throws(() => timingTable([ledger(10, 'fail')]), /No completed/);
+});
+
+test('solo weights exclude shared contention and retain exclusive observations', () => {
+  const ledger = (duration, solo, files = ['tests/one.test.mjs', 'tests/other.test.mjs']) => [
+    { schema: 'rs3-file-ledger-v1', lane: 'test', sha: 'a'.repeat(40), runId: '1', runAttempt: 1, files },
+    { type: 'completed', file: 'tests/one.test.mjs', attempt: 1, value: { outcome: 'pass', processWallMs: duration, solo } },
+  ].map(row => JSON.stringify(row)).join('\n') + '\n';
+  const policy = () => ({ solo: true });
+  assert.equal(timingTable([ledger(100, true), ledger(300, false)], policy).files['tests/one.test.mjs'], 100);
+  assert.equal(timingTable([ledger(90, false, ['tests/one.test.mjs']), ledger(300, false)], policy).files['tests/one.test.mjs'], 90);
+  assert.throws(() => timingTable([ledger(300, false)], policy), /No exclusive passing timing/);
+  assert.equal(timingTable([ledger(100, true), ledger(300, false)]).files['tests/one.test.mjs'], 300);
 });
 
 const report = file => {

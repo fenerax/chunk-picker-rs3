@@ -1,12 +1,13 @@
 // Usage: node scripts/ci/update-test-timings.mjs <downloaded Linux ledger> [...]
-// Supply one recent complete run (all shards), not stale maxima from a different
-// execution environment. Per-process wall time already includes startup costs.
+// Supply recent complete runs (all shards) from the same execution environment.
+// Per-process wall time includes startup and contention. Solo files need solo
+// samples (or a one-file shard), never a duration measured with neighbours.
 // Only public filenames and durations are retained, never free-form test output.
 import { readFile, writeFile } from 'node:fs/promises';
 import { readFileLedger } from './file-ledger.mjs';
 
-export function timingTable(ledgers) {
-  const samples = new Map(), sources = [];
+export function timingTable(ledgers, policy = () => ({})) {
+  const samples = new Map(), sources = [], excludedSolos = new Set();
   for (const source of ledgers) {
     const header = readFileLedger(source), { receipts } = header;
     if (header.lane !== 'test') throw Error('Expected a Linux test ledger');
@@ -14,9 +15,16 @@ export function timingTable(ledgers) {
     for (const row of receipts) {
       const attempt = row.firstAttempt;
       if (attempt.outcome !== 'pass' || !(attempt.processWallMs > 0)) continue;
+      if (policy(row.file.slice(6)).solo && attempt.solo !== true && header.files.length !== 1) {
+        excludedSolos.add(row.file);
+        continue;
+      }
       if (!samples.has(row.file)) samples.set(row.file, []);
       samples.get(row.file).push(attempt.processWallMs);
     }
+  }
+  for (const file of excludedSolos) {
+    if (!samples.has(file)) throw Error(`No exclusive passing timing for solo file: ${file}`);
   }
   // Use the slowest passing observation within the supplied measurement window.
   const files = Object.fromEntries([...samples].sort(([a], [b]) => a.localeCompare(b))
@@ -28,7 +36,8 @@ export function timingTable(ledgers) {
 
 if (process.argv[1]?.replaceAll('\\', '/').endsWith('/update-test-timings.mjs')) {
   if (process.argv.length < 3) throw Error('Supply downloaded Linux ledgers');
-  const table = timingTable(await Promise.all(process.argv.slice(2).map(file => readFile(file, 'utf8'))));
+  const { testRunPolicy } = await import('../test-selection.mjs');
+  const table = timingTable(await Promise.all(process.argv.slice(2).map(file => readFile(file, 'utf8'))), testRunPolicy);
   await writeFile(new URL('./test-timings.json', import.meta.url), JSON.stringify(table, null, 2) + '\n');
   console.log(`Recorded ${Object.keys(table.files).length} timings; new-file default ${table.defaultMs}ms`);
 }
