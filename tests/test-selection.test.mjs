@@ -16,3 +16,9 @@ test('quick suite covers small state, presentation and helper models', async () 
   assert.deepEqual(new Set(files.filter(name => !inherited.includes(name))), quickTests, 'direct quick inventory is derived from the files');
   assert.deepEqual(files, [...files].sort());
 });
+
+test('default suite retains fast incremental unlock coverage and excludes the full-game proof', async () => {
+  const files = await discoverTests(undefined, 'full');
+  assert.ok(files.includes('incremental-unlock.test.mjs'));
+  assert.ok(!files.some(name => name.includes('incremental-unlock-full')));
+});

@@ -1,13 +1,13 @@
-// @test solo dataset=default
+// Opt-in full-game proof; see docs/testing.md. Keep out of top-level discovery.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { selectedDataset } from '../app/dataset-runtime.mjs';
-import { loadDatasetInputs } from '../app/dataset-bootstrap.mjs';
-import { prepareServerDefinitions } from '../app/dataset-pipeline.mjs';
-import { createTaskEngine, taskId } from '../app/tasks/engine.mjs';
-import { createGroupState } from '../app/core/state.mjs';
-import { buildWorld } from '../app/data/world.mjs';
+import { selectedDataset } from '../../app/dataset-runtime.mjs';
+import { loadDatasetInputs } from '../../app/dataset-bootstrap.mjs';
+import { prepareServerDefinitions } from '../../app/dataset-pipeline.mjs';
+import { createTaskEngine, taskId } from '../../app/tasks/engine.mjs';
+import { createGroupState } from '../../app/core/state.mjs';
+import { buildWorld } from '../../app/data/world.mjs';
 
 const loaded = await loadDatasetInputs(selectedDataset, { loadTaskMap: false });
 const prepared = prepareServerDefinitions(JSON.parse(loaded.definitionBytes), selectedDataset);
