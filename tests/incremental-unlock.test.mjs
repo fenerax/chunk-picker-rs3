@@ -67,3 +67,15 @@ test('changed progress, rules, ownership removal and evicted bases use full fall
   assert.equal(equivalent(engine, state, id).metrics.unlockCalculation.reason, 'missing-base');
   assert(budget.retentionLedger().dimensions.every(row => row.used <= row.cap));
 });
+
+test('omitted ownership uses the full path accepted by direct engine callers', () => {
+  for (const owner of [0, 1]) {
+    const engine = createTaskEngine(definitions, { incrementalUnlocks: true }), state = input();
+    delete state.members[owner].unlocked;
+    for (const member of state.members) {
+      const result = equivalent(engine, state, member.id);
+      assert.equal(result.metrics.unlockCalculation.path, 'full');
+      assert.equal(result.metrics.unlockCalculation.reason, 'unsupported-ownership');
+    }
+  }
+});

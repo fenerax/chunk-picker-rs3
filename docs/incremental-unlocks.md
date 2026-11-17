@@ -54,7 +54,7 @@ can append blockers.
 
 Reuse requires a resident, budgeted base and an ownership-only transition with
 unchanged rules, progress, controls, overrides, catalogue and evaluation options.
-Missing or evicted bases, removals/reordering of existing ownership, changed
+Missing or evicted bases, omitted/nonarray ownership, removals/reordering of existing ownership, changed
 nonownership facts, How proof capture and an explicit reference override use
 full calculation. New retained data is private calculator state, never a save,
 snapshot-wire field or transferred eligibility proof. Eviction releases the

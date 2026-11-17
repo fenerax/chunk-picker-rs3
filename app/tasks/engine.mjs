@@ -1689,9 +1689,10 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
     prepareEvaluation();
     // Immutable replay caches are confined to one evaluation. Ordinary growth
     // resumes discovery; full, retracted and mode-changing closures start fresh.
-    const reuse = incrementalUnlocks && options?.reuseEligibility !== false && !options?.howRequest && eligibilityBudget?.byteLimit > 0;
+    const ownershipShape = state.members.every(owner => Array.isArray(owner.unlocked));
+    const reuse = incrementalUnlocks && ownershipShape && options?.reuseEligibility !== false && !options?.howRequest && eligibilityBudget?.byteLimit > 0;
     const baseKey = reuse ? eligibilityInputKey({ ...state, members: state.members.map(owner => ({ ...owner, unlocked: [] })) }, memberId, options, ownedCatalogueSemantics) : undefined;
-    let seed, reason = reuse ? 'missing-base' : 'disabled-or-proof';
+    let seed, reason = incrementalUnlocks && !ownershipShape ? 'unsupported-ownership' : reuse ? 'missing-base' : 'disabled-or-proof';
     const retainedBase = dependencyBases.get(baseKey);
     if (retainedBase) {
       const base = deserialize(retainedBase);
