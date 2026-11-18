@@ -3,6 +3,8 @@ import { createHash, timingSafeEqual } from 'node:crypto';
 import { generateToken } from './security/tokens.mjs';
 import path from 'node:path';
 import { renderSignInPage } from './signin-page.mjs';
+import { bodyJSON, json } from './picker-context-http.mjs';
+import { groupInvitePage } from './group-invite-page.mjs';
 
 export const SIGN_IN_ENDPOINTS = Object.freeze({
   discord: Object.freeze({ authorize: 'https://discord.com/oauth2/authorize', token: 'https://discord.com/api/oauth2/token', user: 'https://discord.com/api/users/@me' }),
@@ -64,7 +66,7 @@ function renderPage(response, input, status = 200) {
 
 /** OAuth state and tokens remain in this process; only provider subjects reach storage. */
 export async function openSignIn({ publicOrigin, mode = 'off', accounts, invites, provider = {}, unauthenticated = () => {}, guestModeEnabled = false,
-  checkRequestOrigin, serializeMutation = operation => operation(), webRoot, pickerRegistry, syncLegacy, reclaimIdentity } = {}) {
+  checkRequestOrigin, serializeMutation = operation => operation(), webRoot, pickerRegistry, syncLegacy, reclaimIdentity, groupInvites } = {}) {
   if (!['off', 'optional', 'required'].includes(mode)) throw new TypeError('RS3_SIGNIN must be off, optional or required.');
   if (mode !== 'off' && (!publicOrigin || new URL(publicOrigin).protocol !== 'https:' || new URL(publicOrigin).origin !== publicOrigin)) throw new TypeError('Sign-in requires an HTTPS public origin.');
   const page = (response, input, status) => renderPage(response, { ...input, guestModeEnabled }, status);
@@ -100,11 +102,11 @@ export async function openSignIn({ publicOrigin, mode = 'off', accounts, invites
     addCookie(response, preauthCookie(null));
     return entry;
   }
-  function put(request, response, input) {
+  function put(request, response, input, replacingContinuation = false) {
     prune();
     const old = cookie(request);
     if (old) pending.delete(old);
-    if (pending.size + continuing >= MAX_PENDING) throw Object.assign(failure(429, 'Sign-in is temporarily busy. Wait a minute, then try again. If you were joining, reopen the same invite link.'), { retryAfter: 60 });
+    if (pending.size + continuing - Number(replacingContinuation) >= MAX_PENDING) throw Object.assign(failure(429, 'Sign-in is temporarily busy. Wait a minute, then try again. If you were joining, reopen the same invite link.'), { retryAfter: 60 });
     const key = generateToken(), entry = { ...input, expires: now() + PENDING_MS };
     pending.set(key, entry);
     addCookie(response, preauthCookie(key));
@@ -117,10 +119,10 @@ export async function openSignIn({ publicOrigin, mode = 'off', accounts, invites
     try { return await operation(); }
     catch (error) {
       continuing--; reserved = false;
-      if (error.code === 'SESSION_BUSY' || error.status === 502 && (entry.inviteId || entry.reclaimCode)) {
+      if (error.code === 'SESSION_BUSY' || error.status === 502 && (entry.inviteId || entry.reclaimCode || entry.groupSecret)) {
         // Restart provider consent with fresh state; never replay a consumed code.
-        const { inviteId, reclaimCode, accountId, sessionId, returnTo } = entry;
-        error.signInContinuation = put(request, response, { inviteId, reclaimCode, accountId, sessionId, returnTo });
+        const { inviteId, reclaimCode, groupSecret, accountId, sessionId, returnTo } = entry;
+        error.signInContinuation = put(request, response, { inviteId, reclaimCode, groupSecret, accountId, sessionId, returnTo });
       }
       throw error;
     } finally { if (reserved) continuing--; }
@@ -254,6 +256,34 @@ export async function openSignIn({ publicOrigin, mode = 'off', accounts, invites
       if (!budgeted) unauthenticated(security.rateKey);
       ingress(security);
       if (request.method === 'POST') checkFormOrigin(request, security, checkRequestOrigin);
+      if (route.startsWith('/auth/group-invite') && pickerRegistry && groupInvites) {
+        prune();
+        const entry = pending.get(cookie(request));
+        if (!entry?.groupSecret || entry.expires <= now()) throw failure(409, 'This invitation review has expired. Reopen the invite link.');
+        const preview = pickerRegistry.previewGroupInvite(entry.groupSecret);
+        response.setHeader('Referrer-Policy', 'no-referrer');
+        if (route === '/auth/group-invite' && request.method === 'GET') {
+          response.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'private, no-store' });
+          response.end(groupInvitePage({ providers, signedIn: identity?.kind === 'account', status: preview.status, playerCount: preview.playerCount })); return true;
+        }
+        if (identity?.kind !== 'account') throw failure(401, 'Sign in before reviewing this invitation.');
+        if (route === '/auth/group-invite/review' && request.method === 'GET') {
+          const result = await groupInvites.review(entry.groupSecret, identity.accountId);
+          entry.review = { token: generateToken(), accountId: identity.accountId, revision: result.review?.revision };
+          await json(request, response, 200, { ...result, reviewToken: entry.review.token }); return true;
+        }
+        if (route === '/auth/group-invite/accept' && request.method === 'POST') {
+          const body = await bodyJSON(request, 4096);
+          const currentIdentity = invites.authenticate(request, security);
+          if (currentIdentity?.kind !== 'account' || currentIdentity.accountId !== identity.accountId) throw failure(401, 'Sign in again before accepting this invitation.');
+          if (Object.keys(body).some(k => !['reviewToken', 'characterId', 'runescapeName', 'acknowledgeDuplicate', 'confirmed'].includes(k))
+            || body.confirmed !== true || !entry.review || entry.review.accountId !== identity.accountId || !equal(body.reviewToken, entry.review.token)
+            || body.acknowledgeDuplicate !== undefined && typeof body.acknowledgeDuplicate !== 'boolean') throw failure(400, 'Review the destination map and confirm before joining.');
+          const result = await groupInvites.accept(entry.groupSecret, identity.accountId, { characterId: body.characterId, runescapeName: body.runescapeName, acknowledgeDuplicate: body.acknowledgeDuplicate }, entry.review.revision);
+          await json(request, response, 200, result); return true;
+        }
+        throw failure(404, 'Not found.');
+      }
       if ((route === '/auth/signin.css' || route === '/signin.css') && ['GET', 'HEAD'].includes(request.method)) {
         const css = await readFile(path.join(webRoot, 'signin.css'));
         response.writeHead(200, { 'Content-Type': 'text/css; charset=utf-8', 'Cache-Control': 'private, no-store' });
@@ -316,7 +346,7 @@ export async function openSignIn({ publicOrigin, mode = 'off', accounts, invites
         const query = new URL(request.url, publicOrigin).searchParams;
         if (!configured.has(name) || !entry || entry.provider !== name || query.getAll('state').length !== 1 || !equal(query.get('state'), entry.state)) throw failure(400, 'This sign-in request has expired. Start again; if you were joining, reopen the invite link.');
         if (query.has('error')) {
-          put(request, response, entry.reclaimCode ? { reclaimCode: entry.reclaimCode } : entry.inviteId ? { inviteId: entry.inviteId } : { returnTo: entry.returnTo });
+          put(request, response, entry.groupSecret ? { groupSecret: entry.groupSecret } : entry.reclaimCode ? { reclaimCode: entry.reclaimCode } : entry.inviteId ? { inviteId: entry.inviteId } : { returnTo: entry.returnTo });
           const invite = entry.inviteId ? invites.get(entry.inviteId) : undefined;
           page(response, { providers, heading: 'Sign-in cancelled', message: 'You can try signing in again.',
             continueInvite: canContinueInvite(invite, identity) }, 400); return true;
@@ -330,6 +360,16 @@ export async function openSignIn({ publicOrigin, mode = 'off', accounts, invites
         await withContinuation(request, response, entry, async () => {
           const subject = await subjectFor(name, code, entry);
           await serializeMutation(async () => {
+            if (entry.groupSecret && pickerRegistry) {
+              // First-ever login still gets its solo character before review.
+              const legacy = accounts.findIdentity(name, subject);
+              if (availableMembership(legacy ?? { memberships: [] })) await syncLegacy?.();
+              const result = await pickerRegistry.firstLogin(name, subject);
+              const token = await invites.issueRegistrySession(result.account.id, name);
+              addCookie(response, invites.cookie(token, security));
+              put(request, response, { groupSecret: entry.groupSecret }, true);
+              redirect(response, '/auth/group-invite'); return;
+            }
             if (entry.reclaimCode && pickerRegistry && reclaimIdentity) {
               const account = await reclaimIdentity(entry.reclaimCode, name, subject);
               delete entry.reclaimCode; // A completed claim must not reuse its one-time link.
@@ -391,7 +431,7 @@ export async function openSignIn({ publicOrigin, mode = 'off', accounts, invites
         }
         const inviteId = previous?.inviteId ?? (identity?.kind === 'invite' && !identity.admin && !identity.readOnly && identity.memberId ? identity.inviteId : undefined);
         const entry = put(request, response, { provider: name, state: generateToken(), verifier: generateToken(), ...(name === 'google' ? { nonce: generateToken() } : {}),
-          ...(previous?.reclaimCode ? { reclaimCode: previous.reclaimCode } : accountId ? { accountId, sessionId } : inviteId ? { inviteId } : { returnTo }) });
+          ...(previous?.groupSecret ? { groupSecret: previous.groupSecret } : previous?.reclaimCode ? { reclaimCode: previous.reclaimCode } : accountId ? { accountId, sessionId } : inviteId ? { inviteId } : { returnTo }) });
         const destination = new URL(SIGN_IN_ENDPOINTS[name].authorize);
         destination.search = new URLSearchParams({ client_id: config.clientId, redirect_uri: `${publicOrigin}/auth/${name}/callback`, response_type: 'code',
           scope: name === 'discord' ? 'identify' : 'openid', state: entry.state, code_challenge: createHash('sha256').update(entry.verifier).digest('base64url'), code_challenge_method: 'S256',
@@ -421,6 +461,14 @@ export async function openSignIn({ publicOrigin, mode = 'off', accounts, invites
         take(request, response);
         page(response, { providers, returnTo: returnTarget(request.url, publicOrigin), heading: 'Sign in', message: providers.length ? 'Use your linked account to open this game.' : 'No sign-in providers are configured. Ask the game administrator for help.' });
       }
+      return true;
+    },
+    groupJoin(request, response, { secret, security }) {
+      if (!pickerRegistry || !groupInvites) throw failure(404, 'Not found.');
+      ingress(security);
+      pickerRegistry.previewGroupInvite(secret);
+      put(request, response, { groupSecret: secret });
+      response.setHeader('Referrer-Policy', 'no-referrer'); redirect(response, '/auth/group-invite');
       return true;
     },
     sessionView(identity, security) {

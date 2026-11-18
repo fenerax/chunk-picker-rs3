@@ -1803,6 +1803,21 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
       }, { backupRead: true });
     },
     getAccessToken: () => token,
+    installInvitedMember({ memberId, runescapeName, templateMemberId }) {
+      return enqueue(async () => {
+        if (current.members.some(m => m.id === memberId)) return; // durable retry
+        if (current.members.length >= 5) throw Object.assign(new Error('The group roster is full.'), { status: 409 });
+        const template = current.members.find(m => m.id === templateMemberId);
+        if (!template) throw new Error('Invitation map template is unavailable.');
+        const member = createGroupState([{ id: memberId, name: runescapeName ?? 'Unnamed character', ...(runescapeName ? { runescapeName } : {}),
+          unlocked: [...template.unlocked], blacklisted: [...template.blacklisted], taskRules: { ...template.taskRules },
+          sectionOverrides: { ...template.sectionOverrides }, areaOverrides: { ...template.areaOverrides },
+          preferences: { ...(template.preferences?.startingChunk ? { startingChunk: template.preferences.startingChunk } : {}) } }], registry).members[0];
+        const next = inheritStateMetadata(current, captureProgressSnapshot({ ...current, revision: current.revision + 1, members: [...current.members, member] },
+          { questPoints: progressQuestPoints, at: timestamp() }));
+        await persist(await prepared(next, 'roster'), 'roster', undefined, false, current, false, undefined, { skipSnapshot: true });
+      });
+    },
     subscribe(listener) { listeners.add(listener); return () => listeners.delete(listener); },
     isPluginHandled: (player, kind, id) => hasPluginHandled(current, player, kind, id),
     setPluginTestingMode(player, enabled, expectedRevision) {

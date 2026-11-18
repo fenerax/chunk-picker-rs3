@@ -17,6 +17,20 @@
 .signin-invite button{width:100%;background:transparent}
 .signin-help{margin:1.5rem 0 0;color:var(--muted);font-size:.9rem}
 .signin-page ::selection{background:var(--gold);color:var(--on-gold)}
+.signin-content a{color:var(--gold)}
+.invite-form{display:grid;gap:1.25rem}
+.invite-form label{display:grid;gap:.5rem}
+.invite-form input:not([type=checkbox]),.invite-form select{width:100%;min-height:46px;padding:.65rem .75rem;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--text);font:inherit}
+.invite-form input:focus-visible,.invite-form select:focus-visible,.invite-form summary:focus-visible{outline:2px solid var(--focus);outline-offset:3px}
+.invite-form .invite-check{display:flex;align-items:flex-start;gap:.75rem;cursor:pointer}
+.invite-check input{flex:none;width:20px;height:20px;margin:.15rem 0;accent-color:var(--gold)}
+.invite-form section{border-block:1px solid var(--border);padding:1rem 0;overflow-wrap:anywhere}
+.invite-form h2{font-family:Georgia,serif;font-size:1.25rem;margin:0 0 .75rem}
+.invite-form summary{cursor:pointer;padding:.5rem 0;color:var(--gold)}
+.invite-rule-list{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:.5rem 1rem;font-size:.9rem}
+.invite-rule-list dd{margin:0;color:var(--muted);max-width:12rem;overflow-wrap:anywhere}
+.invite-form button[type=submit]{color:var(--on-gold);background:var(--gold)}
+.invite-form button:disabled{opacity:.6;cursor:wait}
 .account-details{display:flex;flex-direction:column;gap:var(--space-5);min-width:0}
 .account-details p{overflow-wrap:anywhere}
 .account-actions{display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-5)}

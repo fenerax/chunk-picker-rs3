@@ -41,6 +41,9 @@ export function validateCharacters(document, caps) {
     if (!picker.seats?.some(s => s.characterId === character.id && s.memberId === placement.memberId)) bad();
   }
   let total = slots.size;
+  for (const invite of document.groupInvites ?? []) if (invite.transaction?.newCharacter) {
+    total++; counts.set(invite.acceptingAccountId, (counts.get(invite.acceptingAccountId) ?? 0) + 1);
+  }
   for (const account of document.accounts) {
     if (typeof account.initialProvisioned !== 'boolean' || !(account.lastCharacterId === null || CHARACTER_ID.test(account.lastCharacterId))) bad();
     if (account.pendingCreation !== null) {

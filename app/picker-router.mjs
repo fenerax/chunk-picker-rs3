@@ -8,6 +8,7 @@ import { isImportRoute, readBackupRequest, receiveBackupRequest } from './backup
 import { reserveImportUser } from './import-jobs.mjs';
 import { routedBody, rememberRoutedBody, httpError, json, bodyJSON } from './picker-context-http.mjs';
 import { characterMenuPage } from './character-menu.mjs';
+import { createGroupInviteService } from './group-invite-service.mjs';
 import { checkBodyWith } from './security/json.mjs';
 import { createPickerDeletion } from './picker-router-deletion.mjs';
 import { requestContext, checkRequestOrigin } from './security/request.mjs';
@@ -63,6 +64,8 @@ export function createPickerRouter({ registry, legacy, openContext, publicOrigin
     const pending = queue.then(operation); queue = pending.catch(() => {}); return pending;
   }
   const checkpoint = createPickerCheckpoint({ serialize, entries, registry, legacy });
+  const groupInvites = createGroupInviteService({ registry, acquire: id => acquire(id, pickerLimits?.scope({ accountId: registry.getPicker(id)?.ownerAccountId }, id)), release(entry) { entry.active--; idle(entry); },
+    point: (name, pickerId) => registry.groupInvitePoint(name, pickerId) });
   async function evict(entry) {
     clearTimeout(entry.timer);
     entry.closing = true;
@@ -204,7 +207,9 @@ export function createPickerRouter({ registry, legacy, openContext, publicOrigin
       const characterSelectors = [];
       const visit = value => { if (value && typeof value === 'object') for (const [name, item] of Object.entries(value)) { if (name === 'characterId') characterSelectors.push(item); else if (item && typeof item === 'object') visit(item); } };
       visit(body);
-      if (characterSelectors.some(id => id !== identity?.characterId)) throw httpError(403, 'Conflicting character selection.');
+      // Admission explicitly selects a source character using account authority.
+      // The invite service validates that choice; it is not a gameplay selector.
+      if (!pathname.startsWith('/auth/group-invite/') && characterSelectors.some(id => id !== identity?.characterId)) throw httpError(403, 'Conflicting character selection.');
     };
     const route = pathScope ? (pathname.startsWith('/api/') ? '/api' : '') + (pathScope[2] || '/') : pathname;
     const backup = isImportRoute(route) && request.method === 'POST';
@@ -241,6 +246,7 @@ export function createPickerRouter({ registry, legacy, openContext, publicOrigin
     return { context: entry.context, entry, backup, checkBody };
   }
   return {
+    groupInvites,
     checkpoint,
     getResidencyLimits: () => ({ maxOpenContexts, idleCloseMs,
       coldStartsPerAccount: pickerLimits?.config.coldStartsPerAccount, coldStartsGlobal: pickerLimits?.config.coldStartsGlobal,
@@ -298,6 +304,22 @@ export function createPickerRouter({ registry, legacy, openContext, publicOrigin
         const security = listener.ingressRole === 'public' ? requestContext(request, options) : requestContextFor(request, options);
         bindBody = pickerLimits?.body(request);
         const target = new URL(request.url, 'http://localhost');
+        if (target.pathname === '/api/group-invites') {
+          const identity = legacy.authenticate(request, security);
+          if (identity?.kind !== 'account' || !identity.characterId || registry.getPicker(identity.pickerId)?.ownerCharacterId !== identity.characterId) throw httpError(403, 'Select the group owner character to manage invitations.');
+          bindBody?.({ accountId: identity.accountId, pickerId: identity.pickerId });
+          if (request.method === 'GET') { await registry.cleanGroupInvites(); await json(request, response, 200, { invites: registry.listGroupInvites(identity.accountId, identity.pickerId) }); return; }
+          if (request.method !== 'POST') throw httpError(405, 'Use GET or POST.');
+          checkRequestOrigin(request, security);
+          if (!publicOrigin || new URL(publicOrigin).protocol !== 'https:') throw httpError(409, 'Player invitations require a configured HTTPS public origin.');
+          const body = await bodyJSON(request, 4096);
+          if (Object.keys(body).some(k => !['revokeId', 'replaceId'].includes(k)) || body.revokeId && body.replaceId) throw httpError(400, 'Invalid invitation request.');
+          if (body.revokeId) { await json(request, response, 200, await registry.revokeGroupInvite(identity.accountId, identity.pickerId, body.revokeId)); return; }
+          pickerLimits?.invitation(identity, identity.pickerId);
+          const result = await registry.createGroupInvite(identity.accountId, identity.pickerId, body.replaceId);
+          const { secret, ...meta } = result;
+          await json(request, response, 200, { ...meta, link: `${publicOrigin}/join/${secret}` }); return;
+        }
         if (target.pathname === '/characters' || /^\/characters\/[^/]+$/.test(target.pathname) || target.pathname === '/api/characters') {
           const identity = legacy.authenticate(request, security);
           if (identity?.kind !== 'account') {
@@ -373,7 +395,7 @@ export function createPickerRouter({ registry, legacy, openContext, publicOrigin
       if (closing) return closing;
       closed = true;
       for (const entry of entries.values()) clearTimeout(entry.timer);
-      closing = Promise.all([admission?.close(), deletion.drain()]).then(() => serialize(async () => { await Promise.all([...entries.values()].map(evict)); }));
+      closing = Promise.all([admission?.close(), deletion.drain(), groupInvites.close()]).then(() => serialize(async () => { await Promise.all([...entries.values()].map(evict)); }));
       return closing;
     },
   };
