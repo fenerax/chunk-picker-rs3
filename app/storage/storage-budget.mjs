@@ -47,7 +47,7 @@ export function storagePressure(usage, limits = storageBudget()) {
   return ratio >= 1 || usage.files + 8 >= limits.maxFiles ? 'critical' : ratio >= 0.8 ? 'warning' : null;
 }
 
-const context = new AsyncLocalStorage(), queues = new Map(), reservations = new Map();
+const context = new AsyncLocalStorage(), queues = new Map(), reservations = new Map(), released = new Map();
 const refused = reason => Object.assign(new Error(reason + ' Ask the group owner to contact the server operator. Your saved progress, History and backup downloads remain available.'),
   { status: 507, code: 'STORAGE_BUDGET_EXCEEDED' });
 
@@ -83,10 +83,13 @@ export async function withStorageBudget(dataDir, publications, limits, work, { m
     if (!maintenance && (usage.bytes + growth > limits.maxBytes || usage.files + addedFiles + 8 > limits.maxFiles))
       throw refused('This group has reached its retained save storage limit.');
     device = String((await lstat(directory)).dev);
+    // A reservation released while statfs runs may already be written but
+    // missing from this sample. Treat its bytes as used rather than free.
+    const releasedBefore = released.get(device) ?? 0;
     const disk = await statfs(directory, { bigint: true });
     const block = Math.max(4096, Number(disk.bsize));
     reserved = outputSizes.reduce((sum, size) => sum + Math.ceil(size / block) * block + block, 1024 * 1024);
-    const active = reservations.get(device) ?? 0;
+    const active = (reservations.get(device) ?? 0) + (released.get(device) ?? 0) - releasedBefore;
     if (disk.bavail * disk.bsize < BigInt(limits.minFreeBytes) + BigInt(active) + BigInt(reserved)) {
       reserved = 0;
       throw refused('The server needs more free disk space before it can save this change.');
@@ -96,6 +99,7 @@ export async function withStorageBudget(dataDir, publications, limits, work, { m
   } finally {
     owner.active = false;
     if (reserved) {
+      released.set(device, (released.get(device) ?? 0) + reserved);
       const remaining = reservations.get(device) - reserved;
       if (remaining) reservations.set(device, remaining); else reservations.delete(device);
     }

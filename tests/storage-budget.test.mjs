@@ -204,3 +204,28 @@ test('monitor inventories every group, warns before the capture limit, escalates
   assert.match(sent[2], /RECOVERED: A group/);
   assert.equal(storagePressure({ bytes: limits.maxBytes, files: 1 }, limits), 'critical');
 });
+
+test('a free-space sample that overlaps another group\'s release still counts that group\'s output as used', async t => {
+  const root = await fixture(t), a = path.join(root, 'a'), b = path.join(root, 'b');
+  await mkdir(a); await mkdir(b);
+  const limits = storageBudget({ minFreeBytes: 1000 });
+  const plan = dir => [{ file: path.join(dir, 'state.json'), bytes: Buffer.alloc(4096) }];
+  const reservation = 1024 * 1024 + 4096 + 4096;
+  // The sample stays constant: it never sees the first group's written bytes.
+  let sampling, called;
+  const original = fs.statfs;
+  fs.statfs = async () => { called?.resolve(); await sampling; return { bavail: BigInt(1000 + reservation + 4096), bsize: 1n }; }; syncBuiltinESMExports();
+  t.after(() => { fs.statfs = original; syncBuiltinESMExports(); });
+  const entered = Promise.withResolvers(), finish = Promise.withResolvers(), sampled = Promise.withResolvers();
+  const first = withStorageBudget(a, plan(a), limits, async () => { entered.resolve(); await finish.promise; });
+  await entered.promise;
+  sampling = sampled.promise; called = Promise.withResolvers();
+  const second = withStorageBudget(b, plan(b), limits, () => assert.fail('stale sample admitted the second output'));
+  await called.promise;
+  finish.resolve(); await first;
+  sampled.resolve(); called = undefined;
+  await assert.rejects(second, refusal);
+  // A sample taken after the release is trusted again.
+  sampling = undefined;
+  await withStorageBudget(b, plan(b), limits, async () => {});
+});
