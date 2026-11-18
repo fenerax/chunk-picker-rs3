@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
 import { Readable, Writable } from 'node:stream';
-import { mkdtemp, rm, writeFile, readFile, rename } from 'node:fs/promises';
+import { mkdtemp, mkdir, rm, writeFile, readFile, readdir, rename } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
@@ -12,6 +12,7 @@ for (const key of ['RS3_PACKS_DIR', 'RS3_PACK_SELECTION', 'RS3_PUBLIC_ORIGIN', '
 const { createServer } = await import('../app/server.mjs');
 const { createGroupState } = await import('../app/core/state.mjs');
 const { selectedDataset } = await import('../app/dataset-runtime.mjs');
+const { bindDatasetStorage } = await import('../app/dataset-binding.mjs');
 const origin = 'https://picker.example';
 const proxy = { Host: 'picker.example', 'X-Forwarded-For': '203.0.113.7', 'X-Forwarded-Proto': 'https' };
 const definitions = { challenges: {}, chunks: { '12341': {}, '12342': {} }, walkableChunks: ['12341', '12342'], walkableChunksF2P: ['12341', '12342'] };
@@ -93,6 +94,54 @@ async function fixture(t, { initiallyEnabled = true, beforeCommit, ...limits } =
     note: (cookie, text, revision, extra = {}) => send('/api/command', cookie, { body: { command: { type: 'set-note', memberId: 'owner', chunkId: '12341', note: text }, expectedRevision: revision, ...extra } }),
   };
 }
+
+test('a saved bound group with missing state returns restore instructions without changing its files', async t => {
+  const f = await fixture(t), cookie = await f.login('90101');
+  assert.equal((await f.note(cookie, 'Retain this map', 0)).status, 200);
+  const id = await f.picker('90101'), directory = path.join(f.multiPicker.pickerRoot, id);
+  const binding = await readFile(directory + '.dataset.json');
+  let before;
+  const files = async () => {
+    const result = {};
+    for (const entry of await readdir(directory, { recursive: true, withFileTypes: true })) {
+      if (entry.isFile()) {
+        const file = path.join(entry.parentPath, entry.name);
+        result[path.relative(directory, file)] = await readFile(file);
+      }
+    }
+    return result;
+  };
+  await f.restart(async () => {
+    await rm(path.join(directory, 'state.json'));
+    before = await files();
+    assert.ok(Object.keys(before).some(name => name.startsWith('backups' + path.sep)));
+  });
+  for (let attempt = 0; attempt < 2; attempt++) {
+    for (const response of [await f.send('/api/state', cookie), await f.note(cookie, 'Must refuse', 0)]) {
+      assert.equal(response.status, 503, response.text);
+      assert.match(response.json().message, /missing state\.json.*restore.*backup/i);
+    }
+    assert.deepEqual(await files(), before);
+    assert.deepEqual(await readFile(directory + '.dataset.json'), binding);
+  }
+});
+
+test('a bound group interrupted before its first state still opens a fresh map', async t => {
+  const f = await fixture(t), cookie = await f.login('90102');
+  const directory = path.join(f.multiPicker.pickerRoot, await f.picker('90102'));
+  await f.restart(async () => {
+    assert.deepEqual(await readdir(directory), []);
+    await bindDatasetStorage(directory, selectedDataset);
+    await writeFile(path.join(directory, 'access-token'), 'A'.repeat(43) + '\n');
+    for (const name of ['backups', 'history', 'static']) await mkdir(path.join(directory, name));
+    await writeFile(path.join(directory, 'static', 'static-orphan.json.gz'), 'unreferenced');
+    await writeFile(path.join(directory, 'state.json.first-start.tmp'), 'unpublished');
+  });
+  const response = await f.send('/api/state', cookie);
+  assert.equal(response.status, 200, response.text);
+  assert.equal(response.json().state.revision, 0);
+  assert.deepEqual(response.json().state.members[0].unlocked, []);
+});
 
 test('signed-in defaults start empty, reuse member/revision IDs, mutate, complete and reload independently', async t => {
   const f = await fixture(t), a = await f.login('101'), b = await f.login('102');

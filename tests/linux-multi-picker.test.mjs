@@ -159,6 +159,48 @@ test('service recovery round-trips every durable plugin evidence sidecar', async
   }
 });
 
+test('service checkpoint refuses a bound group whose current state is missing and preserves its evidence', async t => {
+  const f = await fixture(t), directory = f.dir(f.pickers[1]);
+  await mkdir(path.join(directory, 'backups'));
+  await writeFile(path.join(directory, 'backups', 'retained-preimage.json'), 'synthetic retained preimage');
+  await rm(path.join(directory, 'state.json'));
+  const before = await inventory(directory), binding = await readFile(directory + '.dataset.json');
+  const id = randomUUID();
+  await assert.rejects(f.capture({ id }), error => error.status === 503 && error.code === 'SAVED_STATE_MISSING');
+  assert.equal(await exists(path.join(snapshotPath(f.settings.dataDir, id), 'complete.json')), false);
+  assert.deepEqual(await inventory(directory), before);
+  assert.deepEqual(await readFile(directory + '.dataset.json'), binding);
+});
+
+test('checkpoint verification rejects an old missing-state image marked as uninitialized', async t => {
+  const f = await fixture(t), picker = f.pickers[1];
+  await mkdir(path.join(f.dir(picker), 'backups'));
+  await writeFile(path.join(f.dir(picker), 'backups', 'retained-preimage.json'), 'synthetic retained preimage');
+  const backup = await f.capture(), manifest = await json(path.join(backup, 'manifest.json'));
+  await rm(path.join(backup, 'pickers', picker.id, 'state.json'));
+  manifest.pickers.find(row => row.id === picker.id).initialized = false;
+  manifest.files = (await inventory(backup)).filter(row => !['manifest.json', 'complete.json'].includes(row.path));
+  await writeFile(path.join(backup, 'manifest.json'), encode(manifest));
+  await assert.rejects(verifyServiceBackup(backup), { status: 503, code: 'SAVED_STATE_MISSING' });
+  await assert.rejects(captureServiceCheckpoint({ settings: f.settings, registry: f.registry, id: path.basename(backup) }),
+    { status: 503, code: 'SAVED_STATE_MISSING' });
+});
+
+test('service checkpoint accepts bound first-start remnants without certifying them as initialized', async t => {
+  const f = await fixture(t), directory = f.dir(f.pickers[1]);
+  for (const name of await readdir(directory)) await rm(path.join(directory, name));
+  await writeFile(path.join(directory, 'access-token'), 'synthetic first-start token');
+  await mkdir(path.join(directory, 'backups'));
+  await mkdir(path.join(directory, 'history'));
+  await mkdir(path.join(directory, 'static'));
+  await writeFile(path.join(directory, 'static', 'static-orphan.json.gz'), 'unreferenced');
+  const backup = await f.capture();
+  await verifyServiceBackup(backup);
+  const manifest = await json(path.join(backup, 'manifest.json'));
+  assert.equal(manifest.pickers.find(picker => picker.id === f.pickers[1].id).initialized, false);
+  assert.equal(await exists(path.join(directory, 'state.json')), false);
+});
+
 test('service export retains bindings and membership checkpoint, excludes all credentials and rejects tampering', async t => {
   const f = await fixture(t), backup = await f.capture();
   const manifest = await verifyServiceBackup(backup);

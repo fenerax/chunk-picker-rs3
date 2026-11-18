@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile, readdir, writeFile, rm } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, readdir, writeFile, rm } from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
 import { gunzipSync } from 'node:zlib';
@@ -38,6 +38,59 @@ async function directory(t) {
   t.after(() => rm(dir, { recursive: true, force: true }));
   return dir;
 }
+
+test('a saved standalone store never seeds over a missing current state', async t => {
+  const dataDir = await directory(t), store = await openStore({ dataDir, retention: false });
+  t.after(() => store.close());
+  await store.command(command, 0);
+  await store.close();
+  const backups = await readdir(path.join(dataDir, 'backups'));
+  const retained = await readFile(path.join(dataDir, 'backups', backups[0]));
+  await rm(path.join(dataDir, 'state.json'));
+  // Even a lost credential must not cause startup to write a replacement.
+  await rm(path.join(dataDir, 'access-token'));
+  const before = (await readdir(dataDir, { recursive: true })).sort();
+  await assert.rejects(openStore({ dataDir }), { status: 503, code: 'SAVED_STATE_MISSING' });
+  assert.deepEqual((await readdir(dataDir, { recursive: true })).sort(), before);
+  assert.deepEqual(await readFile(path.join(dataDir, 'backups', backups[0])), retained);
+});
+
+test('missing current state refuses retained gameplay evidence before writing any startup files', async t => {
+  for (const evidence of ['backups/0000000000000000-preimage.json.gz',
+    'backups/archives/archive-retained.json.gz', 'history/history-retained.json.gz',
+    'receipt-quarantine/receipt.json', 'action-acknowledgements.json', 'accounts.json',
+    'invites.json', 'feedback.json', 'usage.json', 'plugin-keys.json', 'overlays.json',
+    'plugin-achievements.json', 'plugin-achievements.json.corrupt-123', 'plugin-items.json',
+    'plugin-items.json.corrupt-123', 'plugin-item-journal-beta.json',
+    'plugin-item-journal-unknown.json', 'plugin-item-journal-commits.json']) {
+    const dataDir = await directory(t), file = path.join(dataDir, evidence);
+    await mkdir(path.dirname(file), { recursive: true });
+    await writeFile(file, 'synthetic retained evidence');
+    const before = (await readdir(dataDir, { recursive: true })).sort();
+    for (let attempt = 0; attempt < 2; attempt++) {
+      await assert.rejects(openStore({ dataDir }), error => error.status === 503
+        && error.code === 'SAVED_STATE_MISSING' && /restore.*backup/i.test(error.message), evidence);
+      assert.deepEqual((await readdir(dataDir, { recursive: true })).sort(), before);
+      assert.equal(await readFile(file, 'utf8'), 'synthetic retained evidence');
+    }
+  }
+});
+
+test('fresh initialization resumes after interruption before the first state publication', async t => {
+  const dataDir = await directory(t);
+  await assert.rejects(openStore({ dataDir, prepareState: () => { throw new Error('Interrupted first initialization'); } }), /Interrupted first initialization/);
+  const token = await readFile(path.join(dataDir, 'access-token'), 'utf8');
+  await mkdir(path.join(dataDir, 'static'));
+  await mkdir(path.join(dataDir, 'backups', 'archives'));
+  await writeFile(path.join(dataDir, 'static', 'static-orphan.json.gz'), 'unreferenced first-start dependency');
+  await writeFile(path.join(dataDir, 'backups', 'unpublished.json.gz.tmp'), 'unpublished');
+  await writeFile(path.join(dataDir, 'state.json.interrupted.tmp'), 'unpublished');
+  const store = await openStore({ dataDir });
+  t.after(() => store.close());
+  assert.equal(store.getState().revision, 0);
+  assert.equal(await readFile(path.join(dataDir, 'access-token'), 'utf8'), token);
+  assert.equal(importBackup(await readFile(path.join(dataDir, 'state.json'), 'utf8')).revision, 0);
+});
 
 test('writes serialize and two clients cannot save the same expected revision', async t => {
   const dataDir = await directory(t);

@@ -365,13 +365,14 @@ test('unknown literal IDs remain valid and invalid optional markers cannot veto 
   t.after(() => rm(dataDir, { recursive: true, force: true }));
   const record = { baselineAt: '2026-10-22T12:00:00.000Z', handled: ['synthetic-future-task', `unmapped:${UNKNOWN}`].sort(),
     items: { [UNKNOWN]: { name: 'Synthetic unmapped item', ownedAt: '2026-10-22T12:00:00.000Z', wornAt: null, first: true } }, journal: null };
+  // Plugin item records follow the first state publication, so create the save first.
+  const store = await openStore({ dataDir, initialState: createGroupState([{ id: 'a', name: 'Synthetic player' }]), retention: false });
+  t.after(() => store.close());
+  await store.close();
   await writeFile(path.join(dataDir, 'plugin-items.json'), JSON.stringify({ v: 1, players: { a: record } }));
   assert.deepEqual((await exportPluginItemEvidence(dataDir)).players.a.records.live, record);
   const invalid = { v: 1, players: { a: { records: { live: { ...record, handled: ['~plugin-review:bogus'] } }, commits: { journals: [] } } } };
   await assert.rejects(exportPluginItemEvidence(dataDir, id => id, invalid), /Invalid plugin item review marker/);
-  const store = await openStore({ dataDir, initialState: createGroupState([{ id: 'a', name: 'Synthetic player' }]), retention: false });
-  t.after(() => store.close());
-  await store.close();
   const file = path.join(dataDir, 'state.json'), document = JSON.parse(await readFile(file));
   document.state.provenance = { pluginItemEvidence: invalid, pluginItemEvidenceReconciled: 1 };
   const bytes = JSON.stringify(document); await writeFile(file, bytes);

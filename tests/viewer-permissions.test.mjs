@@ -10,8 +10,6 @@ import { fileURLToPath } from 'node:url';
 import { createServer, routePermissions, commandPermissions, apiPermission, redactInviteTokens, serverReadyMessage, gzipSavedTaskResult } from '../app/server.mjs';
 import { openInviteStore } from '../app/storage/invites.mjs';
 import { createGroupState } from '../app/core/state.mjs';
-import { prepareGameStorage } from '../app/game-profile.mjs';
-import { selectedDataset } from '../app/dataset-runtime.mjs';
 
 const root = fileURLToPath(new URL('../.local/viewer-permissions-tests/', import.meta.url));
 const definitions = {
@@ -86,16 +84,19 @@ async function dataDirectory(t, cleanup = true) {
 async function fixture(t, options = {}) {
   const dataDir = await dataDirectory(t, false);
   const { feedbackDocument, ...serverOptions } = options;
-  if (feedbackDocument) {
-    await prepareGameStorage(dataDir, selectedDataset);
-    await writeFile(path.join(dataDir, 'feedback.json'), JSON.stringify(feedbackDocument));
-  }
   const initialState = createGroupState([{ id: 'actor1', name: 'Player' }, { id: 'reed', name: 'Reed' }]);
-  let application = await createServer({ dataset: fixtureDataset, dataDir, port: 0, definitions, taskMap: {}, initialState, predictionPrewarm: false, publicOrigin, shutdownDeadlineMs: 500, ...serverOptions });
+  const applicationOptions = { dataset: fixtureDataset, dataDir, port: 0, definitions, taskMap: {}, initialState, predictionPrewarm: false, publicOrigin, shutdownDeadlineMs: 500, ...serverOptions };
+  let application = await createServer(applicationOptions);
   t.after(async () => {
     try { await application?.close(); }
     finally { application = undefined; await rm(dataDir, { recursive: true, force: true }); }
   });
+  if (feedbackDocument) {
+    // Persist gameplay before staging feedback from a previous server run.
+    await application.close();
+    await writeFile(path.join(dataDir, 'feedback.json'), JSON.stringify(feedbackDocument));
+    application = await createServer(applicationOptions);
+  }
   await application.listen();
   const origin = `http://127.0.0.1:${application.address().port}`;
   function request(route, { cookie, body, method = body === undefined ? 'GET' : 'POST', publicRequest = false, malformed = false, acceptEncoding } = {}) {

@@ -4,7 +4,6 @@ import assert from 'node:assert/strict';
 import { mkdtemp, readFile, rm, mkdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { randomBytes } from 'node:crypto';
 import { openRegistry } from '../app/storage/registry.mjs';
 import { openInviteStore } from '../app/storage/invites.mjs';
 import { dispatchedWorker } from './helpers/deep-profile-controls.mjs';
@@ -132,15 +131,20 @@ test('multi-picker users and invite viewers cannot inspect or control process-wi
   const multiPicker = { registryDir: path.join(root, 'registry'), pickerRoot: path.join(root, 'pickers'), tombstoneDir: path.join(root, 'ledger'), maxCalculators: 1 };
   let registry, invites, app;
   t.after(async () => { await app?.close(); await invites?.close(); await registry?.close(); await rm(root, { recursive: true, force: true }); });
+  const options = { dataDir, liveTimingOptions, deepProfiles: true, multiPicker, dataset: await emptyMetadataDataset(), definitions, taskMap: {},
+    initialState: createGroupState([{ id: 'synthetic-member', name: 'Synthetic player' }, { id: 'synthetic-partner', name: 'Synthetic partner' }]), port: 0, predictionPrewarm: false };
+  // Production initializes gameplay before the service-level session issuer.
+  app = await createServer(options);
+  const masterToken = app.store.getAccessToken();
+  await app.close(); app = undefined;
   registry = await openRegistry({ ...multiPicker, legacyDir: dataDir });
   const accounts = [];
   for (let index = 0; index < 2; index++) accounts.push(await registry.firstLogin('discord', String(index + 100)));
-  invites = await openInviteStore({ dataDir, masterToken: randomBytes(32).toString('base64url'), masterLabel: 'Synthetic operator', pickerRegistry: registry });
+  invites = await openInviteStore({ dataDir, masterToken, masterLabel: 'Synthetic operator', pickerRegistry: registry });
   const users = [];
   for (const { account, picker } of accounts) users.push({ cookie: `duo_access=${await invites.issuePickerSession(account.id, picker.id, 'discord')}` });
   await invites.close(); invites = undefined; await registry.close(); registry = undefined;
-  app = await createServer({ dataDir, liveTimingOptions, deepProfiles: true, multiPicker, dataset: await emptyMetadataDataset(), definitions, taskMap: {},
-    initialState: createGroupState([{ id: 'synthetic-member', name: 'Synthetic player' }, { id: 'synthetic-partner', name: 'Synthetic partner' }]), port: 0, predictionPrewarm: false });
+  app = await createServer(options);
   await app.listen();
   const origin = new URL(app.inviteUrl).origin, admin = { Authorization: `Bearer ${app.store.getAccessToken()}` };
   async function request(route, headers = admin, body, expected = 200) {
