@@ -1,24 +1,30 @@
 import { dropChance } from './helper-model.mjs';
 import { chanceChart, dataTable } from './helper-charts.mjs';
 import { amountInput, parseAmount } from './amount-input.mjs';
-export function renderDrops(host, { document, api, member, partner: partnerMember, stateRevision, isCurrent, draft }) {
+export function renderDrops(host, { document, api, member, partners, partner: partnerMember, stateRevision, isCurrent, draft }) {
+  const others = partners ?? (partnerMember ? [partnerMember] : []);
   const el = (tag, text, cls) => { const n = document.createElement(tag); if (text !== undefined) n.textContent = text; if (cls) n.className = cls; return n; };
   const field = (label, control) => { const wrap = el('label', label); wrap.append(control); return wrap; };
   let disposed = false, rows = [], manualRateEdited = false; const controller = new AbortController();
   host.append(el('h2', 'Drop chances'), el('p', 'How likely is at least one drop? Use a monster you can reach, or enter a rate yourself.', 'helper-intro'));
-  const form = el('form', undefined, 'helper-form'), source = el('select'), denominator = el('input'), own = el('input'), partner = el('input'), filter = el('input'), output = el('section'), status = el('p', 'Loading drops from your chunks…', 'helper-note');
+  const form = el('form', undefined, 'helper-form'), source = el('select'), denominator = el('input'), own = el('input'), filter = el('input'), output = el('section'), status = el('p', 'Loading drops from your chunks…', 'helper-note');
+  const peerInputs = others.map(other => {
+    const input = el('input'); input.value = draft?.killsByMember?.[other.id] ?? (others.length === 1 ? draft?.partnerKills : undefined) ?? '0';
+    return { member: other, input };
+  });
   const custom = el('option', 'Enter a rate'); custom.value = ''; source.append(custom);
   filter.type = 'search'; filter.placeholder = 'Monster or item'; filter.value = draft?.filter ?? '';
   denominator.value = draft?.denominator ?? '128'; denominator.required = true; amountInput(denominator, { min: 1 });
-  own.value = draft?.ownKills ?? '0'; partner.value = draft?.partnerKills ?? '0'; own.required = true;
-  for (const input of [own, partner]) amountInput(input, { min: 0, max: Number.MAX_SAFE_INTEGER, whole: true });
+  own.value = draft?.ownKills ?? '0'; own.required = true;
+  for (const input of [own, ...peerInputs.map(row => row.input)]) amountInput(input, { min: 0, max: Number.MAX_SAFE_INTEGER, whole: true });
   const submit = el('button', 'Calculate drop chance'); submit.type = 'submit'; status.setAttribute('role', 'status'); output.setAttribute('aria-live', 'polite');
-  form.append(field('Find a drop', filter), field('Or pick one from your chunks', source), field('Drop rate: 1 in', denominator), field(`${member.name}’s kills so far`, own), field(`${partnerMember?.name ?? 'Partner'}’s kills (optional)`, partner), submit);
-  host.append(form, status, (() => { const more = el('details', undefined, 'helper-note'); more.append(el('summary', 'How this is worked out'), el('p', 'Every kill has the same chance, so past dry streaks don’t make the next kill luckier. Combined kills assume you both have the same drop rate. Rare drop table rolls and bad-luck protection aren’t included. Each listed rate is for one loot roll; if an item can come from several rolls, type in its overall rate instead.')); return more; })(), output);
+  form.append(field('Find a drop', filter), field('Or pick one from your chunks', source), field('Drop rate: 1 in', denominator), field(`${member.name}’s kills so far`, own), ...peerInputs.map(({ member, input }) => field(`${member.name}’s kills (optional)`, input)), submit);
+  host.append(form, status, (() => { const more = el('details', undefined, 'helper-note'); more.append(el('summary', 'How this is worked out'), el('p', `Every kill has the same chance, so past dry streaks don’t make the next kill luckier. ${others.length ? others.length === 1 ? 'Combined kills assume you both have the same drop rate. ' : 'Combined kills assume every player has the same drop rate. ' : ''}Rare drop table rolls and bad-luck protection aren’t included. Each listed rate is for one loot roll; if an item can come from several rolls, type in its overall rate instead.`)); return more; })(), output);
   function calculate(event) {
     event?.preventDefault(); if (!form.checkValidity()) { if (event) form.reportValidity(); return; }
     try {
-      const data = dropChance(parseAmount(denominator.value), parseAmount(own.value), partner.value.trim() ? parseAmount(partner.value) : 0);
+      const peerKills = peerInputs.reduce((sum, { input }) => sum + (input.value.trim() ? parseAmount(input.value) : 0), 0);
+      const data = dropChance(parseAmount(denominator.value), parseAmount(own.value), peerKills);
       const percent = probability => `${(probability * 100).toFixed(2)}%`;
       output.replaceChildren(el('p', `${percent(data.probability)} chance of at least one drop${source.value === '' ? '' : ' from this loot roll'} after ${data.kills.toLocaleString()} combined kills.`, 'helper-answer'),
         el('p', `${percent(1 - data.probability)} chance of still having none. These are chances, not a guarantee.`, 'helper-note'), chanceChart(document, data),
@@ -46,6 +52,6 @@ export function renderDrops(host, { document, api, member, partner: partnerMembe
     status.textContent = value.f2p === false ? 'The picker currently uses members rules. Chunk drops are listed only with F2P rules; you can still enter a rate.' : `${rows.length.toLocaleString()} drops with known rates in your chunks. Search to narrow the list (it shows up to 100).`;
   }).catch(error => { if (!disposed && error.name !== 'AbortError') status.textContent = `Could not load chunk drops. You can still enter a rate. ${error.message}`; });
   const dispose = () => { disposed = true; controller.abort(); rows = []; };
-  dispose.getDraft = () => { const row = source.value !== '' ? rows[Number(source.value)] : undefined; return { denominator: denominator.value, ownKills: own.value, partnerKills: partner.value, filter: filter.value, selectedRoll: row ? { monster: row.monster, item: row.item, denominator: row.denominator } : null }; };
+  dispose.getDraft = () => { const row = source.value !== '' ? rows[Number(source.value)] : undefined; return { denominator: denominator.value, ownKills: own.value, killsByMember: Object.fromEntries(peerInputs.map(({ member, input }) => [member.id, input.value])), ...(others.length === 1 ? { partnerKills: peerInputs[0].input.value } : {}), filter: filter.value, selectedRoll: row ? { monster: row.monster, item: row.item, denominator: row.denominator } : null }; };
   return dispose;
 }

@@ -50,6 +50,8 @@ test('invite label suggests the second configured player with a generic empty-gr
   for (const [members, expected] of [
     [[{ id: 'first', name: 'Player' }, { id: 'second', name: 'Reed' }], 'Reed'],
     [[{ id: 'first', name: 'Explorer 1' }, { id: 'second', name: 'Explorer 2' }], 'Explorer 2'],
+    [[{ id: 'solo', name: 'Solo' }], 'Person'],
+    [Array.from({ length: 5 }, (_, i) => ({ id: `explorer${i}`, name: `Explorer ${i}` })), 'Person'],
     [[], 'Person'],
   ]) {
     const h = harness({ members }); await h.ui.open(); assert.equal(h.label().placeholder, expected);
@@ -171,5 +173,5 @@ test('view-only permission is explicit, sent separately and labelled on the revo
   assert.deepEqual(h.calls.find(call => call.body?.label).body, { label: 'Spectator', admin: false, viewer: true });
   assert.ok(h.find('Active · View only')); assert.equal(h.permission().value, 'player');
   assert.ok(h.all().some(node => node.attributes['aria-label'] === 'Revoke Spectator’s link'));
-  assert.ok(h.all().some(node => /watch both maps, tasks, notes and History live/.test(node.textContent)));
+  assert.ok(h.all().some(node => /watch all maps, tasks, notes and History live/.test(node.textContent)));
 });

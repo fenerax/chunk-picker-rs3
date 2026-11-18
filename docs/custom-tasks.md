@@ -1,11 +1,12 @@
 # Custom tasks
 
 Custom tasks have a description, an optional skill and level, and an assignment
-to Player 1, Player 2 or Both. A selected skill supplies the normal task heading, icon,
+to one named player or all players (Both for a duo). Editing a task imported with
+a subset assignment preserves that selection. A selected skill supplies the normal task heading, icon,
 Skill filter and sort order. A level needs a skill and must be 1–120.
 
 Each personal list includes only its assigned tasks. Group view shows the chosen
-player or Both. Completion follows the current completion rule among assigned
+player or shared tasks, labelled with their assigned players. Completion follows the current completion rule among assigned
 players; earlier checks by a player who is no longer assigned are preserved but
 do not satisfy that task. Claim controls follow the assignment too.
 

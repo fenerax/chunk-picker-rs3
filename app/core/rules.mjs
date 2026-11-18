@@ -403,7 +403,7 @@ export function evaluateRollPool(world, state, memberId, registry = defaultRegis
     if (world.surface && !world.surface.has(id)) blockers.push({ ruleId: 'world.surface', detail: 'Outside the supported surface grid.' });
     if (world.cacheWalking?.blockedRegions?.has(id) && !reasons.some(typedEntry)) blockers.push({ ruleId: 'world.entry',
       detail: 'No verified walking connection or transport route into this chunk.' });
-    if (owned.has(id)) blockers.push({ ruleId: 'state.unlocked', detail: 'Already unlocked on this member’s own map; shared task access does not exclude partner-owned chunks.' });
+    if (owned.has(id)) blockers.push({ ruleId: 'state.unlocked', detail: state.members.length === 1 ? 'Already unlocked on this member’s own map.' : state.members.length === 2 ? 'Already unlocked on this member’s own map; shared task access does not exclude partner-owned chunks.' : 'Already unlocked on this member’s own map; shared task access does not exclude chunks owned by other players.' });
     if (pendingRoll.has(id)) blockers.push({ ruleId: 'state.pendingRoll', detail: 'Already offered in this member’s pending roll.' });
     if (blacklisted.has(id)) blockers.push({ ruleId: 'state.blacklisted', detail: 'Blacklisted by this member.' });
     for (const definition of registry.definitions) {

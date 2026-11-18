@@ -10,7 +10,10 @@ export function createScreenCustomTasks(c) {
     const label = c.input('text', saved?.label ?? ''); label.required = true;
     const skill = c.select([{ value: '', label: 'None' }, ...(c.supportsFeature?.('training') === false ? [] : playerControlSkills.map(value => ({ value, label: value })))], saved?.skill ?? '');
     const level = c.input('number', saved?.level ?? ''); level.min = '1'; level.max = '120'; level.step = '1';
-    const assignment = c.select([{ value: 'both', label: 'Both' }, ...c.state.members.map(member => ({ value: member.id, label: member.name }))], saved?.memberIds?.length === 1 ? saved.memberIds[0] : 'both');
+    const subset = saved?.memberIds?.length > 1 && saved.memberIds.length < c.state.members.length;
+    const assignment = c.select([{ value: 'both', label: c.state.members.length === 1 ? 'You' : c.state.members.length === 2 ? 'Both' : 'All players' },
+      ...(subset ? [{ value: 'assigned', label: saved.memberIds.map(id => c.state.members.find(member => member.id === id)?.name ?? id).join(', ') }] : []),
+      ...c.state.members.map(member => ({ value: member.id, label: member.name }))], subset ? 'assigned' : saved?.memberIds?.length === 1 ? saved.memberIds[0] : 'both');
     const error = c.el('p', '', 'status-detail'); error.setAttribute('role', 'alert'); error.hidden = true;
     const syncLevel = () => { level.disabled = !skill.value; if (!skill.value) level.value = ''; };
     skill.addEventListener('change', syncLevel); syncLevel();
@@ -25,7 +28,7 @@ export function createScreenCustomTasks(c) {
         const description = label.value.trim(); if (!description) throw new Error('Enter a task description.');
         const fields = { label: description, ...(skill.value ? { skill: skill.value } : {}),
           ...(level.value ? { level: Number(level.value) } : {}),
-          ...(assignment.value === 'both' ? {} : { memberIds: [assignment.value] }) };
+          ...(assignment.value === 'both' ? {} : { memberIds: assignment.value === 'assigned' ? [...saved.memberIds] : [assignment.value] }) };
         if (fields.level !== undefined) validateControlLevel(fields.level);
         save.disabled = true;
         await c.command(saved ? { type: 'update-task', taskId: saved.id, task: fields }
@@ -42,7 +45,7 @@ export function createScreenCustomTasks(c) {
     if (!c.canWrite() || c.sandbox.active) return;
     const saved = c.state.tasks.find(row => row.id === task.id); if (!isCustomTask(saved)) return;
     const revision = c.state.revision, stack = c.el('div', undefined, 'form-stack');
-    stack.append(c.el('p', `Delete “${c.plain(saved.label)}”?`), c.el('p', 'This removes the task and its checks for both players. Undo brings them back.', 'status-detail'));
+    stack.append(c.el('p', `Delete “${c.plain(saved.label)}”?`), c.el('p', `This removes the task and its checks for ${c.state.members.length === 1 ? 'you' : c.state.members.length === 2 ? 'both players' : 'all players'}. Undo brings them back.`, 'status-detail'));
     let generation;
     const current = () => c.canWrite() && !c.sandbox.active && c.dialogCurrent(generation);
     const confirm = c.button('Delete task', async () => {

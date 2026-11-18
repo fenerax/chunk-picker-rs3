@@ -33,7 +33,7 @@ function plainEstimateText(value) {
     .replaceAll('Explicit member backlog defers this obligation.', 'This task is in your backlog, so it is left out of the time estimate.')
     .replaceAll('The current membership rule defers this duty; membership progression is never assumed.', 'This task is left out while your current free-to-play rules apply.')
     .replaceAll('The threshold compares the single slowest added or raised obligation, using unrounded hours.', 'The limit applies to the slowest new or increased task, using its full time estimate.')
-    .replaceAll('Active person-hours for the selected member’s solo route; partner territory supplies capability, never personal obligations.', 'Time is for this player training alone. Your partner’s chunks can supply methods, but only your own chunks create tasks.')
+    .replaceAll('Active person-hours for the selected member’s solo route; partner territory supplies capability, never personal obligations.', 'Time is for this player training alone. Connected group chunks can supply methods, but only your own chunks create tasks.')
     .replaceAll('Estimates are advisory scenarios. Unknown duties and unpriced alternatives may change the conclusion; drop percentiles are not a guarantee.', 'These estimates are advice. Tasks and routes with unknown times can change the result; drop chances are not a guarantee.')
     .replaceAll('Standalone prerequisite skill times are added; cross-skill overlap is unresolved.', 'Required skill times are added separately. Training that helps several skills may reduce the total.')
     .replace(/Acquisition time for consumed (.+?) is not covered by a reachable curated gathering method\./g, 'Time to gather the $1 you use is unknown in your chunks.')
@@ -165,7 +165,7 @@ export function createDeathChunks(ctx) {
       const routes = el('ul');
       for (const segment of row.route) {
         const route = el('li', undefined, 'status-detail');
-        route.append(`${segment.label} · ${Math.ceil(segment.actions).toLocaleString()} actions at ${segment.xpPerAction} XP each · ${estimateHoursLabel(segment.hours)}${segment.viaPartner ? ' · uses connected partner territory' : ''}`);
+        route.append(`${segment.label} · ${Math.ceil(segment.actions).toLocaleString()} actions at ${segment.xpPerAction} XP each · ${estimateHoursLabel(segment.hours)}${segment.viaPartner ? ' · uses connected group territory' : ''}`);
         if (Number.isFinite(segment.processingSeconds) && Number.isFinite(segment.supplySeconds)) route.append(el('p', `Processing ${estimateHoursLabel(segment.processingSeconds / 3600)}; gathering supplies ${estimateHoursLabel(segment.supplySeconds / 3600)}.`, 'status-detail'));
         routes.append(route);
       }
@@ -202,7 +202,7 @@ export function createDeathChunks(ctx) {
         : `Largest priced new duty: ${estimateHoursLabel(estimate.hours)}`;
     node.replaceChildren(el('h3', 'Death-chunk estimate'), el('p', `${ownerName}’s hypothetical unlock · ${summary} · limit ${estimate.thresholdHours.toLocaleString()} h`, 'death-summary'));
     if (estimate.slowest) node.append(el('p', `Slowest priced obligation: ${taskLabel(estimate.slowest)}.`, 'status-detail'));
-    node.append(details('How estimates are calculated', el('p', 'Times count this player’s active play using the fastest known route in reachable chunks. Your partner’s chunks can supply training methods, while your own map creates tasks. Drop averages are uncertain; the default 60 seconds per kill is a placeholder. Gathering, banking and recipes can change the time. Missing rates stay unknown.', 'status-detail')));
+    node.append(details('How estimates are calculated', el('p', 'Times count this player’s active play using the fastest known route in reachable chunks. Connected group chunks can supply training methods, while your own map creates tasks. Drop averages are uncertain; the default 60 seconds per kill is a placeholder. Gathering, banking and recipes can change the time. Missing rates stay unknown.', 'status-detail')));
     if (estimate.breakdown?.length) {
       const rows = el('ul', undefined, 'death-breakdown'); estimate.breakdown.forEach(row => rows.append(breakdownRow(row)));
       node.append(details(`New obligations (${estimate.breakdown.length})`, rows));

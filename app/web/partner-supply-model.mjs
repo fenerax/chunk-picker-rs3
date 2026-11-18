@@ -123,7 +123,7 @@ export function formatPartnerSupplySummary(model) {
   const lines = [];
   for (const member of model.members) {
     if (!member.ready) continue;
-    if (!member.requests.length) { lines.push(`${discordText(member.name)}: No partner supplies needed.`); continue; }
+    if (!member.requests.length) { lines.push(`${discordText(member.name)}: No ${model.members.length === 2 ? 'partner' : 'shared'} supplies needed.`); continue; }
     lines.push(`${discordText(member.name)}:`);
     for (const request of member.requests) {
       const suppliers = [...new Set(request.items.flatMap(item => item.sources.map(source => source.memberName)))];
@@ -136,5 +136,5 @@ export function formatPartnerSupplySummary(model) {
   const text = lines.join('\n');
   if (text.length <= 1920) return text;
   const clipped = text.slice(0, 1880), newline = clipped.lastIndexOf('\n');
-  return `${clipped.slice(0, newline > 0 ? newline : 1880)}\n… More requests in Ask your partner.`;
+  return `${clipped.slice(0, newline > 0 ? newline : 1880)}\n… More requests in ${model.members.length === 2 ? 'Ask your partner' : 'Ask your group'}.`;
 }

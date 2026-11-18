@@ -1,4 +1,5 @@
 import { createTaskFactsIndex } from '../core/progress-index.mjs';
+import { taskOwnersLabel } from './roster-labels.mjs';
 import { projectMemberTaskFacts, resolveSavedTaskId } from '../tasks/fact-projection.mjs';
 import { personalCustomTaskRows, isCustomTask } from './custom-tasks-model.mjs';
 
@@ -8,7 +9,7 @@ export const matchesDuoOwner = (row, filter = 'all') => filter === 'all'
 export function scopeDuoRow(row, memberIds, state, selectedMemberId) {
   const memberId = memberIds.includes(selectedMemberId) ? selectedMemberId : memberIds[0];
   return { ...row, memberIds, memberId, task: row.tasksByMember[memberId], facts: row.factsByMember[memberId],
-    label: memberIds.length > 1 ? 'Both' : state.members.find(member => member.id === memberId)?.name ?? memberId };
+    label: taskOwnersLabel(state.members, memberIds) };
 }
 
 // These disclosures use each personal catalogue, including blocked and preserved

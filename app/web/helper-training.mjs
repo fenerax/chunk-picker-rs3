@@ -170,7 +170,7 @@ export function renderTraining(host, { document = globalThis.document, api, memb
   });
   bankingSettings.hidden = true; form.append(bankingSettings);
   form.hidden = true;
-  section.append(el('h2', 'Grind planner'), el('p', 'Plan from your saved personal levels and quests using your reachable chunks, including connected duo chunks.', 'helper-training-note'), status, retry, body);
+  section.append(el('h2', 'Grind planner'), el('p', 'Plan from your saved personal levels and quests using your reachable chunks, including connected group chunks.', 'helper-training-note'), status, retry, body);
   body.append(form, output); host.replaceChildren(section);
 
   function invalidate() { generation++; controller?.abort(); controller = null; output.replaceChildren(); output.setAttribute('aria-busy', 'false'); }
@@ -363,7 +363,7 @@ export function renderTraining(host, { document = globalThis.document, api, memb
       }
       locked.append(gates, notes(record, better.assumptions, better.mining, better.woodcutting, better.fishing, false)); ids.push(...(record.sourceIds ?? []));
     } else locked.append(el('p', `No faster ${f2p ? 'F2P ' : ''}method is locked behind these chunks.`));
-    view.append(locked, el('p', plan.availableMethods?.some(method => method.banking) ? 'Drop and bank rates are estimates. Walking stays inside your reachable chunks; storing and bank actions use estimated delays.' : skill.value === 'Mining' ? 'Estimates are at the rock, no banking. Travel and storing ore add time. A reachable pickaxe source does not mean you own the tool.' : skill.value === 'Woodcutting' ? 'Estimates include one-tree respawn waits. Travel, banking and storing logs add time.' : skill.value === 'Fishing' ? 'Expected catches are estimates. Bait and feathers still need gathering; reachable sources do not mean you own the supplies.' : 'Estimates depend on gear, attention and the stated method assumptions. Training time excludes gathering inputs and travel unless a method note explicitly includes them. Total time with self-gathered supplies is unknown. Duo supplies can be shared; reachable sources do not mean your bank already has stock.', 'helper-training-note'));
+    view.append(locked, el('p', plan.availableMethods?.some(method => method.banking) ? 'Drop and bank rates are estimates. Walking stays inside your reachable chunks; storing and bank actions use estimated delays.' : skill.value === 'Mining' ? 'Estimates are at the rock, no banking. Travel and storing ore add time. A reachable pickaxe source does not mean you own the tool.' : skill.value === 'Woodcutting' ? 'Estimates include one-tree respawn waits. Travel, banking and storing logs add time.' : skill.value === 'Fishing' ? 'Expected catches are estimates. Bait and feathers still need gathering; reachable sources do not mean you own the supplies.' : 'Estimates depend on gear, attention and the stated method assumptions. Training time excludes gathering inputs and travel unless a method note explicitly includes them. Total time with self-gathered supplies is unknown. Group supplies can be shared; reachable sources do not mean your bank already has stock.', 'helper-training-note'));
     const evidence = sources(ids, plan); if (evidence) view.append(evidence); output.replaceChildren(view);
   }
   async function run(event) {

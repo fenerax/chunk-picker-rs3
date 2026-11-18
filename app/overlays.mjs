@@ -80,7 +80,7 @@ function options(query, widget) {
   if (value.widget === 'goals') {
     value.goals = query.get('goals') ?? 'personal';
     if (!GOALS.has(value.goals)) throw fail(400, 'Choose personal pins, group goals or both.');
-    if (value.goals === 'group' && value.player !== 'duo') throw fail(400, 'Group goals include both players.');
+    if (value.goals === 'group' && value.player !== 'duo') throw fail(400, 'Group goals include the whole roster.');
   } else if (query.has('goals')) throw fail(400, 'Goal choices apply only to Active goals.');
   return value;
 }
