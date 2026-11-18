@@ -78,7 +78,7 @@ test('Progress reads once, renders all totals and four accessible tables, switch
   assert.equal(walk(h.host).filter(node => node.tag === 'svg').length, 4);
   assert.equal(walk(h.host).filter(node => node.tag === 'caption').length, 5);
   const selector = walk(h.host).find(node => node.tag === 'select'); selector.value = 'duo'; selector.dispatchEvent({ type: 'change' });
-  assert.match(text(h.host), /Duo over time/); assert.equal(dispose.getDraft().scope, 'duo');
+  assert.match(text(h.host), /Solo over time/); assert.equal(dispose.getDraft().scope, 'duo');
   assert.deepEqual(reads.map(({ path, body }) => ({ path, body })), [{ path: '/api/helper-progress', body: undefined }]);
   assert.deepEqual(data, before); dispose(); assert.equal(reads[0].signal.aborted, true);
 });

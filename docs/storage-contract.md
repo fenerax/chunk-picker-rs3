@@ -87,6 +87,41 @@ This is a description of the existing file backend and a proposed boundary for a
 SQLite trial. The SC3 startup rule below updates the implementation; gameplay
 behavior is unchanged. Other inventory anchors describe SC1.
 
+## Missing gameplay state admission
+
+The default-format store, multi-picker group cold-open path and service checkpoint
+capture share a read-only initialization check. If `state.json` is absent,
+published files in `backups/` (including retained preimages and `archives/`),
+`history/` or `receipt-quarantine/` require operator restore. The same applies to
+`action-acknowledgements.json` and the post-state sidecars `accounts.json`,
+`invites.json`, `feedback.json`, `usage.json`, `plugin-keys.json`, `overlays.json`,
+`plugin-achievements.json`, `plugin-items.json`, and the beta, unknown and commits
+plugin-item journals. Corrupt archives of plugin achievements/items also count.
+Their presence proves that initialization progressed beyond a fresh directory;
+missing or malformed evidence is never permission to discard it.
+
+The refusal uses status 503 and code `SAVED_STATE_MISSING`, tells the operator to
+restore from a verified backup, and preserves the source folder and binding.
+It never synthesizes a new map or certifies the damaged group as uninitialized.
+Store startup checks before creating files, then rechecks under ownership;
+checkpoint capture checks under its per-picker write barrier.
+
+Accounts and invitations also count at the multi-picker service's legacy root.
+Fresh startup awaits `openStore` before `createPickerContext` opens its sidecars.
+Registry `firstLogin` writes registry/ledger records and provisions picker
+directories; it does not create legacy issuer files. Service recovery's
+`reconcileServiceRecoveryTombstones` opens only issuer files already present,
+leaving missing files missing. `restoreServiceStopped` requires empty restore
+targets and installs the complete legacy gameplay store before normal startup.
+None of these paths provisions new accounts/invites ahead of the first state.
+Tests invoking standalone sidecar APIs before reopening gameplay must establish
+the save first, just as the server does; there is no service-root exception.
+
+A binding, `access-token`, empty directories, unreferenced `static/` blobs and
+unpublished `.tmp` files can precede the first `state.json` publication. Those
+alone permit first-start initialization and an uninitialized checkpoint entry,
+including recovery after an interrupted first start. No save schema changes.
+
 ## Scope and counting
 
 There are **37 durable file families**, numbered below. A family groups files

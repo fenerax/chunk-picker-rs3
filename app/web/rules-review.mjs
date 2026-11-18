@@ -1,3 +1,4 @@
+import { playersLabel } from './roster-labels.mjs';
 import { ANCIENT_EFFIGIES_RULE, taskRuleBehavior, taskRuleCategoryCounts } from '../data/settings.mjs';
 import { taskRuleAutomaticValue, planTaskRuleChange } from './rules-model.mjs';
 import { captureReview, reviewChanges, reviewRules, reviewSelection, reviewRecord, reviewValue, ruleValueText, reviewSummary, reviewRuleLabel } from './rules-review-model.mjs';
@@ -24,7 +25,7 @@ export function createRulesReview(ctx) {
     const rule = reviewSelection(rows, selectedId); selectedId = rule?.id;
     host.replaceChildren();
     const progress = rows.filter(row => reviewRecord(state, row.id).reviewed).length;
-    host.append(el('p', `${progress} of ${rows.length} reviewed${advanced() ? ' (including advanced)' : ''} · shared by both players`, 'rules-walk-progress'));
+    host.append(el('p', `${progress} of ${rows.length} reviewed${advanced() ? ' (including advanced)' : ''} · shared by ${playersLabel(state.members).toLowerCase()}`, 'rules-walk-progress'));
     const filters = select([{ value: 'all', label: 'All rules' }, { value: 'unreviewed', label: 'Not reviewed' },
       { value: 'different', label: 'Different between players' }, { value: 'changed', label: 'Changed during this review' },
       ...(all.some(row => row.members === true || row.membersOnly === true || row.requiresMembers === true) ? [{ value: 'members', label: 'Members content' }] : [])], filter);
@@ -72,7 +73,7 @@ export function createRulesReview(ctx) {
         values.append(el('dt', member.name), el('dd', `${ruleValueText(reviewValue(state, member.id, rule, registry))} · Automatic (${ruleValueText(automatic)})`));
       }
       sheet.append(values);
-      sheet.append(el('p', rule.sharedRuleId ? 'This choice is shared by both players. Automatic shows the picker’s default for this shared rule.'
+      sheet.append(el('p', rule.sharedRuleId ? `This choice is shared by ${playersLabel(state.members).toLowerCase()}. Automatic shows the picker’s default for this shared rule.`
         : 'Automatic uses the shared or imported choice, then the picker’s default. “Use automatic” removes your personal override; it does not choose rules for you.', 'field-help'));
       const owner = state.members.find(member => member.id === target) ?? state.members[0];
       const selectedValue = reviewValue(state, owner.id, rule, registry);
@@ -81,7 +82,7 @@ export function createRulesReview(ctx) {
       const renderedRevision = state.revision;
       const fresh = () => options.current() && !options.busy() && writable() && ctx.state().revision === renderedRevision;
       if (writable()) {
-        const who = select([...state.members.map(member => ({ value: member.id, label: member.name })), { value: 'both', label: 'Both players' }], target);
+        const who = select([...state.members.map(member => ({ value: member.id, label: member.name })), { value: 'both', label: playersLabel(state.members) }], target);
         who.dataset.changeFor = '';
         who.disabled = options.busy() || !!rule.sharedRuleId;
         if (rule.sharedRuleId) who.value = 'both';

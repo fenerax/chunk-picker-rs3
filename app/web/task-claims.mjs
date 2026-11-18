@@ -86,7 +86,7 @@ export function appendTaskClaim({ document, host, task, taskId = task.id, getSta
       if (line.querySelector?.('.task-claim-confirm')) return;
       const confirm = el('div', undefined, 'task-claim-confirm');
       const take = el('button', takeoverLabel, 'primary-action'), cancel = el('button', 'Cancel'); take.type = cancel.type = 'button';
-      confirm.append(el('span', `Take over from ${owner?.name ?? 'your partner'}${explicitMember ? ` for ${actor?.name ?? 'this player'}` : ''}?`), take, cancel);
+      confirm.append(el('span', `Take over from ${owner?.name ?? 'another player'}${explicitMember ? ` for ${actor?.name ?? 'this player'}` : ''}?`), take, cancel);
       cancel.addEventListener('click', () => { confirm.remove(); action.focus?.(); });
       confirm.addEventListener('keydown', event => { if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); cancel.click(); } });
       take.addEventListener('click', async () => { take.disabled = true; try { await apply(true); confirm.remove(); } catch (error) { take.disabled = false; showError(error); } });

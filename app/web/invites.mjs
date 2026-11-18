@@ -120,7 +120,7 @@ export function createInvites({ api, el, button, input, field, openDialog, dialo
     });
 
     const form = el('form', undefined, 'form-stack dialog-section');
-    const label = input('text'); label.required = true; label.maxLength = 80; label.placeholder = members()[1]?.name ?? 'Person'; label.autocomplete = 'off';
+    const label = input('text'); label.required = true; label.maxLength = 80; label.placeholder = members().length === 2 ? members()[1].name : 'Person'; label.autocomplete = 'off';
     const permission = el('select'); permission.setAttribute('aria-label', 'Invite permission');
     for (const [value, text] of [['player', 'Player'], ['admin', 'Admin'], ['viewer', 'View only']]) { const option = el('option', text); option.value = value; permission.append(option); }
     permission.value = 'player';
@@ -131,7 +131,7 @@ export function createInvites({ api, el, button, input, field, openDialog, dialo
     const playerField = player ? field('Player (can restore this map from a backup)', player) : null;
     permission.addEventListener('change', () => { if (player) { player.disabled = permission.value === 'viewer'; playerField.hidden = player.disabled; } });
     form.append(el('h3', 'New invite link'), field('Person or label', label), field('Permission', permission), ...(playerField ? [playerField] : []),
-      el('p', 'Player can edit both maps. Admin can also manage invite links and backups. View only can watch both maps, tasks, notes and History live, without changing anything.', 'field-help'), create);
+      el('p', `Player can edit ${members().length === 1 ? 'the map' : members().length === 2 ? 'both maps' : 'all maps'}. Admin can also manage invite links and backups. View only can watch ${members().length === 1 ? 'the map' : members().length === 2 ? 'both maps' : 'all maps'}, tasks, notes and History live, without changing anything.`, 'field-help'), create);
     if (!listing.publicOrigin) form.append(el('p', 'New links use this server’s private address. Public sharing requires RS3_PUBLIC_ORIGIN to be configured on the server.', 'field-help'));
     content.append(form);
     let creating = false;

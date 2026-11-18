@@ -40,7 +40,7 @@ export function renderRollStats(c, model, document = globalThis.document) {
     const drawChart = range => {
       const chart = svg('svg', { viewBox: '0 0 360 220', role: 'img', 'aria-labelledby': 'roll-stats-title roll-stats-caption', class: 'roll-stats-chart' });
       chart.append(svg('title', { id: 'roll-stats-title' }, range === 'month' ? 'Unlocked chunks over the last 30 days' : 'Unlocked chunks over time'),
-        svg('desc', {}, 'Step lines count dated chunks still unlocked for each player and distinct chunks for the duo. See the unlock summary table for totals and gaps.'));
+        svg('desc', {}, `Step lines count dated chunks still unlocked for each player and distinct chunks for the ${model.members.length === 2 ? 'duo' : 'group'}. See the unlock summary table for totals and gaps.`));
       const start = range === 'month' ? end - MONTH_MS : first;
       // A zoomed window starts each line at its count on the window's first day, and fits the y axis to the window.
       const lines = series.map(row => {
@@ -108,7 +108,7 @@ export function renderRollStats(c, model, document = globalThis.document) {
     for (const row of series) tr.append(c.el('td', value(row))); body.append(tr);
   }
   table.append(body); panel.append(table,
-    c.el('p', 'Gaps only use unlocks with a date. Duo counts a chunk once, when the first of you unlocked it.', 'roll-stats-note'));
+    c.el('p', `Gaps only use unlocks with a date. ${model.members.length === 1 ? 'Your total counts each chunk once.' : `${model.members.length === 2 ? 'Duo' : 'Group'} counts a chunk once, when the first of you unlocked it.`}`, 'roll-stats-note'));
   const unknown = series.filter(row => row.unknownDateCount);
   if (unknown.length) {
     const list = c.el('ul', undefined, 'roll-stats-missing');

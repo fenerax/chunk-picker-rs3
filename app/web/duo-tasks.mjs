@@ -1,4 +1,5 @@
 import { createTaskFactsIndex } from '../core/progress-index.mjs';
+import { taskOwnersLabel } from './roster-labels.mjs';
 import { projectMemberTaskFacts, resolveSavedTaskId } from '../tasks/fact-projection.mjs';
 import { isCustomTask, customTaskForMember, customTaskDoable } from './custom-tasks-model.mjs';
 import { normalizeDuoPersonalFilter } from './duo-task-preferences.mjs';
@@ -114,7 +115,7 @@ export function selectDuoTasks({ state, results, registry, selectedMemberId, fil
     row.memberId = admitted.includes(selectedMemberId) ? selectedMemberId : admitted[0] ?? row.memberIds[0];
     row.task = row.tasksByMember[row.memberId]; row.facts = row.factsByMember[row.memberId];
     row.inspectionOnly = !row.presentedMemberIds.includes(row.memberId);
-    row.label = row.memberIds.length > 1 ? 'Both' : state.members.find(member => member.id === row.memberId).name;
+    row.label = taskOwnersLabel(state.members, row.memberIds);
     if (query && !admitted.some(id => { const task = row.tasksByMember[id]; return `${task.label} ${task.category}`.toLowerCase().includes(query); })) continue;
     all.push(row);
   }

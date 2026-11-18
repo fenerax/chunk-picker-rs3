@@ -1,3 +1,4 @@
+import { playersLabel } from './roster-labels.mjs';
 import { memberSelect, refreshMemberSelect } from './screen-ui.mjs';
 // Generated overlay URLs stay in this closure; the DOM only receives metadata.
 export function createOverlayPanel({ api, el, button, openDialog, dialogCurrent, dialog, members = () => [], clipboard = globalThis.navigator?.clipboard }) {
@@ -9,7 +10,7 @@ export function createOverlayPanel({ api, el, button, openDialog, dialogCurrent,
   const widgetNames = { goals: 'Active goals', roll: 'Last roll', count: 'Chunk count' };
   const sourceSizes = { goals: '600 × 360', roll: '600 × 180', count: '460 × 120' };
   const goalNames = { personal: 'Personal pins', group: 'Group goals', both: 'Both' };
-  const playerName = id => id === 'duo' ? 'Both players' : members().find(member => member.id === id)?.name ?? 'Player';
+  const playerName = id => id === 'duo' ? playersLabel(members()) : members().find(member => member.id === id)?.name ?? 'Player';
   const title = link => `${widgetNames[link.widget] ?? 'Overlay'} · ${playerName(link.player)}${link.widget === 'goals' && link.goals && link.goals !== 'personal' ? ` · ${goalNames[link.goals]}` : ''}`;
   const date = value => {
     const parsed = new Date(value);
@@ -90,12 +91,12 @@ export function createOverlayPanel({ api, el, button, openDialog, dialogCurrent,
     }
     const widget = select('Overlay', Object.entries(widgetNames), 'goals');
     const goals = select('Show goals', Object.entries(goalNames), 'personal');
-    const player = select('Players', [['duo', 'Both players'], ...members().map(member => [member.id, member.name])], 'duo');
+    const player = select('Players', [['duo', playersLabel(members())], ...members().map(member => [member.id, member.name])], 'duo');
     memberSelect(player, members());
     const variant = select('Layout', [['full', 'Full'], ['compact', 'Compact']], 'full');
     const size = select('Text size', [['small', 'Small'], ['medium', 'Medium'], ['large', 'Large']], 'medium');
     const sizing = el('p', undefined, 'field-help');
-    const goalHelp = el('p', 'Group goals include both players. The Players choice applies to personal pins.', 'field-help');
+    const goalHelp = el('p', `Group goals include ${playersLabel(members()).toLowerCase()}. The Players choice applies to personal pins.`, 'field-help');
     let groupOnly = false, personalPlayer = player.value;
     const updateGoals = () => {
       fields.get('Show goals').hidden = widget.value !== 'goals';

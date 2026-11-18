@@ -1,3 +1,4 @@
+import { rosterLabel } from './roster-labels.mjs';
 import { memberDisplay } from './screen-ui.mjs';
 import { buildFinishLineModel } from './finish-line-model.mjs';
 import { createFinishLineCopy } from './finish-line-copy.mjs';
@@ -8,18 +9,18 @@ export function renderFinishLine(c, model, { edit = false, expanded = new Set(),
   const root = c.el('div', undefined, 'finish-line-content');
   root.append(c.el('p', 'Draft — adjust this together. These are suggested goals before members, not a requirement to switch.', 'finish-line-intro'));
   const overview = c.el('div', undefined, 'finish-line-overview');
-  for (const member of [...model.members, { ...model.duo, name: 'Duo' }]) {
+  for (const member of [...model.members, { ...model.duo, name: rosterLabel(model.members) }]) {
     const row = c.el('div', undefined, 'finish-line-total');
     row.append(memberDisplay(c.el('strong', `${member.name} ${member.percent}%`), [member]), c.el('span', `${member.done}/${member.total} done`, 'finish-line-note'));
     const progress = c.el('progress'); progress.max = 100; progress.value = member.percent;
     progress.setAttribute('aria-label', `${member.name} finish line progress`); row.append(progress); overview.append(row);
   }
-  root.append(overview, c.el('p', 'Every goal counts the same, and levels count partly on the way to their target. Anything not recorded yet counts as not done. A duo goal is done once you have both finished it.', 'finish-line-note'));
+  root.append(overview, c.el('p', `Every goal counts the same, and levels count partly on the way to their target. Anything not recorded yet counts as not done. ${model.members.length === 2 ? 'A duo goal is done once you have both finished it.' : model.members.length === 1 ? 'A goal is done once you have finished it.' : 'A group goal is done once every player has finished it.'}`, 'finish-line-note'));
   for (const group of model.groups) {
     if (!group.items.length && group.id === 'custom') continue;
     const section = c.el('details', undefined, 'finish-line-group'); section.open = expanded.has(group.id);
     section.dataset.group = group.id;
-    const summary = c.el('summary'); summary.append(c.el('span', group.label), c.el('span', `${group.done}/${group.total} duo done`, 'finish-line-count'));
+    const summary = c.el('summary'); summary.append(c.el('span', group.label), c.el('span', `${group.done}/${group.total} ${rosterLabel(model.members).toLowerCase()} done`, 'finish-line-count'));
     section.append(summary);
     section.addEventListener('toggle', () => { if (section.open) expanded.add(group.id); else expanded.delete(group.id); });
     for (const item of group.items) {
@@ -65,7 +66,7 @@ export function renderFinishLine(c, model, { edit = false, expanded = new Set(),
   }
   if (edit) {
     const form = c.el('form', undefined, 'finish-line-custom-form'), input = c.el('input');
-    input.type = 'text'; input.maxLength = 500; input.required = true; input.placeholder = 'A goal for our duo';
+    input.type = 'text'; input.maxLength = 500; input.required = true; input.placeholder = model.members.length === 2 ? 'A goal for our duo' : model.members.length === 1 ? 'A goal for you' : 'A goal for our group';
     input.id = 'finish-line-custom-text'; input.value = customDraft;
     input.addEventListener('input', () => onCustomDraft(input.value));
     const label = c.el('label', 'Add a custom goal'); label.htmlFor = input.id;

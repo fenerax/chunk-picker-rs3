@@ -108,7 +108,7 @@ export function createCompletedView(context) {
     if (!current() || !model) return;
     const toolbar = el('div', undefined, 'completed-controls');
     const players = el('div', undefined, 'completed-players'); players.setAttribute('role', 'group'); players.setAttribute('aria-label', 'Review completed tasks for');
-    for (const owner of [...members(), { id: 'both', name: 'Both' }]) {
+    for (const owner of [...members(), ...(members().length > 1 ? [{ id: 'both', name: members().length === 2 ? 'Both' : 'All' }] : [])]) {
       const choice = button(owner.name, () => { if (selected === owner.id) return; selected = owner.id; attribution = 'all'; revision = undefined; refresh(true); }, 'completed-player');
       memberDisplay(choice, members()); choice.setAttribute('aria-pressed', String(selected === owner.id)); players.append(choice);
     }
@@ -149,7 +149,7 @@ export function createCompletedView(context) {
     const list = el('div', undefined, 'completed-list'); list.dataset.role = 'list';
     listNode = list; countNode = status; confirmationNode = undefined;
     const footer = el('div', undefined, 'completed-footer');
-    footer.append(el('span', 'Either player can satisfy a duo task. Imported ticks may have no completion date.'), ...(context.canWrite?.() === false ? [] : [button('Undo last change', async () => { await context.command({ type: 'undo' }); await refresh(true); })]));
+    footer.append(el('span', context.state().members.length === 2 ? 'Either player can satisfy a duo task. Imported ticks may have no completion date.' : 'Task checks follow your completion rule. Imported ticks may have no completion date.'), ...(context.canWrite?.() === false ? [] : [button('Undo last change', async () => { await context.command({ type: 'undo' }); await refresh(true); })]));
     root.replaceChildren(summary(), toolbar, rangeControls, chips, listHeading, reviewCopy.fallback, unknownNode, list, footer); renderList();
   }
   function renderList() {
@@ -166,7 +166,7 @@ export function createCompletedView(context) {
     list.replaceChildren();
     if (!rows.length) {
       const empty = el('div', undefined, 'completed-empty');
-      empty.append(el('h3', model.rows.length ? 'No matching completed tasks' : 'No completed tasks yet'), el('p', selection.error || (model.rows.length ? `No completed tasks match ${selection.label} and the current filters.` : `No completed tasks in ${selection.label}. Tasks completed by either player will appear here.`)));
+      empty.append(el('h3', model.rows.length ? 'No matching completed tasks' : 'No completed tasks yet'), el('p', selection.error || (model.rows.length ? `No completed tasks match ${selection.label} and the current filters.` : `No completed tasks in ${selection.label}. ${members().length === 1 ? 'Your completed tasks' : members().length === 2 ? 'Tasks completed by either player' : 'Tasks completed by any player'} will appear here.`)));
       if (query || attribution !== 'all' || range !== 'all') empty.append(button('Clear filters', () => { query = ''; attribution = 'all'; range = 'all'; rangePreference.set(range); draw(); }));
       list.append(empty); return;
     }

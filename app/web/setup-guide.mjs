@@ -85,7 +85,7 @@ export function createSetupGuide(ctx) {
   }
 
   function themeStep(body) {
-    body.append(el('h3', 'Pick a theme'), el('p', 'Choose the colours for your picker. Your partner keeps their own theme.', 'section-intro'));
+    body.append(el('h3', 'Pick a theme'), el('p', ctx.state().members.length === 1 ? 'Choose the colours for your picker.' : ctx.state().members.length === 2 ? 'Choose the colours for your picker. Your partner keeps their own theme.' : 'Choose the colours for your picker. Other players keep their own themes.', 'section-intro'));
     const theme = definition('theme');
     if (!theme?.options?.length) { body.append(el('p', 'This game has no theme setting.', 'field-help')); return; }
     body.append(preferenceChoices('setup-guide-theme', 'Theme', 'theme', theme.options.map(value => ({ value, label: THEME_LABELS[value] ?? value }))));
@@ -168,7 +168,7 @@ export function createSetupGuide(ctx) {
       body.append(list, el('h3', 'Keep your browser save'), el('p', 'Export / Import downloads your save. Groups and invite links need an account.'));
       return;
     }
-    body.append(list, el('h3', 'Invite your partner'));
+    body.append(list, el('h3', ctx.state().members.length === 2 ? 'Invite your partner' : 'Invite friends'));
     if (ctx.isAdmin?.()) {
       body.append(el('p', 'Make a player link for them in Admin → Invite links. Each link is private: send it only to them.'));
       body.append(button('Finish and open invite links', async () => { await dismiss('finished', false); ctx.openInvites?.(); }));

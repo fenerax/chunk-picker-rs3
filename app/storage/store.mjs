@@ -20,6 +20,7 @@ import path from 'node:path';
 import { acquireProcessGuard } from './process-guard.mjs';
 import { acquireStoreFileLock as acquireLock } from './store-lock.mjs';
 import { atomicWrite } from './atomic-write.mjs';
+import { checkStoreInitialization } from './initialization.mjs';
 import { createReadSnapshot } from './read-snapshot.mjs';
 export { prepareStoreProcessIdentity } from './store-lock.mjs';
 import { readStaticFieldBytes, validateStaticFieldReference } from './static-field.mjs';
@@ -128,6 +129,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     if (Object.keys(policy).some(key => !['backupDays', 'historyEntries'].includes(key))) throw new TypeError('Unknown retention policy setting.');
   }
   const directory = path.resolve(dataDir);
+  await checkStoreInitialization(directory);
   const ownedStorage = ownedFormat2 === false ? undefined : createOwnedStorage(ownedFormat2, directory, { readOnly });
   ownedCatalogueSemantics = !!ownedStorage && ownedCatalogueSemantics === true;
   if (ownedStorage) ownedStorage.validateCapture = async (dataDir, options) => {
@@ -1130,6 +1132,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     return result;
   }
   try { await withStoreWrite(directory, () => withCatalogue(() => withPluginEvidence(directory, async () => {
+    const initialized = await checkStoreInitialization(directory);
     const ownedStartupBytes = ownedStorage ? await readOwnedStartupDocument() : undefined;
     // Check the exact final document before ANY startup mutation. Hash includes
     // receipt/coordination metadata, not just the public revision number.
@@ -1158,7 +1161,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
       currentDiskSerialized = bytes; existing = true;
     } catch (error) {
       if (error.code !== 'ENOENT') throw new Error(`Cannot load the saved state: ${error.message}`, { cause: error });
-      if (readOnly || expectedCheckpoint) throw error;
+      if (initialized || readOnly || expectedCheckpoint) throw error;
       const seed = initialState === undefined
         ? createGroupState((await loadGameDefaults()).members.map(({ id, name }) => ({ id, name })), registry)
         : validateState(initialState, registry);

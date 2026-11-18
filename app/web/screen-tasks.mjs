@@ -359,7 +359,7 @@ export function createScreenTasks(c) {
       c.duoDetailRequests.set(key, request); request.finally(() => c.duoDetailRequests.delete(key)).catch(() => {});
     }
     const value = c.duoDetails.get(key) ?? await c.duoDetailRequests.get(key);
-    if ((requireDuo && !c.duoEnabled()) || selected !== c.memberId || revision !== c.state.revision || value.stateRevision !== revision || value.memberId !== ownerId || (guardDialog && !c.dialogCurrent(generation))) throw new Error('The duo view changed while loading. Open this task again.');
+    if ((requireDuo && !c.duoEnabled()) || selected !== c.memberId || revision !== c.state.revision || value.stateRevision !== revision || value.memberId !== ownerId || (guardDialog && !c.dialogCurrent(generation))) throw new Error(c.state.members.length === 2 ? 'The duo view changed while loading. Open this task again.' : 'The group view changed while loading. Open this task again.');
     if (c.duoDetails.size >= c.state.members.length) c.duoDetails.clear();
     c.duoDetails.set(key, value); return value;
   }
@@ -442,8 +442,8 @@ export function createScreenTasks(c) {
     const waiting = loadError === 'waiting';
     // The status line above already carries the note when no list is saved yet.
     const shownAbove = waiting && c.$('task-engine-status').textContent === c.viewerTaskWait();
-    if (!ready && !shownAbove) target.append(c.el('p', waiting ? c.viewerTaskWait() : loadError ? `Duo tasks could not load: ${loadError}` : inspect && baseReady ? 'Loading more group tasks…' : 'Updating tasks for both players… Previous tasks and counts are shown until ready.', 'status-detail'));
-    if (loadError && !waiting) target.append(c.button('Retry duo tasks', () => { c.duoLoadError = c.duoInspectionError = undefined; c.renderTasks(); }));
+    if (!ready && !shownAbove) target.append(c.el('p', waiting ? c.viewerTaskWait() : loadError ? `${c.state.members.length === 2 ? 'Duo' : 'Group'} tasks could not load: ${loadError}` : inspect && baseReady ? 'Loading more group tasks…' : `Updating tasks for ${c.state.members.length === 1 ? 'you' : c.state.members.length === 2 ? 'both players' : 'all players'}… Previous tasks and counts are shown until ready.`, 'status-detail'));
+    if (loadError && !waiting) target.append(c.button(c.state.members.length === 2 ? 'Retry duo tasks' : 'Retry group tasks', () => { c.duoLoadError = c.duoInspectionError = undefined; c.renderTasks(); }));
     if (!rows.length && ready) target.append(c.el('p', 'No tasks in this view.', 'empty-list'));
     const groups = new Map();
     for (const entry of rows) { if (!groups.has(entry.task.category)) groups.set(entry.task.category, []); groups.get(entry.task.category).push(entry); }
@@ -455,7 +455,7 @@ export function createScreenTasks(c) {
       if (c.activeTaskFilters().category(heading, category, body, () => c.paintTaskJobs(rowJobs(), generation))) jobs.push(...rowJobs());
     }
     const count = { union: rows.length, byMember: Object.fromEntries(c.state.members.map(owner => [owner.id, rows.filter(row => (row.displayMemberIds ?? row.memberIds).includes(owner.id)).length])), shared: rows.filter(row => (row.displayMemberIds ?? row.memberIds).length > 1).length };
-    c.$('task-count').textContent = sourceValues.length ? `Duo tasks ${count.union} · ${c.state.members.map(owner => `${owner.name} ${count.byMember[owner.id] ?? 0}`).join(' · ')} · shared ${count.shared}${ready ? '' : ' · previous counts, updating'}` : waiting ? 'Duo tasks' : 'Loading duo tasks…';
+    c.$('task-count').textContent = sourceValues.length ? `${c.state.members.length === 1 ? 'Your' : c.state.members.length === 2 ? 'Duo' : 'Group'} tasks ${count.union} · ${c.state.members.map(owner => `${owner.name} ${count.byMember[owner.id] ?? 0}`).join(' · ')} · shared ${count.shared}${ready ? '' : ' · previous counts, updating'}` : waiting ? `${c.state.members.length === 2 ? 'Duo' : 'Group'} tasks` : `Loading ${c.state.members.length === 2 ? 'duo' : 'group'} tasks…`;
     if (!baseReady) c.startDuoTaskLoad(c.foregroundTaskLoad?.memberId === c.memberId && c.foregroundTaskLoad.revision === c.state.revision);
     return ready;
   }

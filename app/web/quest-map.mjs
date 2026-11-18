@@ -30,7 +30,7 @@ export function createQuestMap(c) {
     header.append(title, clearButton);
     summary = c.el('p'); summary.setAttribute('role', 'status');
     const legend = c.el('p', undefined, 'quest-map-key');
-    legend.append(c.el('span', 'Unlocked by either player', 'quest-map-unlocked'), c.el('span', 'Still locked', 'quest-map-locked'));
+    legend.append(c.el('span', c.state.members.length === 1 ? 'Unlocked by you' : c.state.members.length === 2 ? 'Unlocked by either player' : 'Unlocked by any player', 'quest-map-unlocked'), c.el('span', 'Still locked', 'quest-map-locked'));
     notes = c.el('div', undefined, 'quest-map-notes');
     panel.append(header, summary, legend, notes);
     const dock = c.$('map-panel').querySelector('.map-dock');

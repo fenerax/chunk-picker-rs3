@@ -8,8 +8,6 @@ import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
 import { createServer } from '../app/server.mjs';
 import { createGroupState } from '../app/core/state.mjs';
-import { resolveDataset } from '../app/datasets.mjs';
-import { prepareGameStorage } from '../app/game-profile.mjs';
 
 const root = fileURLToPath(new URL('../.local/overlay-tests/', import.meta.url));
 const definitions = { chunks: { '11825': { Name: '<b>Port Sarim</b>' }, '11569': { Name: 'Musa Point' } }, walkableChunks: ['11825', '11569'], walkableChunksF2P: ['11825', '11569'] };
@@ -237,9 +235,10 @@ test('invalid overlay sidecar fails startup without retaining the gameplay direc
   const dataDir = await mkdtemp(path.join(root, 'invalid-'));
   let app;
   t.after(async () => { await app?.close(); await rm(dataDir, { recursive: true, force: true }); });
-  await prepareGameStorage(dataDir, await resolveDataset());
-  await writeFile(path.join(dataDir, 'overlays.json'), JSON.stringify({ schemaVersion: 1, links: [{ token: 'plaintext must not be accepted' }] }));
   const options = { dataDir, definitions, taskMap: {}, host: '127.0.0.1', port: 0, predictionPrewarm: false };
+  app = await createServer({ dataset: fixtureDataset, ...options });
+  await app.close(); app = undefined;
+  await writeFile(path.join(dataDir, 'overlays.json'), JSON.stringify({ schemaVersion: 1, links: [{ token: 'plaintext must not be accepted' }] }));
   await assert.rejects(createServer({ dataset: fixtureDataset, ...options }), /Invalid overlay record/);
   await writeFile(path.join(dataDir, 'overlays.json'), JSON.stringify({ schemaVersion: 1, links: [] }));
   app = await createServer({ dataset: fixtureDataset, ...options });

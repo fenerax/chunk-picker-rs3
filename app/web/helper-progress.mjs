@@ -1,3 +1,4 @@
+import { rosterLabel } from './roster-labels.mjs';
 import { memberSelect } from './screen-ui.mjs';
 import { replaceView } from './browser-state.mjs';
 import { dataTable, progressChart } from './helper-charts.mjs';
@@ -10,19 +11,19 @@ export function renderProgress(host, { viewCache, document, api, member, stateRe
   const heading = el('h2', 'Progress'), status = el('p', 'Loading saved progress…', 'helper-note'), content = el('div'); status.setAttribute('role', 'status');
   host.append(heading, el('p', 'Your maps, finished tasks and personal account progress, together in one place.', 'helper-intro'), status, content);
   function display(model) {
-    const members = model.current.members;
+    const members = model.current.members, combined = rosterLabel(members);
     if (scope !== 'duo' && !members.some(row => row.memberId === scope)) scope = member.id;
     content.replaceChildren();
-    const totals = dataTable(document, 'Saved totals for both players and the duo', ['Saved total', ...members.map(row => row.name), 'Duo'],
+    const totals = dataTable(document, members.length === 1 ? 'Your saved totals' : members.length === 2 ? 'Saved totals for both players and the duo' : 'Saved totals for each player and the group', ['Saved total', ...members.map(row => row.name), combined],
       progressMetrics.map(([key, label]) => [label, ...members.map(row => number(row.metrics[key])), number(model.current.duo.metrics[key])]));
     totals.className = 'helper-table-wrap helper-progress-totals';
     content.append(totals,
-    el('p', 'Duo chunks and tasks count each shared one once. Quest points and levels add both accounts. A task tick does not grant quest points or levels. “Not recorded” means the picker has no complete saved account count.', 'helper-note'));
+    el('p', `${members.length === 1 ? 'Your chunks and tasks are counted once.' : `${combined} chunks and tasks count each shared one once.`} Quest points and levels ${members.length === 2 ? 'add both accounts' : members.length === 1 ? 'come from your character' : 'add all accounts'}. A task tick does not grant quest points or levels. “Not recorded” means the picker has no complete saved account count.`, 'helper-note'));
     const controls = el('div', undefined, 'helper-progress-controls'), label = el('label', 'Show graphs for'), selector = el('select'); selector.id = 'helper-progress-scope'; label.htmlFor = selector.id;
-    for (const row of [...members.map(row => ({ id: row.memberId, name: row.name })), { id: 'duo', name: 'Duo' }]) { const option = el('option', row.name); option.value = row.id; selector.append(option); }
+    for (const row of [...members.map(row => ({ id: row.memberId, name: row.name })), { id: 'duo', name: combined }]) { const option = el('option', row.name); option.value = row.id; selector.append(option); }
     selector.value = scope; memberSelect(selector, members.map(row => ({name:row.name}))); label.append(selector); controls.append(label); content.append(controls);
     selector.addEventListener('change', () => { scope = selector.value; display(model); });
-    const series = progressSeries(model, scope), name = scope === 'duo' ? 'Duo' : members.find(row => row.memberId === scope)?.name;
+    const series = progressSeries(model, scope), name = scope === 'duo' ? combined : members.find(row => row.memberId === scope)?.name;
     content.append(el('h3', `${name} over time`), el('p', progressRecap(series.thisWeek, series.lastWeek), 'helper-answer helper-progress-recap'));
     const firstHistory = model.history.points[0]?.at, firstDaily = model.daily.points[0]?.at;
     const about = el('details', undefined, 'helper-progress-about'), note = (...nodes) => about.append(...nodes);

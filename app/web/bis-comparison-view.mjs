@@ -24,11 +24,11 @@ export function createBiSComparisonView(context, { memberId, result, isCurrent }
       body.replaceChildren(renderBiSComparison(context, [{ member: selected, result }, { member: partner, result: other }]));
     } catch (error) {
       if (sequence !== request || !isCurrent() || root.isConnected === false) return;
-      body.replaceChildren(el('p', error.message ?? 'Partner gear is unavailable. Try again.', 'info-empty'), button('Retry comparison', load));
+      body.replaceChildren(el('p', error.message ?? 'Player gear is unavailable. Try again.', 'info-empty'), button('Retry comparison', load));
     }
   };
   if (!partners.length) body.append(el('p', 'Add another player to compare gear.', 'info-empty'));
-  else if (!context.ensureMemberResult) body.append(el('p', 'Partner gear is unavailable. Refresh the page and try again.', 'info-empty'));
+  else if (!context.ensureMemberResult) body.append(el('p', 'Player gear is unavailable. Refresh the page and try again.', 'info-empty'));
   else { chooser?.addEventListener('change', load); load(); }
   return root;
 }

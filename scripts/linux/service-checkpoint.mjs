@@ -5,6 +5,7 @@ import { capturePluginItemFiles, pluginItemFiles } from '../../app/plugin-items.
 import { randomUUID } from 'node:crypto';
 import { performance } from 'node:perf_hooks';
 import { snapshotPath, snapshotRoot, withDirectoryBarriers } from '../../app/storage/snapshot.mjs';
+import { checkStoreInitialization } from '../../app/storage/initialization.mjs';
 import { atomic, copyTree, directory, encode, exists, headroom, inventory, json, noLinks, outside, sha } from './files.mjs';
 import { recoverySources, withRecoveryLeases, captureOwnedClosure, verifyOwnedClosure } from './owned-recovery.mjs';
 
@@ -165,7 +166,7 @@ export async function captureServiceCheckpoint({ settings, registry, checkpoint,
           await onPhase('picker-barrier', { id: picker.id });
           await noLinks(source);
           if (await exists(path.join(source, 'operator-quarantine.json'))) throw new Error('Quarantined picker blocks service backup; release or delete it before capture.');
-          picker.initialized = await exists(path.join(source, 'state.json'));
+          picker.initialized = await checkStoreInitialization(source);
           const binding = await checkpointBinding(source);
           if (picker.binding && encode(binding) !== encode(picker.binding)) throw new Error('Picker binding changed during backup.');
           picker.binding = binding;
@@ -281,6 +282,7 @@ export async function verifyServiceBackup(backup) {
       continue;
     }
     if (picker.initialized !== actual.some(row => row.path === root + '/state.json')) throw new Error('Picker state missing.');
+    await checkStoreInitialization(path.join(backup, root));
     if (picker.binding && encode(picker.binding) !== encode(await json(path.join(backup, root + '.dataset.json')))) throw new Error('Picker binding mismatch.');
   }
   if (document.pickers.filter(p => p.lifecycle === 'active').some(p => !ids.has(p.id))) throw new Error('Picker checkpoint incomplete.');

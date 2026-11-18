@@ -15,7 +15,7 @@ export function createCalculationFeedback({ show, delay = 1000, setTimer = setTi
 
 export function calculationLabel(path, payload, state, memberId, groupView) {
   const name = state?.members.find(owner => owner.id === (payload?.memberId ?? memberId))?.name ?? 'this player';
-  if (/^\/api\/tasks(?:\?|$)/.test(path)) return groupView ? 'Updating tasks for both players…' : `Updating tasks for ${name}…`;
+  if (/^\/api\/tasks(?:\?|$)/.test(path)) return groupView ? `Updating tasks for ${state?.members.length === 1 ? name : state?.members.length === 2 ? 'both players' : 'all players'}…` : `Updating tasks for ${name}…`;
   if (path === '/api/predict') return `Calculating the chunk preview for ${name}…`;
   if (path === '/api/sandbox/evaluate') return 'Calculating Sandbox tasks…';
   if (path !== '/api/command') return '';

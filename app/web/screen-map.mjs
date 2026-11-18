@@ -41,6 +41,10 @@ export function createScreenMap(c) {
     c.mapDisplay?.refresh();
     c.finishLine?.refresh();
     c.partnerSupply?.refresh();
+    const supplies = c.$('partner-supply-open');
+    if (supplies) supplies.textContent = c.state.members.length === 1 ? 'Supplies' : c.state.members.length === 2 ? 'Ask your partner' : 'Ask your group';
+    const instructions = c.$('empty-map-instructions');
+    if (instructions && c.dataset?.capabilities?.independent !== true) instructions.textContent = `Import a gameplay export or a full backup. ${c.state.members.length === 1 ? 'Your map retains its owner' : c.state.members.length === 2 ? 'Your two maps retain their owners' : 'Your maps retain their owners'}, hand-added roll pool, notes and progress.`;
     c.bossGatesView?.refresh();
     if (c.duoCoordination) c.duoCoordination.render();
     else c.$('undo').disabled = !c.canWrite() || c.sandbox.active || !c.state.history.some(event => event.undo && !event.undoneRevision);
@@ -106,10 +110,10 @@ export function createScreenMap(c) {
     const disconnected = c.$('group-view').checked && Object.values(c.map.connections?.byChunk ?? {}).some(connection => connection.connected === false);
     c.$('map-legend').replaceChildren(
       ...(visible.some(owner => owner.unlocked?.length) ? [item('Unlocked', 'border', c.preferences().unlockedBorderColor || '#FF0000')] : []), ...owners,
-      ...(disconnected ? [item('Disconnected partner', 'disconnected')] : []),
+      ...(disconnected ? [item(c.state.members.length === 2 ? 'Disconnected partner' : 'Disconnected group chunks', 'disconnected')] : []),
       ...(c.pool?.eligible?.length ? [item(`${c.member().name}’s roll options (numbered)`, 'pool')] : []),
       ...visible.filter(owner => owner.selected?.length).map(owner => item(`${owner.name}’s saved hand selections`, 'selected')),
-      c.el('span', `Numbers show ${c.member().name}’s current roll options. Saved selections and partner overlays do not imply eligibility.`, 'status-detail'),
+      c.el('span', `Numbers show ${c.member().name}’s current roll options. Saved selections and ${c.state.members.length === 1 ? 'map overlays' : c.state.members.length === 2 ? 'partner overlays' : 'group overlays'} do not imply eligibility.`, 'status-detail'),
       ...(visible.some(owner => owner.pendingRoll?.length) ? [item('Roll choices', 'pending')] : []),
       item('Chunk info open', 'open'),
       chunkColourLegend(c, visible),

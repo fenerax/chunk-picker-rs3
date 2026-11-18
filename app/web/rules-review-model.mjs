@@ -1,3 +1,4 @@
+import { playersLabel } from './roster-labels.mjs';
 import { taskRuleValue } from './rules-model.mjs';
 
 export const ruleValueText = value => value === true ? 'On' : value === false ? 'Off' : value == null ? 'No effect' : String(value);
@@ -18,7 +19,7 @@ export function reviewChanges(state, rules, baseline, registry) {
     return members.flatMap(member => {
       if (!baseline?.get(rule.id)?.has(member.id)) return [];
       const before = baseline.get(rule.id).get(member.id), after = reviewValue(state, member.id, rule, registry);
-      return Object.is(before, after) ? [] : [{ ruleId: rule.id, label: reviewRuleLabel(rule), member: rule.sharedRuleId ? 'Both players' : member.name, before, after }];
+      return Object.is(before, after) ? [] : [{ ruleId: rule.id, label: reviewRuleLabel(rule), member: rule.sharedRuleId ? playersLabel(state.members) : member.name, before, after }];
     });
   });
 }

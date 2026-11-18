@@ -33,7 +33,7 @@ export function createDuoTaskView({ document, getState, getSelectedMember, comma
     if (viewerId !== getViewerId()) { viewerId = getViewerId(); personalFilter = readDuoPersonalFilter(storage, viewerId); }
     const owners = getState().members;
     if (!['all', 'both', ...owners.map(owner => owner.id)].includes(ownerFilter)) ownerFilter = 'all';
-    const choices = [{ id: 'all', name: 'All' }, ...owners, { id: 'both', name: 'Both' }];
+    const choices = [{ id: 'all', name: 'All' }, ...owners, ...(owners.length > 1 ? [{ id: 'both', name: owners.length === 2 ? 'Both' : 'Shared' }] : [])];
     const signature = JSON.stringify(choices.map(owner => owner.id));
     // Routine task redraws and filter activation must retain the focused chip.
     if (signature !== chipSignature) {
@@ -48,9 +48,9 @@ export function createDuoTaskView({ document, getState, getSelectedMember, comma
     const name = owners.find(owner => owner.id === getSelectedMember())?.name ?? 'selected player';
     secondary.replaceChildren(...[['group', 'Normal group tasks'], ['not-done', `Not done by ${name}`], ['only-player', `Only ${name} can do`]].map(([value, text]) => { const option = el('option', text); option.value = value; return option; }));
     secondary.value = personalFilter; memberSelect(secondary, owners);
-    hint.textContent = personalFilter === 'group' ? 'Tasks from each player’s own chunks. Shared checks count for the duo.'
-      : personalFilter === 'not-done' ? `Tasks ${name} can do now and has not personally completed, including tasks their partner has done.`
-        : `Tasks ${name} can do now and has not personally completed, which their partner cannot do on their own map.`;
+    hint.textContent = personalFilter === 'group' ? (owners.length === 1 ? 'Tasks from your own chunks.' : `Tasks from each player’s own chunks. Shared checks count for the ${owners.length === 2 ? 'duo' : 'group'}.`)
+      : personalFilter === 'not-done' ? `Tasks ${name} can do now and has not personally completed${owners.length === 1 ? '.' : owners.length === 2 ? ', including tasks their partner has done.' : ', including tasks other players have done.'}`
+        : owners.length === 1 ? `Tasks ${name} can do now and has not personally completed.` : `Tasks ${name} can do now and has not personally completed, which ${owners.length === 2 ? 'their partner cannot do on their own map' : 'no other player can do on their own map'}.`;
   }
   function choose(host, entry, action, done, completion = false) {
     const current = () => completion ? canComplete() && entry.memberIds.every(id => getState().members.some(owner => owner.id === id))

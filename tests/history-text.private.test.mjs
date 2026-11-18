@@ -44,7 +44,7 @@ const coverage = [
   ['map', 'unlock-both', {}, 'Unlocked both rolled chunks'],
   ['map', 'cancel-roll', {}, 'Cancelled the roll'],
   ['map', 'random-start', { count: 2 }, 'Chose two random starting chunks'],
-  ['saves', 'go-members', { starts: [{ memberId: 'player1', chunkId: '16692', place: 'Wendlewick' }] }, 'Restarted both maps for members: Player 1 at Wendlewick'],
+  ['saves', 'go-members', { starts: [{ memberId: 'player1', chunkId: '16692', place: 'Wendlewick' }] }, 'Restarted the map for members: Player 1 at Wendlewick'],
   ['map', 'unpick', {}, 'Forfeited an unlocked chunk at random'],
   ['map', 'set-starting-chunk', { chunkId: '12850' }, 'Set the starting chunk to Lumbridge'],
   ['tasks', 'claim-task', { taskId: 't:cape' }, 'A player started “Obtain a Team-1 cape”'],
