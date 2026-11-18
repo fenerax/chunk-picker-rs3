@@ -232,7 +232,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
     invites = await openInviteStore({ dataDir, masterToken: token, masterLabel: dataset.gameDefaults.masterLabel, accounts, signInMode: signIn, pickerRegistry: pickerRouting?.registry });
     if (pickerRouting?.authenticate) invites.authenticate = (request, security) => pickerRouting.authenticate(request, security, pickerId);
     signInFlow = await openSignIn({ publicOrigin, mode: signIn, accounts, invites, provider: signInProvider, guestModeEnabled,
-      unauthenticated: key => limits.unauthenticated(key), checkRequestOrigin, serializeMutation, webRoot, pickerRegistry: pickerLimits && pickerRouting?.registry ? pickerLimits.provisioningRegistry(pickerRouting.registry) : pickerRouting?.registry, syncLegacy: pickerRouting?.syncLegacy, reclaimIdentity: pickerRouting?.reclaimIdentity });
+      unauthenticated: key => limits.unauthenticated(key), checkRequestOrigin, serializeMutation, webRoot, pickerRegistry: pickerLimits && pickerRouting?.registry ? pickerLimits.provisioningRegistry(pickerRouting.registry) : pickerRouting?.registry, syncLegacy: pickerRouting?.syncLegacy, reclaimIdentity: pickerRouting?.reclaimIdentity, groupInvites: pickerRouting?.groupInvites });
     feedback = await openFeedbackStore({ dataDir });
     const usageMembers = store.getCalculationSnapshot().members;
     usageStorage = await openUsageStore({ dataDir, readOnly: liveSwap?.standby === true,
@@ -549,9 +549,12 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
     }
   }
   let mutationQueue = Promise.resolve();
-  function serializeMutation(operation) {
+  function serializeMutation(operation, { groupAdmission = false } = {}) {
     if (closed) return Promise.reject(httpError(503, 'The picker is stopping. Retry after it restarts.'));
-    const pending = mutationQueue.then(() => withStoreWrite(dataDir, operation));
+    const pending = mutationQueue.then(() => {
+      if (closed || !groupAdmission && pickerRouting?.writeBlocked?.()) throw httpError(503, 'Group admission is completing. Retry after it finishes.');
+      return withStoreWrite(dataDir, operation);
+    });
     mutationQueue = pending.catch(() => {});
     return pending;
   }
@@ -958,6 +961,10 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
       if (request.method === 'GET' && route.startsWith('/join/')) {
         if (closed) throw httpError(503, 'Please try again later.');
         const finishJoin = limits.beginJoin(security.rateKey);
+        const admissionSecret = route.slice('/join/'.length);
+        if (admissionSecret.startsWith('gin_') && /^[A-Za-z0-9_-]{43}$/.test(admissionSecret.slice(4))) {
+          signInFlow.groupJoin(request, response, { secret: admissionSecret, security }); finishJoin(true); return;
+        }
         if (signIn !== 'off' && security.publicRequest) {
           const invite = invites.inspectToken(route.slice('/join/'.length), security);
           if (invite && !invite.admin && !invite.viewer && await signInFlow.join(request, response, { invite, security, identity })) {
@@ -2053,7 +2060,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
       else if (['/rules-panel.mjs', '/rules-model.mjs', '/rules-review.mjs', '/rules-review-model.mjs', '/rules-review-preview.mjs', '/rule-explanations.mjs', '/rules-review.css', '/kept-rules.mjs', '/sandbox.mjs', '/sandbox.css', '/sandbox-rules.mjs', '/duo-coordination.mjs', '/roster-labels.mjs'].includes(route)) file = await containedFile(webRoot, route.slice(1));
       else if (['/completed-view.mjs', '/completed-model.mjs', '/completed-range.mjs', '/completed-range-preference.mjs', '/completed-view.css'].includes(route)) file = await containedFile(webRoot, route.slice(1));
       else if (['/helper.mjs', '/helper.css', '/helper-model.mjs', '/helper-training.mjs', '/helper-goals.mjs', '/helper-drops.mjs', '/helper-charts.mjs', '/helper-utilities.mjs', '/helper-progress.mjs', '/helper-progress-model.mjs'].includes(route)) file = await containedFile(webRoot, route.slice(1));
-      else if (route === '/amount-input.mjs') file = await containedFile(webRoot, 'amount-input.mjs');
+      else if (['/amount-input.mjs', '/group-invites.mjs'].includes(route)) file = await containedFile(webRoot, route.slice(1));
       else if (['/core/interior-maps.mjs', '/core/archaeology.mjs'].includes(route)) file = await containedFile(path.join(ROOT, 'app', 'core'), route.slice('/core/'.length));
       else if (['/core/experience.mjs', '/core/combat-level.mjs', '/core/f2p-skill-caps.mjs', '/core/finish-line.mjs', '/core/group-goals.mjs', '/core/group-goal-types.mjs', '/core/tick-active-tasks.mjs'].includes(route)) file = await containedFile(path.join(ROOT, 'app', 'core'), route.slice('/core/'.length));
       else if (['/copy-lists.mjs', '/copy-list-control.mjs', '/copy-list-model.mjs', '/copy-lists.css'].includes(route)) file = await containedFile(webRoot, route.slice(1));
@@ -2151,6 +2158,12 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
         if (closed || store.getInfo().revision !== 0) throw httpError(409, 'This sign-in already has gameplay.');
         return work();
       });
+    },
+    withGroupAdmission(work) { return serializeMutation(() => work(store), { groupAdmission: true }); },
+    groupRuleDefinitions: () => ruleRegistry.definitions,
+    untouchedOnboarding() {
+      const state = store.getCalculationSnapshot().readState;
+      return store.getInfo().revision === 0 && state.members.length === 1 && state.members[0].id === 'owner' && !state.history?.length;
     },
     fenceRevokedSessions: () => endInactiveClients(),
     revokeDeletionSessions: scope => invites.revokeDeletion(scope),

@@ -4,6 +4,7 @@ import { renderSignInPage } from '../app/signin-page.mjs';
 import { createAccountPanel } from '../app/web/account-panel.mjs';
 import { createAccountsPanel } from '../app/web/accounts-panel.mjs';
 import { createCharacterForm } from '../app/web/character-menu.mjs';
+import { renderAcceptance, ownerInviteControls } from '../app/web/group-invites.mjs';
 
 class Node {
   constructor(tag, text = '', className = '') { this.tag = tag; this.textContent = text ?? ''; this.className = className; this.children = []; this.attributes = {}; this.listeners = {}; this.hidden = false; this.disabled = false; this.classList = { add: name => { this.className += ` ${name}`; } }; }
@@ -18,6 +19,37 @@ const el = (...args) => new Node(...args);
 const button = (text, click) => Object.assign(el('button', text), { click });
 const walk = node => [node, ...node.children.flatMap(walk)];
 const text = node => walk(node).map(item => item.textContent).join(' ');
+
+test('group invitation review offers New character, disables progressed maps and requires confirmation', async () => {
+  const root = el('div'), error = el('p'), sent = [], destinations = [];
+  const value = { invite: { status: 'pending' }, reviewToken: 'review', characters: [
+    { id: 'progressed', eligible: false, reason: 'This character already has a map in progress. Choose a new character, or wait until moving characters is available.' },
+    { id: 'untouched', eligible: true, runescapeName: 'Sample' }], review: { unlocked: ['12341'], blacklisted: [], rules: {}, taskRules: {}, startingChunk: '12341' } };
+  await renderAcceptance({ root, error, el: (...args) => Object.assign(el(...args), { style: {} }), location: { assign: href => destinations.push(href) },
+    fetch: async (url, options) => { sent.push([url, options.body && JSON.parse(options.body)]); return { ok: true, json: async () => options.body ? { character: { href: '/characters/joined' } } : value }; } });
+  assert.match(text(root), /map in progress.*new character/); assert.match(text(root), /New character/); assert.match(text(root), /Destination map and rules/);
+  const nodes = walk(root), options = nodes.filter(n => n.tag === 'option'); assert.equal(options.find(n => n.value === 'progressed').disabled, true);
+  const form = nodes.find(n => n.tag === 'form'), confirm = nodes.find(n => n.required === true), select = nodes.find(n => n.tag === 'select');
+  await form.listeners.submit({ preventDefault() {} }); assert.equal(sent.length, 1);
+  select.value = 'untouched'; select.listeners.change(); assert.match(text(root), /onboarding solo will be retired/);
+  select.value = ''; select.listeners.change(); nodes.find(n => n.tag === 'input' && n.maxLength === 12).value = 'New Sample';
+  confirm.checked = true; await form.listeners.submit({ preventDefault() {} });
+  assert.deepEqual(sent[1], ['/auth/group-invite/accept', { reviewToken: 'review', confirmed: true, runescapeName: 'New Sample' }]);
+  assert.deepEqual(destinations, ['/characters/joined']);
+});
+
+test('owner controls return a link once for copying and send scoped revoke/replace requests', async () => {
+  const sent = [], copied = [];
+  const root = ownerInviteControls({ el, scopeHeaders: { 'X-Character-Id': 'owner' }, clipboard: { writeText: async value => copied.push(value) },
+    fetch: async (url, options) => { sent.push(options); return { ok: true, json: async () => options.body ? { link: 'https://picker.example/join/synthetic' } : { invites: [{ id: 'pending', status: 'pending', expiresAt: '2026-01-08' }] } }; } });
+  await walk(root).find(n => n.textContent === 'Create player invitation').listeners.click();
+  assert.equal(sent.every(r => r.headers['X-Character-Id'] === 'owner'), true);
+  assert.equal(walk(root).find(n => n.tag === 'input').value, 'https://picker.example/join/synthetic');
+  await walk(root).find(n => n.textContent === 'Copy invitation link').listeners.click(); assert.deepEqual(copied, ['https://picker.example/join/synthetic']);
+  await walk(root).find(n => n.textContent === 'Replace link').listeners.click();
+  assert.ok(sent.some(r => r.body === '{"replaceId":"pending"}'));
+  await walk(root).find(n => n.textContent === 'Revoke').listeners.click(); assert.ok(sent.some(r => r.body === '{"revokeId":"pending"}'));
+});
 
 test('character menu disambiguates, marks current and unavailable characters, and pauses affected deletion', async () => {
   const moves = [], scopes = [], panel = createAccountPanel({ el, openDialog() {}, beforeSwitch: async () => scopes.push('drained'), location: { assign: href => moves.push(href) } });

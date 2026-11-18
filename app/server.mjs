@@ -459,7 +459,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
       runeMetrics, progressSources, originalSync, idleMemoryOptions, predictionPrewarm,
       schedulingClock, publicOrigin, signIn, signInProvider, liveSwap, pluginItemsBetaAsLive,
       startupSignal, startupTimingMs, transport,
-      pickerRouting: pickerRegistry ? { registry: pickerRegistry, syncLegacy, syncCharacterNames: members => pickerRegistry.updateCharacterNames('legacy', members), sessionView: ownerSessionView, reclaimIdentity: (...args) => pickerRouter.reclaimIdentity(...args) } : undefined });
+      pickerRouting: pickerRegistry ? { registry: pickerRegistry, syncLegacy, groupInvites: { review: (...args) => pickerRouter.groupInvites.review(...args), accept: (...args) => pickerRouter.groupInvites.accept(...args) }, syncCharacterNames: members => pickerRegistry.updateCharacterNames('legacy', members), sessionView: ownerSessionView, reclaimIdentity: (...args) => pickerRouter.reclaimIdentity(...args) } : undefined });
     if (pickerRegistry) {
       await reconcileTombstones({ registry: pickerRegistry, revokeSessions: scope => context.revokeDeletionSessions(scope),
         revokeAccount: id => context.revokeDeletedAccount(id) });
@@ -496,11 +496,12 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
               openDiagnostics,
               initialState: initial, now, random, beforeCommit: Object.assign(async change => {
                 await beforeCommit?.(change);
+                if (change.operation === 'roster') await pickerRegistry.groupInvitePoint('invite-roster-prepared', pickerId);
                 if (change.operation === 'replace') await pickerRegistry.reserveTransferMembers(pickerId, change.state.members.map(m => m.id));
-              }, { operations: beforeCommit ? undefined : Object.freeze(['replace']) }), retention, runeMetrics, progressSources, originalSync,
+              }, { operations: beforeCommit ? undefined : Object.freeze(['replace', 'roster']) }), retention, runeMetrics, progressSources, originalSync,
               prepareState: prepareOwnedPickerState(pickerDataset, pickerRegistry, pickerId),
               idleMemoryOptions, predictionPrewarm, schedulingClock, publicOrigin,
-              pickerRouting: { syncCharacterNames: members => pickerRegistry.updateCharacterNames(pickerId, members), requiredMemberIds: () => pickerRegistry.listAccounts().flatMap(a => a.memberships.filter(m => m.pickerId === pickerId && m.role !== 'viewer').map(m => m.memberId)), sessionView: ownerSessionView, authenticate: pickerRouter.authenticate, indexKey: pickerRouter.indexKey, removeKey: pickerRouter.removeKey,
+              pickerRouting: { writeBlocked: () => pickerRegistry.getPicker(pickerId)?.lifecycle !== 'active' || pickerRegistry.pickerAdmissionPending(pickerId), syncCharacterNames: members => pickerRegistry.updateCharacterNames(pickerId, members), requiredMemberIds: () => pickerRegistry.listAccounts().flatMap(a => a.memberships.filter(m => m.pickerId === pickerId && m.role !== 'viewer').map(m => m.memberId)), sessionView: ownerSessionView, authenticate: pickerRouter.authenticate, indexKey: pickerRouter.indexKey, removeKey: pickerRouter.removeKey,
                 authenticateKey: (request, memberId) => pickerRouter.authenticateKey(request, pickerId, memberId) },
               transport: { savingConnections: transport.savingConnections, requestClose: transport.requestClose } });
             const actual = opened.store.getCalculationSnapshot().members.map(member => member.id);
@@ -508,6 +509,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
             await opened.prepare(); opened.startBackground(); openDiagnostics?.finish('completed'); return opened;
           } catch (error) { openDiagnostics?.finish('failed', error.code ?? error.name); await opened?.close(); throw error; }
         } });
+      await pickerRouter.groupInvites.recover();
     }
   } catch (error) { await deepProfiles.close(); await context?.close(); await pickerRegistry?.close(); await taskWorker?.close(); await timings.close(); throw error; }
   // Preserve the original synchronous dispatcher when routing is disabled.
