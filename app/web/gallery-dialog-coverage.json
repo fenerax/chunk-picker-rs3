@@ -333,5 +333,8 @@
   },
   "app/web/account-panel.mjs :: 'Deletion complete'": {
     "reason": "Deletion requires a signed-in opt-in account and changes authentication and saved data. Synthetic owner UI/HTTP tests cover confirmation, refusal and the success receipt; the read-only gallery cannot perform deletion."
+  },
+  "app/web/account-panel.mjs :: 'Player invitations'": {
+    "reason": "Owner invitation management creates, replaces and revokes single-use registry invitations and copies secret links, which the read-only gallery cannot perform. Synthetic account-panel tests cover create, copy, replace and revoke; owner invite HTTP tests cover owner scope and CSRF; an isolated synthetic browser walkthrough covers the dialog and acceptance at desktop and phone widths."
   }
 }
