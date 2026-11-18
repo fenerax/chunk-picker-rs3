@@ -2,6 +2,16 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "date": "2026-11-18",
+      "title": "Plan ahead and move between pickers",
+      "items": [
+        "Info → What would membership add? compares your current F2P map with membership and lists the extra tasks, items, areas and chunk content by category.",
+        "Export / Import now includes Move to the original picker: a guided move that keeps a backup, carries your chunks and supported rules, and brings your journal into Notes.",
+        "How? now explains ordinary processing recipes, including their ingredients, station and skill chain.",
+        "After you sign in with Discord or Google, the picker returns you to the page you were opening."
+      ]
+    },
+    {
       "date": "2026-11-16",
       "title": "Backlog tasks your way",
       "items": [
