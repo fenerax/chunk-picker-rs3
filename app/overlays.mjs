@@ -1,9 +1,9 @@
 import { createStreamLimits } from './security/request.mjs';
 import { parseRequestJSON, runBodyCheck } from './security/json.mjs';
-import { open, readFile, realpath, rename, rm } from 'node:fs/promises';
+import { open, readFile, realpath, rm } from 'node:fs/promises';
+import { publishFile, warnDurability } from './storage/publication.mjs';
 import { randomBytes, randomUUID, createHash, timingSafeEqual } from 'node:crypto';
 import { generateToken } from './security/tokens.mjs';
-import { setTimeout as delay } from 'node:timers/promises';
 import path from 'node:path';
 import { overlayPayload, overlayRollCandidate, overlayText } from './overlay-model.mjs';
 
@@ -37,20 +37,14 @@ function validate(document) {
   return document;
 }
 
-async function atomicWrite(file, document) {
+async function atomicWrite(file, document, { onPostPublishSyncError = 'throw' } = {}) {
   const temporary = `${file}.${process.pid}.${randomBytes(8).toString('hex')}.tmp`;
   let handle;
   try {
     handle = await open(temporary, 'wx', 0o600);
     await handle.writeFile(`${JSON.stringify(validate(document))}\n`);
     await handle.sync(); await handle.close(); handle = undefined;
-    for (let attempt = 0; ; attempt++) {
-      try { await rename(temporary, file); break; }
-      catch (error) {
-        if (process.platform !== 'win32' || !['EPERM', 'EACCES', 'EBUSY'].includes(error.code) || attempt >= 6) throw error;
-        await delay(20 * 2 ** attempt);
-      }
-    }
+    return await publishFile(temporary, file, { onPostPublishSyncError });
   } finally { await handle?.close().catch(() => {}); await rm(temporary, { force: true }).catch(() => {}); }
 }
 
@@ -192,7 +186,8 @@ export async function openOverlays({ dataDir, store, world, webRoot, publicOrigi
       if (closed) throw fail(503, 'The picker is stopping.');
       requireAdmin(request, security);
       const next = structuredClone(current), result = operation(next);
-      await atomicWrite(file, next); current = next;
+      const publication = await atomicWrite(file, next, { onPostPublishSyncError: 'warn' }); current = next;
+      warnDurability(publication, 'overlays');
       for (const client of clients) if (!next.links.some(record => record.id === client.id && !record.revoked)) stop(client);
       return result;
     }));
@@ -288,7 +283,8 @@ export async function openOverlays({ dataDir, store, world, webRoot, publicOrigi
       const pending = queue.then(async () => {
         const next = structuredClone(current);
         for (const record of next.links) record.revoked = true;
-        await atomicWrite(file, next); current = next;
+        const publication = await atomicWrite(file, next, { onPostPublishSyncError: 'warn' }); current = next;
+        warnDurability(publication, 'overlays');
       });
       queue = pending.catch(() => {}); return pending;
     },
