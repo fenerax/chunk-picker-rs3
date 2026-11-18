@@ -396,3 +396,25 @@ test('history hydration retains JSON number normalization without mutating owned
   assert.ok(Object.is(reopened.getState().legacy.negativeZero, -0));
   assert.deepEqual(importBackup(JSON.stringify(portable)), portable.state);
 });
+
+test('a startup progress observation publishes the static dependency it stages for an inline save', async t => {
+  const dataDir = await directory(t);
+  const state = createGroupState([{ id: 'actor1', name: 'Player' }]);
+  const task = { id: 'synthetic-quest', category: 'Quest', label: 'Synthetic quest' };
+  state.tasks = [task];
+  const questPoints = new Map([[task.id, 1]]);
+  const created = await openStore({ dataDir, initialState: state, now: () => '2026-11-04T12:00:00.000Z', retention: false });
+  await created.close();
+  // Older saves kept large fields inline; the next write moves them to a sidecar.
+  const document = await diskDocument(dataDir);
+  (document.state ?? document).legacy = { evidence: large('legacy') };
+  await writeFile(path.join(dataDir, 'state.json'), JSON.stringify(document));
+  const observed = await openStore({ dataDir, now: () => '2026-11-05T12:00:00.000Z', progressQuestPoints: questPoints, retention: false });
+  assert.equal(observed.getState().revision, 0);
+  assert.ok(observed.getState().progressSnapshots.days.length > 0);
+  await observed.close();
+  assert.ok((await diskDocument(dataDir)).storage.fields.legacy, 'the observation externalized the inline field');
+  const reopened = await openStore({ dataDir, now: () => '2026-11-05T13:00:00.000Z', retention: false });
+  t.after(() => reopened.close());
+  assert.equal(reopened.getState().legacy.evidence, large('legacy'));
+});

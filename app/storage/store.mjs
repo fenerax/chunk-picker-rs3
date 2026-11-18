@@ -1276,11 +1276,14 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
       const observed = await publicationState(observeStartupProgress(current));
       if (observed !== current) {
         try {
-          await withPublicationPreparation(async () => {
+          await withPublicationPreparation(async pending => {
             const diskDocument = await serializedDiskState(observed);
             // Observations keep the same revision, but still replace the durable save.
             await retainBackup(current, 'progress-snapshot');
-            const publication = await writeState(diskDocument, { onPostPublishSyncError: 'warn' });
+            // An inline field can move to a sidecar here; publish it before the state that references it.
+            const publication = await writeState(diskDocument, { onPostPublishSyncError: 'warn',
+              beforeRename: () => publishDependencies(pending.dependencies) });
+            pending.published = true;
             current = observed; currentDiskSerialized = diskDocument;
             pluginFoldPending = false;
             reportDurability(publication);
