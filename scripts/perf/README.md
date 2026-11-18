@@ -115,7 +115,7 @@ npm run perf -- --runs 1 --label terrain-review --scenarios cold,reload,cold-30m
 
 Use a quiet machine for comparable baseline and after measurements. The harness prints progress and writes a timestamped JSON report plus readable Markdown tables under ignored `.local/perf/`. The JSON contains individual measurements, waterfalls, category totals, endpoint TTFB samples, long-task phase summaries, server process startup, worker compilation and server RSS. Median tables cover each requested scenario.
 
-Defaults read `.local/duo`, `.local/map-assets` and `.local/game-data` from `C:/Users/User/Projects/chunk-picker-rs3`. The harness never contacts its server. `--source`, `--map-assets`, and `--game-data` can select another existing fixture and read-only asset directories. `--chrome` or `CHROME_PATH` selects Chrome. `--timeout` sets each measurement's deadline in milliseconds. `--runs` defaults to three. `--label` uses letters, numbers, underscores and hyphens.
+Defaults read `.local/duo`, `.local/map-assets` and `.local/game-data` from `<private-checkout>`. The harness never contacts its server. `--source`, `--map-assets`, and `--game-data` can select another existing fixture and read-only asset directories. `--chrome` or `CHROME_PATH` selects Chrome. `--timeout` sets each measurement's deadline in milliseconds. `--runs` defaults to three. `--label` uses letters, numbers, underscores and hyphens.
 
 `--terrain-assets PATH` selects the generated terrain bundle independently of the original map assets. It defaults to the map asset directory and reaches the scratch server through `RS3_TERRAIN_ASSETS_DIR`. The option is recorded in JSON. Both asset directories remain read-only.
 

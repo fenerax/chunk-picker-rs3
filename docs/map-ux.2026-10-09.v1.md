@@ -49,11 +49,11 @@ The captures are local gameplay evidence and are excluded from Git. Absolute pat
 
 | Surface | Desktop, dark | Phone, light |
 | --- | --- | --- |
-| Port Sarim travel lines | [Desktop lines](C:/Users/User/Projects/chunk-picker-rs3-wt/mapux/.local/mapux-review-2026-10-09/desktop-travel-lines.png) | [Phone lines](C:/Users/User/Projects/chunk-picker-rs3-wt/mapux/.local/mapux-review-2026-10-09/phone-travel-lines.png) |
-| Travel toggle and key | [Desktop key](C:/Users/User/Projects/chunk-picker-rs3-wt/mapux/.local/mapux-review-2026-10-09/desktop-travel-key.png) | [Phone key](C:/Users/User/Projects/chunk-picker-rs3-wt/mapux/.local/mapux-review-2026-10-09/phone-travel-key.png) |
-| Sticker flyout | [Desktop flyout](C:/Users/User/Projects/chunk-picker-rs3-wt/mapux/.local/mapux-review-2026-10-09/desktop-sticker-flyout.png) | [Phone flyout](C:/Users/User/Projects/chunk-picker-rs3-wt/mapux/.local/mapux-review-2026-10-09/phone-sticker-flyout.png) |
+| Port Sarim travel lines | Desktop lines (`<review-checkout>/.local/mapux-review-2026-10-09/desktop-travel-lines.png`) | Phone lines (`<review-checkout>/.local/mapux-review-2026-10-09/phone-travel-lines.png`) |
+| Travel toggle and key | Desktop key (`<review-checkout>/.local/mapux-review-2026-10-09/desktop-travel-key.png`) | Phone key (`<review-checkout>/.local/mapux-review-2026-10-09/phone-travel-key.png`) |
+| Sticker flyout | Desktop flyout (`<review-checkout>/.local/mapux-review-2026-10-09/desktop-sticker-flyout.png`) | Phone flyout (`<review-checkout>/.local/mapux-review-2026-10-09/phone-sticker-flyout.png`) |
 
-Additional [phone gray key](C:/Users/User/Projects/chunk-picker-rs3-wt/mapux/.local/mapux-review-2026-10-09/phone-gray-travel-key.png).
+Additional phone gray key (`<review-checkout>/.local/mapux-review-2026-10-09/phone-gray-travel-key.png`).
 
 ## Files changed
 

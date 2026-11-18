@@ -1,6 +1,6 @@
 # Original RS3 Chunk Picker rules audit
 
-Audited 2026-10-07. Repository: `C:/Users/User/Projects/chunk-picker-rs3`; authored checkout HEAD `222a9c4f478d40e33568f40b8da1411154225d51`; retained reference v6.9.68 (`reference/original-picker/index.js:1613`). All code citations are relative to this repository. This report describes retained code and data, not verified RuneScape account or game state. README, PRODUCT and the three requested audit/access/parity documents were read first. Repository inspection, static literal parsing, effective JSON counts and isolated in-memory probes were read-only; no picker server was started. The only written file is this report.
+Audited 2026-10-07. Repository: `<private-checkout>`; authored checkout HEAD `222a9c4f478d40e33568f40b8da1411154225d51`; retained reference v6.9.68 (`reference/original-picker/index.js:1613`). All code citations are relative to this repository. This report describes retained code and data, not verified RuneScape account or game state. README, PRODUCT and the three requested audit/access/parity documents were read first. Repository inspection, static literal parsing, effective JSON counts and isolated in-memory probes were read-only; no picker server was started. The only written file is this report.
 
 ## Q13. The Boss rule
 

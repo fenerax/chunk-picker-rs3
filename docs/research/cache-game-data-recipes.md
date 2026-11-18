@@ -7,13 +7,13 @@ The copied cache supplies **6,848 named item production candidates**, with an in
 ## Reproduce and inspect
 
 ```powershell
-node scripts/cache/game-data-recipes.mjs --output C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/NEW-recipes-directory
+node scripts/cache/game-data-recipes.mjs --output <private-checkout>/.local/game-data/NEW-recipes-directory
 node --test tests/cache-game-data-recipes.test.mjs
 ```
 
-The command refuses existing output filenames. It uses `C:/Users/User/Projects/rs3-cache-work/cache-copy` and `rsmv` by default; `--workspace` selects another workspace containing those directories, and `--build` selects the schema build. The default **950 is an inferred decoder schema**, not independently verified client build identity. Whole copied-file hashes, decompressed archive hashes, index versions/timestamps, source schema hashes, transformed-interpreter hash and decoder commit are recorded in `recipes-manifest.v1.json`.
+The command refuses existing output filenames. It uses `<cache-workspace>/cache-copy` and `rsmv` by default; `--workspace` selects another workspace containing those directories, and `--build` selects the schema build. The default **950 is an inferred decoder schema**, not independently verified client build identity. Whole copied-file hashes, decompressed archive hashes, index versions/timestamps, source schema hashes, transformed-interpreter hash and decoder commit are recorded in `recipes-manifest.v1.json`.
 
-The final observed extraction is in `C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/recipes-2026-10-08-v4/`. Its four files are:
+The final observed extraction is in `<private-checkout>/.local/game-data/recipes-2026-10-08-v4/`. Its four files are:
 
 - `recipes.cache-2026-10-08.v1.json`: candidates, requirement structs, raw XP and research fragments.
 - `recipes-retained-comparison.2026-10-08.v1.json`: exact output/skill joins and input-name comparisons with retained challenge records.
@@ -50,7 +50,7 @@ Bronze bar uses separate copper and tin requirement structs. Each contains inven
 
 ## Current Wiki spot checks
 
-The normal web fetch was restricted; direct public Wiki API revision queries succeeded. The retained raw API responses are under `C:/Users/User/Projects/rs3-cache-work/recipes-wiki-validation.2026-10-08.v1.json` and `.v2.json`. The links below pin the exact revision checked; these are bounded recipe checks, not a Wiki-generated catalogue.
+The normal web fetch was restricted; direct public Wiki API revision queries succeeded. The retained raw API responses are under `<cache-workspace>/recipes-wiki-validation.2026-10-08.v1.json` and `.v2.json`. The links below pin the exact revision checked; these are bounded recipe checks, not a Wiki-generated catalogue.
 
 | Product | Cache skill/level | Encoded XP → checked value | Revision checked |
 | --- | --- | --- | --- |

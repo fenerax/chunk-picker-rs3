@@ -4,13 +4,13 @@ The reference catalogue contains nine dig-site records, 149 excavatable-resource
 
 ## Sources and reproduction
 
-The extractor uses plain copied SQLite JS5 files in `C:/Users/User/Projects/rs3-cache-work/cache-copy` and untouched [rsmv a92b8920b9b9842adde78822646ecad1a6f4fc15](https://github.com/skillbert/rsmv/tree/a92b8920b9b9842adde78822646ecad1a6f4fc15). Build 950 is an inferred compatible decoder schema, not an independently verified live-game client build. No original client/cache files, private saves, live picker ports or network decoding loaders were used.
+The extractor uses plain copied SQLite JS5 files in `<cache-workspace>/cache-copy` and untouched [rsmv a92b8920b9b9842adde78822646ecad1a6f4fc15](https://github.com/skillbert/rsmv/tree/a92b8920b9b9842adde78822646ecad1a6f4fc15). Build 950 is an inferred compatible decoder schema, not an independently verified live-game client build. No original client/cache files, private saves, live picker ports or network decoding loaders were used.
 
-Prior object exports and mask bundles were copied without modification into `C:/Users/User/Projects/rs3-cache-work/archmaps-archaeology/objects-copy` and `masks-copy`. Their input hashes are checked against the prior export manifest and mandatory pinned mask manifest before any attachment. Raw research output, complete DB table schemas/rows and decompressed archive hashes are in `archmaps-archaeology/extraction-v6/`. The [machine-readable report](archaeology-extraction.2026-10-08.v1.json) records input identities, counts, gaps and bounded Wiki evidence.
+Prior object exports and mask bundles were copied without modification into `<cache-workspace>/archmaps-archaeology/objects-copy` and `masks-copy`. Their input hashes are checked against the prior export manifest and mandatory pinned mask manifest before any attachment. Raw research output, complete DB table schemas/rows and decompressed archive hashes are in `archmaps-archaeology/extraction-v6/`. The [machine-readable report](archaeology-extraction.2026-10-08.v1.json) records input identities, counts, gaps and bounded Wiki evidence.
 
 ```powershell
-node scripts/cache/archaeology-wiki-samples.mjs C:/Users/User/Projects/rs3-cache-work/archmaps-archaeology/NEW-wiki-samples.json
-node scripts/build-archaeology-catalogue.mjs --output C:/Users/User/Projects/rs3-cache-work/archmaps-archaeology/NEW-extraction --wiki C:/Users/User/Projects/rs3-cache-work/archmaps-archaeology/NEW-wiki-samples.json
+node scripts/cache/archaeology-wiki-samples.mjs <cache-workspace>/archmaps-archaeology/NEW-wiki-samples.json
+node scripts/build-archaeology-catalogue.mjs --output <cache-workspace>/archmaps-archaeology/NEW-extraction --wiki <cache-workspace>/archmaps-archaeology/NEW-wiki-samples.json
 node --test tests/cache-archaeology-catalogue.test.mjs tests/cache-archaeology-application.test.mjs tests/preview-archaeology.test.mjs
 node scripts/preview-archaeology.mjs --state C:/path/to/copied/state.json --json
 ```

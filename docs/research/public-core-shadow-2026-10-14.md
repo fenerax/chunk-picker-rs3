@@ -7,7 +7,7 @@ This report covers milestone 6 of [the public/private split plan](public-private
 
 ## Artifact and input identity
 
-The final public artifact is `C:/Users/User/Projects/chunk-picker-rs3-public-m6shadow-verified`.
+The final public artifact is `<public-export>`.
 
 | Evidence | Value |
 | --- | --- |
@@ -129,7 +129,7 @@ Final captures: [desktop 1440](../../.local/screens/m6shadow/shadow-1440.png), [
 
 M7 must create the new public source checkout, retain the existing immutable private pack selections, install the pinned private descriptor, and use a separate operator launcher. `Start-Picker.ps1` derives its root and storage paths, so moving that launcher without explicit configuration could open a different game. Prepare matching start/stop helpers that verify the new code path, existing data directory, exact PID and creation time. Update the everyday startup entrypoint to that pair; retain the old pair for rollback.
 
-Before switching, read the actual deployed configuration and keep `C:/Users/User/Projects/chunk-picker-rs3/.local/duo` as the absolute data directory, with its existing sibling `duo.dataset.json` binding. Keep the original parent's `public-origin`, `backup-destination`, `backup-status.json`/backup log and existing scheduled backup configuration. Preserve retention/runtime options too. Take a secured full snapshot with the writer stopped. Include the access token, invitations, sessions and revocations, overlays, journals, static state, archived History and backups. Ordinary gameplay exports omit credentials and cannot replace this operational snapshot.
+Before switching, read the actual deployed configuration and keep `<private-checkout>/.local/duo` as the absolute data directory, with its existing sibling `duo.dataset.json` binding. Keep the original parent's `public-origin`, `backup-destination`, `backup-status.json`/backup log and existing scheduled backup configuration. Preserve retention/runtime options too. Take a secured full snapshot with the writer stopped. Include the access token, invitations, sessions and revocations, overlays, journals, static state, archived History and backups. Ordinary gameplay exports omit credentials and cannot replace this operational snapshot.
 
 Preserve the current host and port 8788, optional loopback port 8789 if configured, the exact saved `RS3_PUBLIC_ORIGIN`, and the Tailscale Funnel proxy/cookie origin configuration. Read these actual values at cutover; do not change DNS, proxy targets or links. Start the new checkout's `app/server.mjs` with explicit `--data-dir`, `--host`, `--port` and the existing `--loopback-port` when applicable. Select `RS3_DATASET=duo-legacy`, `RS3_PACKS_DIR` pointing to the existing main-checkout packs, the exact pinned selection, and `RS3_DATASET_PROFILE`/`RS3_DATASET_PROFILE_SHA256` before imports. Retain art overrides only after checking their bytes against the selected packs. Do not use the independent npm launcher or a disposable verification preload for deployment.
 

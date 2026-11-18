@@ -42,11 +42,11 @@ Every go-live is three commands, in this order, against the same kit, candidate 
 These commands create an absent directory and do not install or operate the live picker.
 
 ```powershell
-$private = 'C:/Users/User/Projects/chunk-picker-rs3-private'
+$private = '<private-companion>'
 $kit = "$private/releases/relpipe-v2-staged-r2"
 $source = "$private/checks/private-source"
 $node = 'C:/Program Files/nodejs/node.exe'
-$shared = 'C:/Users/User/Projects/chunk-picker-rs3/.local/claude-tools'
+$shared = '<private-checkout>/.local/claude-tools'
 & $node "$source/scripts/private-companion/stage-release-v2.mjs" --source $source --accepted "$private/releases/rel1" --output $kit --heavy-lock "$shared/with-heavy.ps1" --light-lock "$shared/with-light.ps1" --concurrency 1
 ```
 
@@ -55,7 +55,7 @@ This conservative kit uses the existing shared wrappers, whose exact bytes are p
 ## Prepare and prove the Area candidate
 
 ```powershell
-& $node "$kit/tools/release-v2.mjs" prepare --kit $kit --repo 'C:/Users/User/Projects/chunk-picker-rs3-core' --ref 90bbcb162721b25e4d589edfb3ac0412286623c0 --base 7ce633d15e2cf367fb7b46d01343a4483d5c8287 --previous-config "$private/operator/candidate-rel1.json" --input "$kit/requests/area-check.json" --legacy-rollback
+& $node "$kit/tools/release-v2.mjs" prepare --kit $kit --repo '<public-core>' --ref 90bbcb162721b25e4d589edfb3ac0412286623c0 --base 7ce633d15e2cf367fb7b46d01343a4483d5c8287 --previous-config "$private/operator/candidate-rel1.json" --input "$kit/requests/area-check.json" --legacy-rollback
 $candidate = "$kit/releases/area-check-90bbcb1"
 & $node "$kit/tools/release-v2.mjs" release --kit $kit --release $candidate --gates-only
 ```
@@ -100,7 +100,7 @@ Exact matching suites and gallery receipts are reused. Installation verification
 For each later release, author an absent input JSON with a unique `releaseId`, one changelog entry and an existing roadmap item ID/note. Then use one command:
 
 ```powershell
-& $node "$kit/tools/release-v2.mjs" run --kit $kit --repo 'C:/Users/User/Projects/chunk-picker-rs3-core' --ref '<exact core ref>' --input '<absolute input JSON>' --current "$install/current.json"
+& $node "$kit/tools/release-v2.mjs" run --kit $kit --repo '<public-core>' --ref '<exact core ref>' --input '<absolute input JSON>' --current "$install/current.json"
 ```
 
 The current v2 pointer supplies the accepted base and previous release automatically. Source prose is copied from the currently selected addon, so consecutive text releases retain earlier entries. Only candidate text copies change. Text releases run schema/delta checks, focused addon/render/tamper tests and authenticated disposable candidate endpoint/banner checks; gallery and pinned installation checks remain required. Any unrecognized change takes the full lane. Missing, failed, stale or incomplete evidence never grants reuse.

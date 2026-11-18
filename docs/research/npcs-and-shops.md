@@ -6,12 +6,12 @@ The statement in the earlier cache-game-data research that ordinary shop stock w
 
 ## Scope and provenance
 
-All implementation changes are in `codex/npcshops`, based on `claude/redesign` at `1c64928`. Scratch work reused `C:/Users/User/Projects/rs3-cache-work/cache-copy` and the pristine [rsmv decoder at a92b8920b9b9842adde78822646ecad1a6f4fc15](https://github.com/skillbert/rsmv/tree/a92b8920b9b9842adde78822646ecad1a6f4fc15). Schema build **950 is inferred compatibility**, not an independently verified game build or a guarantee of live freshness. No original game-cache database was opened, no game client or running picker was used, and no additional original JS5 copies were needed.
+All implementation changes are in `codex/npcshops`, based on `claude/redesign` at `1c64928`. Scratch work reused `<cache-workspace>/cache-copy` and the pristine [rsmv decoder at a92b8920b9b9842adde78822646ecad1a6f4fc15](https://github.com/skillbert/rsmv/tree/a92b8920b9b9842adde78822646ecad1a6f4fc15). Schema build **950 is inferred compatibility**, not an independently verified game build or a guarantee of live freshness. No original game-cache database was opened, no game client or running picker was used, and no additional original JS5 copies were needed.
 
 Authoritative new, immutable output directories:
 
-- NPCs: `C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/npcs-2026-10-08-v3`. Manifest SHA-256 `3292754c2b79d3fe1ada582a080949a52864f3f698c2da626c2e26f422d674b1`.
-- Shops: `C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/shops-2026-10-08-v1`. Manifest SHA-256 `e32f3be215d8176a711b9bca21b0f312515b4135dcf5ea6ca70c144ac0547a08`.
+- NPCs: `<private-checkout>/.local/game-data/npcs-2026-10-08-v3`. Manifest SHA-256 `3292754c2b79d3fe1ada582a080949a52864f3f698c2da626c2e26f422d674b1`.
+- Shops: `<private-checkout>/.local/game-data/shops-2026-10-08-v1`. Manifest SHA-256 `e32f3be215d8176a711b9bca21b0f312515b4135dcf5ea6ca70c144ac0547a08`.
 
 Earlier NPC v1/v2 directories are intermediate outputs and are not selected by the runtime. The manifests bind copied database hashes and timestamps, every read decompressed archive hash and subfile list, decoder/schema/interpreter hashes, per-definition hashes, implementation hashes and output hashes. Repository text hashes use `scripts/lib/provenance-hash.mjs` with CRLF pairs normalized to LF; copied databases and external local artifacts use exact bytes. Existing `.gitattributes` rules cover every new `.mjs`, `.json` and `.md` file with `text eol=lf`.
 
@@ -102,14 +102,14 @@ The retained-data CLI fixture checked **20,437 Player 1 tasks and 20,375 Player 
 ## Reproduction and verification
 
 ```powershell
-node scripts/cache/game-data-npcs.mjs --workspace C:/Users/User/Projects/rs3-cache-work --output NEW-NPC-directory --calibration C:/Users/User/Projects/rs3-cache-work/npcshops-combat-calibration-2026-10-08.v1.json
-node scripts/cache/game-data-shops.mjs --workspace C:/Users/User/Projects/rs3-cache-work --output NEW-SHOP-directory --wiki C:/Users/User/Projects/rs3-cache-work/npcshops-shop-wiki-2026-10-08.v1.json
+node scripts/cache/game-data-npcs.mjs --workspace <cache-workspace> --output NEW-NPC-directory --calibration <cache-workspace>/npcshops-combat-calibration-2026-10-08.v1.json
+node scripts/cache/game-data-shops.mjs --workspace <cache-workspace> --output NEW-SHOP-directory --wiki <cache-workspace>/npcshops-shop-wiki-2026-10-08.v1.json
 node --test tests/cache-game-data-npcs.test.mjs tests/cache-game-data-shops.test.mjs tests/npc-metadata-evidence.test.mjs tests/npcs-and-shops-application.test.mjs
 npm test -- --test-concurrency=1
 ```
 
-Output directories/files must be new. Calibration and Wiki snapshots are retained with exact hashes. Independent verification recomputed all 32,905 NPC raw-definition hashes/source links, all five NPC and five shop output hashes/sizes, seven copied shop-source database hashes and recorded current repository text hashes. Scratch receipts are `npcshops-npcs-verification-2026-10-08.v1.json` and `shops-verification-2026-10-08.v1.json` under `rs3-cache-work`.
+Output directories/files must be new. Calibration and Wiki snapshots are retained with exact hashes. Independent verification recomputed all 32,905 NPC raw-definition hashes/source links, all five NPC and five shop output hashes/sizes, seven copied shop-source database hashes and recorded current repository text hashes. Scratch receipts are `npcshops-npcs-verification-2026-10-08.v1.json` and `shops-verification-2026-10-08.v1.json` under `<cache-workspace>`.
 
-Final focused extraction/evidence/application checks: **33 passing tests**. The complete `npm test -- --test-concurrency=1` suite passed **1,358 tests, with one skipped and zero failures (1,359 total)**. It used isolated scratch TEMP/TMP and serial test-file execution to avoid timing interference with parallel extraction work. The final log is `C:/Users/User/Projects/rs3-cache-work/npcshops-npm-test-2026-10-08-v2.log`; the application review binds its exact hash. No live UI or private-state behavior was exercised.
+Final focused extraction/evidence/application checks: **33 passing tests**. The complete `npm test -- --test-concurrency=1` suite passed **1,358 tests, with one skipped and zero failures (1,359 total)**. It used isolated scratch TEMP/TMP and serial test-file execution to avoid timing interference with parallel extraction work. The final log is `<cache-workspace>/npcshops-npm-test-2026-10-08-v2.log`; the application review binds its exact hash. No live UI or private-state behavior was exercised.
 
 Files added are the three runtime data JSON files and two data modules; NPC extraction/report, shop extraction and NPC evidence scripts; the preview script; four focused test files; three extraction/evidence JSON reviews, the application JSON review and this document. Existing changes are nine small server-hook lines and four lines each in the ordinary and collection engines. No frontend, retained reference, task identity registry, main checkout tracked file or save was changed. The finished work is committed on `codex/npcshops`; it is not pushed, rebased or merged.

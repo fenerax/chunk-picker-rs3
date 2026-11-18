@@ -44,8 +44,8 @@ For this desktop's read-only inputs:
 
 ```powershell
 node scripts/build-chunk-sections.mjs `
-  'C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/walkability-masks.cache-audit-2026-10-07-v4/walkability.v1.json.gz' `
-  'C:/Users/User/Projects/chunk-picker-rs3/.local/map-assets/pins.cache-2026-10-08-05932552f7af-v1.json'
+  '<private-checkout>/.local/game-data/walkability-masks.cache-audit-2026-10-07-v4/walkability.v1.json.gz' `
+  '<private-checkout>/.local/map-assets/pins.cache-2026-10-08-05932552f7af-v1.json'
 ```
 
 The source gzip SHA-256 must equal the audited surface-correction provenance (`d553ed49ce12254d197e82abe673279f3bb1ede5eb34098cf0376e68bd67fdf6`). The decompressed 327,121,011-byte JSON has SHA-256 `8acf903e117aee20077e8fb6e46307f51d6cfe630e98f4391b222c6c8449da3a`. The generated catalogue records these hashes, the exact pins file hash, and LF-normalized repository hashes for runtime walkability, component policy and surface corrections using `scripts/lib/provenance-hash.mjs`. The loader verifies compressed bundle bytes against the manifest, the pinned walking source, all three repository input hashes, canonical 512-byte masks, and runtime component tile counts.

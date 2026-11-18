@@ -228,7 +228,7 @@ original task definitions and restores an originally paused watchdog to paused.
 
 ## Published source identity
 
-The disposable `chunk-picker-rs3-core` clone was taken from
+The disposable `<public-core>` clone was taken from
 `https://github.com/fenerax/chunk-picker-rs3`, published commit
 `88f8b775ce346c821387528ce833a51a4e79e260`. Redesign HEAD's reviewed export is
 `79ac5e81684e38df7d9e39af9724f2fa6d9dfbd4`, with 646 files. The unmodified clone
@@ -267,7 +267,7 @@ gracefully stops its one scratch writer and deletes the copy, clone, packs,
 companion and protected scratch snapshot. No real task registration occurs.
 
 ```powershell
-powershell -NoProfile -File .local/with-heavy.ps1 node scripts/rehearse-m7-cutover.mjs --live-data C:/Users/User/Projects/chunk-picker-rs3/.local/duo --packs-dir C:/Users/User/Projects/chunk-picker-rs3/.local/packs --redesign C:/Users/User/Projects/chunk-picker-rs3-wt/redesign --task-exports C:/Users/User/Projects/chunk-picker-rs3-wt/m7kit/.local/m7kit --report C:/Users/User/Projects/chunk-picker-rs3-wt/m7kit/.local/m7kit/rehearsal.json
+powershell -NoProfile -File .local/with-heavy.ps1 node scripts/rehearse-m7-cutover.mjs --live-data <private-checkout>/.local/duo --packs-dir <private-checkout>/.local/packs --redesign <review-checkout> --task-exports <review-checkout>/.local/m7kit --report <review-checkout>/.local/m7kit/rehearsal.json
 ```
 
 Verification logs are private in `.local/m7kit/`:

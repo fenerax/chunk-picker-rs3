@@ -4,14 +4,14 @@ This is an advisory audit of Player 1's copied local cache for map 28, plane 0. 
 
 ## Sources and reproducibility
 
-The importer uses Node **24.19.0** built-in `node:sqlite`, zlib, hashing and TypeScript stripping. Git **2.55.0.windows.5** pinned [rsmv a92b8920b9b9842adde78822646ecad1a6f4fc15](https://github.com/skillbert/rsmv/tree/a92b8920b9b9842adde78822646ecad1a6f4fc15) outside every repository at `C:/Users/User/Projects/rs3-cache-work/rsmv`. Only its reviewed opcode interpreter, constants and data schemas execute. Its npm scripts, dependency installers, renderer, Electron entry point, downloaders and game-client facilities are not invoked. External code is not vendored. Schema build **950** is an inference supported by exact decoding; it is not an independently verified client build number.
+The importer uses Node **24.19.0** built-in `node:sqlite`, zlib, hashing and TypeScript stripping. Git **2.55.0.windows.5** pinned [rsmv a92b8920b9b9842adde78822646ecad1a6f4fc15](https://github.com/skillbert/rsmv/tree/a92b8920b9b9842adde78822646ecad1a6f4fc15) outside every repository at `<cache-workspace>/rsmv`. Only its reviewed opcode interpreter, constants and data schemas execute. Its npm scripts, dependency installers, renderer, Electron entry point, downloaders and game-client facilities are not invoked. External code is not vendored. Schema build **950** is an inference supported by exact decoding; it is not an independently verified client build number.
 
-Only `js5-2`, `5`, `16`, `23`, `42` and `8` are opened, from `C:/Users/User/Projects/rs3-cache-work/cache-copy`. `js5-18` was also copied for NPC-schema investigation but is not needed by this export. The approximately 2.36 GB sprite database accounts for most copied bytes; only referenced sprite archives are decoded. The original `C:/ProgramData/Jagex/RuneScape` files were copied with filesystem reads and never opened with SQLite. Copies use read-only SQLite handles and `query_only`; symlink/real-path checks reject the original cache directory. Local index timestamps span 2026-09-24 to 2026-10-02. This snapshot is not guaranteed to match the latest live game.
+Only `js5-2`, `5`, `16`, `23`, `42` and `8` are opened, from `<cache-workspace>/cache-copy`. `js5-18` was also copied for NPC-schema investigation but is not needed by this export. The approximately 2.36 GB sprite database accounts for most copied bytes; only referenced sprite archives are decoded. The original `C:/ProgramData/Jagex/RuneScape` files were copied with filesystem reads and never opened with SQLite. Copies use read-only SQLite handles and `query_only`; symlink/real-path checks reject the original cache directory. Local index timestamps span 2026-09-24 to 2026-10-02. This snapshot is not guaranteed to match the latest live game.
 
 Commands, run with the worktree as the current directory:
 
 ```powershell
-$scratch = 'C:/Users/User/Projects/rs3-cache-work'
+$scratch = '<cache-workspace>'
 New-Item -ItemType Directory -Force "$scratch/cache-copy"
 foreach ($major in 2,5,16,23,42,8,18) {
   Copy-Item -LiteralPath "C:/ProgramData/Jagex/RuneScape/js5-$major.jcache" -Destination "$scratch/cache-copy/"
@@ -27,7 +27,7 @@ node --max-old-space-size=8192 scripts/import-rs3-cache.mjs `
 Use a new output directory for each run. `--baseline` is optional; its contents and SHA-256 are recorded. The baseline reconstruction is documented in [cache-pins.md](cache-pins.md). Optional `--openable-evidence` accepts a JSON array of `[locIdOrPlacementKey, {passableWhenOpen:true,evidence,conditions}]` pairs. Names and an `Open` action alone do not certify a door. Optional `--publish-new` writes new versioned pins, PNGs and a manifest only after all landmark validation checks pass, verifies output hashes, refuses existing names and leaves the selected assets untouched. The publication helper can also publish a completed output without decoding again:
 
 ```powershell
-node --input-type=module -e "import {publishCacheAssets} from './scripts/cache/publish.mjs'; console.log(publishCacheAssets({output:'C:/Users/User/Projects/rs3-cache-work/outputs/NEW-VERSION',publish:'C:/Users/User/Projects/chunk-picker-rs3/.local/map-assets'}));"
+node --input-type=module -e "import {publishCacheAssets} from './scripts/cache/publish.mjs'; console.log(publishCacheAssets({output:'<cache-workspace>/outputs/NEW-VERSION',publish:'<private-checkout>/.local/map-assets'}));"
 ```
 
 ## Collision interpretation
@@ -80,9 +80,9 @@ The following generated review tables and machine files list the complete compar
 
 <!-- Generated final review tables -->
 
-Final source run: [manifest](C:/Users/User/Projects/rs3-cache-work/outputs/cache-audit-2026-10-07-v4/manifest.v1.json), generated 2026-10-08T00:12:25.604Z. It records per-database and per-archive hashes, decoder source hashes, inferred schema build, exact layout, baseline hash and validated landmarks.
+Final source run: manifest (`<cache-workspace>/outputs/cache-audit-2026-10-07-v4/manifest.v1.json`), generated 2026-10-08T00:12:25.604Z. It records per-database and per-archive hashes, decoder source hashes, inferred schema build, exact layout, baseline hash and validated landmarks.
 
-The 310,565-byte [advisory region/component/edge file](../../app/data/cache-walkability.2026-10-07.v1.json) is committed but is not imported by application code. Its SHA-256 is `2a6acb3b9a2a45eac73cfb543f1d63d2d733310b2e03d5b2bf2f40fa7b41130e`. Full tile masks, exact portals, doors and uncertainty records remain in [walkability.v1.json.gz](C:/Users/User/Projects/rs3-cache-work/outputs/cache-audit-2026-10-07-v4/walkability.v1.json.gz). Per-component membership is in [membership.v1.json](C:/Users/User/Projects/rs3-cache-work/outputs/cache-audit-2026-10-07-v4/membership.v1.json).
+The 310,565-byte [advisory region/component/edge file](../../app/data/cache-walkability.2026-10-07.v1.json) is committed but is not imported by application code. Its SHA-256 is `2a6acb3b9a2a45eac73cfb543f1d63d2d733310b2e03d5b2bf2f40fa7b41130e`. Full tile masks, exact portals, doors and uncertainty records remain in walkability.v1.json.gz (`<cache-workspace>/outputs/cache-audit-2026-10-07-v4/walkability.v1.json.gz`). Per-component membership is in membership.v1.json (`<cache-workspace>/outputs/cache-audit-2026-10-07-v4/membership.v1.json`).
 
 The committed [complete picker comparison](cache-comparison.2026-10-07.v1.json) contains every region flag and edge disagreement plus all 1,061 provisional section correspondences. The [membership comparison](cache-membership-comparison.2026-10-07.v1.json) contains every policy comparison and unresolved section.
 
@@ -554,4 +554,4 @@ The cache export has 2,994 records: 1,261 explicit placements and 1,733 object-d
 
 `npm test` passed all **807 tests**, including 47 cache-specific tests. An earlier full run failed one existing Windows graceful-shutdown test after its PID-ownership guard detected a changed owner; it reported that no process was stopped. The complete rerun passed without modifying operational code. A separate scratch publication check verified that failed validation or mismatched hashes create no published directory, PNG paths are relative, and existing version names are refused without changing their contents. Baseline reconstruction reproduced all 2,054 pin records field for field.
 
-New local assets: [versioned pins](C:/Users/User/Projects/chunk-picker-rs3/.local/map-assets/pins.cache-2026-10-08-05932552f7af-v1.json), [versioned manifest](C:/Users/User/Projects/chunk-picker-rs3/.local/map-assets/manifest.cache-2026-10-08-05932552f7af-v1.json), and 291 new PNGs under `sprites.cache-2026-10-08-05932552f7af-v1/`. The UTC suffix is 8 October; the local audit date is 7 October. These are diagnostic candidates, with no renderer migration or selection change. The live listener on <tailscale-ip>:8788 remained running.
+New local assets: versioned pins (`<private-checkout>/.local/map-assets/pins.cache-2026-10-08-05932552f7af-v1.json`), versioned manifest (`<private-checkout>/.local/map-assets/manifest.cache-2026-10-08-05932552f7af-v1.json`), and 291 new PNGs under `sprites.cache-2026-10-08-05932552f7af-v1/`. The UTC suffix is 8 October; the local audit date is 7 October. These are diagnostic candidates, with no renderer migration or selection change. The live listener on <tailscale-ip>:8788 remained running.

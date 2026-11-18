@@ -48,7 +48,7 @@ The [October 8 processing follow-up](research/switchover-processing-parity-2026-
 
 `node --test tests/tasks.test.mjs` passes **25 tests**. The fixtures cover AND/OR/counted aliases, exact starred labels, typed IDs and typed acquisition paths, fixed-point outputs and cycles, personal-versus-group completion, membership/trial caps and the Combat aggregate, unknown hard gates, quest XP, saved levels and maximums, manual items/equipment, migrated source unblocking, manually blocked interiors, source backlogs, optional primary modes, crafted-equipment paths, delayed output gates, Extra task priorities and all-reference compilation. The all-reference performance test uses synthetic geography and has no dependency on Player 1's private cache.
 
-An additional read-only benchmark loaded the October 6 public QXA/QXB capture from `personal assistant/out/rs3-chunk-picker-audit-2026-10-06/evidence/public-map-fixtures.json`, imported explicit ownership, and ran the authored gameplay migration before evaluation. QXA had 136 unlocked bases and QXB 113. The final access correction produced these eligibility counts, with 34 unsupported rows per member:
+An additional read-only benchmark loaded the October 6 public QXA/QXB capture from `<audit-evidence>/evidence/public-map-fixtures.json`, imported explicit ownership, and ran the authored gameplay migration before evaluation. QXA had 136 unlocked bases and QXB 113. The final access correction produced these eligibility counts, with 34 unsupported rows per member:
 
 | Member | Personal access | Shared access | Uncached personal/shared time |
 | --- | ---: | ---: | ---: |

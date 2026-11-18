@@ -1,6 +1,6 @@
 # Cache place names and travel
 
-This advisory extraction contains 771 map definitions, 5,837 map elements, 2,742 explicit label placements and 2,604 placements accepted by exact map pastes. Map 28, plane 0 has **312 text labels anchored in 262 regions**. The full files are in `C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/places-2026-10-08-v3`; [the versioned review](cache-game-data-places.2026-10-08.v1.json) contains source hashes, archive hashes, output hashes, samples and validation.
+This advisory extraction contains 771 map definitions, 5,837 map elements, 2,742 explicit label placements and 2,604 placements accepted by exact map pastes. Map 28, plane 0 has **312 text labels anchored in 262 regions**. The full files are in `<private-checkout>/.local/game-data/places-2026-10-08-v3`; [the versioned review](cache-game-data-places.2026-10-08.v1.json) contains source hashes, archive hashes, output hashes, samples and validation.
 
 ## Available fields and interpretation
 
@@ -37,8 +37,8 @@ The cache can provide exact coordinate evidence for all 29 named destinations an
 ## Reproduction
 
 ```powershell
-node scripts/cache/game-data-places.mjs --workspace C:/Users/User/Projects/rs3-cache-work --output C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/places-NEW-VERSION
-node scripts/cache/report-game-data-places.mjs --input C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/places-NEW-VERSION --wiki C:/Users/User/Projects/rs3-cache-work/place-wiki-2026-10-08.v1.json --output C:/Users/User/Projects/rs3-cache-work/NEW-PLACE-REVIEW.json
+node scripts/cache/game-data-places.mjs --workspace <cache-workspace> --output <private-checkout>/.local/game-data/places-NEW-VERSION
+node scripts/cache/report-game-data-places.mjs --input <private-checkout>/.local/game-data/places-NEW-VERSION --wiki <cache-workspace>/place-wiki-2026-10-08.v1.json --output <cache-workspace>/NEW-PLACE-REVIEW.json
 ```
 
 The report command refuses to overwrite its output; `--output` selects a new review filename. Extraction verifies the pinned rsmv commit, decodes schema build 950, opens copied databases read-only and records all archive hashes. Schema 950 is inferred compatibility, not a verified live client build. No application files consume these outputs.

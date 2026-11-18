@@ -1,28 +1,28 @@
 # RS3 cache game data
 
-This is an offline, advisory export of Player 1's copied cache. The extractors and reports are versioned on `codex/cachemine`; the full datasets are new files under `C:/Users/User/Projects/chunk-picker-rs3/.local/game-data`. Application behaviour, the retained reference, the main checkout's tracked files and the picker on port 8788 were not changed.
+This is an offline, advisory export of Player 1's copied cache. The extractors and reports are versioned on `codex/cachemine`; the full datasets are new files under `<private-checkout>/.local/game-data`. Application behaviour, the retained reference, the main checkout's tracked files and the picker on port 8788 were not changed.
 
 The cache can replace substantial static metadata and supply precise object coordinates. It cannot establish current player state, server spawns, drop tables, ordinary shop stock, action throughput, or complete quest and transport gates. Those facts still need the Wiki or other independent evidence. All replacement counts below refer to reviewable fields or candidates, not complete task replacements.
 
 ## Provenance and reproduction
 
-The source is `C:/Users/User/Projects/rs3-cache-work/cache-copy`, reused with the pristine [pinned rsmv commit a92b8920b9b9842adde78822646ecad1a6f4fc15](https://github.com/skillbert/rsmv/tree/a92b8920b9b9842adde78822646ecad1a6f4fc15). Schema build **950** is inferred compatibility, not a verified client build or a guarantee of live-game freshness. Added JS5 databases were obtained only by plain file copy. No original database was opened, no game client was touched, and no decoder dependencies or downloaders were run.
+The source is `<cache-workspace>/cache-copy`, reused with the pristine [pinned rsmv commit a92b8920b9b9842adde78822646ecad1a6f4fc15](https://github.com/skillbert/rsmv/tree/a92b8920b9b9842adde78822646ecad1a6f4fc15). Schema build **950** is inferred compatibility, not a verified client build or a guarantee of live-game freshness. Added JS5 databases were obtained only by plain file copy. No original database was opened, no game client was touched, and no decoder dependencies or downloaders were run.
 
 Each category manifest records copied database SHA-256 hashes and index timestamps; decompressed archive hashes, versions and subfile IDs; decoder commit and interpreter/schema hashes; the retained reference hash; and output hashes. The helper tightens footer bounds and consumption checks for script-header decoding and records the transformed interpreter hash. Full obfuscated clientscript semantics remain unavailable because the local opcode map is absent. The pinned calibration path would fetch reference caches, so it was not used. Filename database major 67 is absent from this snapshot, leaving extra-param semantic names unavailable.
 
 The retained reference is `rs3-chunkpicker-chunkinfo-export.json`, SHA-256 `9dd835266f381abaa4d14033abcd0b43a001fe96d7df0a7f046fcc8676d66553`. Comparisons follow its use by `app/data/world.mjs`, `app/tasks/access.mjs`, the task engine, equipment evaluator and death-chunk estimator. Named interiors and authored section suffixes have different meanings from displayed cache regions and collision component labels.
 
 ```powershell
-node scripts/import-rs3-game-data.mjs --workspace C:/Users/User/Projects/rs3-cache-work --output C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/NEW-BUNDLE
+node scripts/import-rs3-game-data.mjs --workspace <cache-workspace> --output <private-checkout>/.local/game-data/NEW-BUNDLE
 # A bounded rerun can use --category items,quests,recipes,places or objects.
 npm test
 ```
 
 The combined importer requires a new directory and runs the category CLIs sequentially. It does not select any output for the app. Domain reports document optional recorded Wiki snapshots and exact final output directories. `scripts/cache/verify-game-data.mjs` recomputes artifact and copied-source hashes; the committed compact reviews keep the large-file pointers and manual samples. The aggregate report checks every compact review's manifest hash, directory, counts and decoder provenance before joining them. Scoped LF attributes keep these new report and script byte hashes stable after Windows checkout.
 
-The full suite passed **942/942** with `npm test -- --test-concurrency=1`, using isolated scratch TEMP/TMP directories. All **32 focused extraction tests** passed after the final writer/classification changes, and new scripts passed syntax checks. Two earlier full runs each exceeded an existing timing budget: a preference save took 5,217 ms against 5,000 ms, and task evaluation took 16,628 ms against 10,000 ms. The evaluation check also passed independently. No application code or timing thresholds were changed. The full successful log is `C:/Users/User/Projects/rs3-cache-work/npm-test-game-data-2026-10-08-v3.log`.
+The full suite passed **942/942** with `npm test -- --test-concurrency=1`, using isolated scratch TEMP/TMP directories. All **32 focused extraction tests** passed after the final writer/classification changes, and new scripts passed syntax checks. Two earlier full runs each exceeded an existing timing budget: a preference save took 5,217 ms against 5,000 ms, and task evaluation took 16,628 ms against 10,000 ms. The evaluation check also passed independently. No application code or timing thresholds were changed. The full successful log is `<cache-workspace>/npm-test-game-data-2026-10-08-v3.log`.
 
-Final verification recomputed hashes and sizes for **all 27 output files (502,457,541 bytes)** and hashes for **11 copied source databases** across all five exports. The [aggregate index](cache-game-data.2026-10-08.v1.json) binds each compact review to its exact verified manifest and records all final local directories. The verification record is `C:/Users/User/Projects/rs3-cache-work/verification-game-data-2026-10-08-v1.json`. Superseded or incomplete object runs remain separate local directories and are not referenced as final data.
+Final verification recomputed hashes and sizes for **all 27 output files (502,457,541 bytes)** and hashes for **11 copied source databases** across all five exports. The [aggregate index](cache-game-data.2026-10-08.v1.json) binds each compact review to its exact verified manifest and records all final local directories. The verification record is `<cache-workspace>/verification-game-data-2026-10-08-v1.json`. Superseded or incomplete object runs remain separate local directories and are not referenced as final data.
 
 ## World objects and resources
 

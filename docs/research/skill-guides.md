@@ -6,12 +6,12 @@ Work was confined to `codex/skillguide`, based on `1c64928`, and the shared scra
 
 ## Provenance and extraction
 
-Source: `C:/Users/User/Projects/rs3-cache-work/cache-copy`. Decoder: [rsmv commit a92b8920b9b9842adde78822646ecad1a6f4fc15](https://github.com/skillbert/rsmv/tree/a92b8920b9b9842adde78822646ecad1a6f4fc15). **Schema 950 is inferred compatibility**, not a verified client build or a guarantee that this snapshot represents today's live game.
+Source: `<cache-workspace>/cache-copy`. Decoder: [rsmv commit a92b8920b9b9842adde78822646ecad1a6f4fc15](https://github.com/skillbert/rsmv/tree/a92b8920b9b9842adde78822646ecad1a6f4fc15). **Schema 950 is inferred compatibility**, not a verified client build or a guarantee that this snapshot represents today's live game.
 
 Full artifacts:
 
-- `C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/skill-guides-2026-10-08-v1`: rendered entries, used raw definitions, evaluation traces, source links, helper bytecode, summary and manifest.
-- `C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/skillguide-combat-2026-10-08-v2`: action definitions, raw parameters, decoded helper evidence, retained-task comparison and manifest. The earlier v1 remains intact.
+- `<private-checkout>/.local/game-data/skill-guides-2026-10-08-v1`: rendered entries, used raw definitions, evaluation traces, source links, helper bytecode, summary and manifest.
+- `<private-checkout>/.local/game-data/skillguide-combat-2026-10-08-v2`: action definitions, raw parameters, decoded helper evidence, retained-task comparison and manifest. The earlier v1 remains intact.
 
 Each manifest records copied database hashes/timestamps, decompressed archive hashes/versions/subfile IDs, decoder and schema hashes, interpreter hash, output hashes and LF-normalized repository implementation hashes. Repository hashes use `scripts/lib/provenance-hash.mjs`; existing `.gitattributes` rules cover every new `.mjs`, `.json` and `.md` file. External cache/output bytes retain raw SHA-256 identity.
 
@@ -147,11 +147,11 @@ The preview hydrates raw state, portable backups and compact sidecar envelopes u
 Reproduce into a **new** full-export directory; existing exports refuse overwrite:
 
 ```powershell
-node scripts/cache/game-data-skill-guides.mjs --output C:/Users/User/Projects/rs3-cache-work/NEW-guide-version
-node scripts/cache/game-data-combat.mjs --output C:/Users/User/Projects/rs3-cache-work/NEW-combat-version
+node scripts/cache/game-data-skill-guides.mjs --output <cache-workspace>/NEW-guide-version
+node scripts/cache/game-data-combat.mjs --output <cache-workspace>/NEW-combat-version
 node scripts/research/validate-skill-guides.mjs --guide <guide-json> --wiki <Wiki-API-snapshot-json>
 node scripts/research/build-skill-guides.mjs --guide <guide-json> --manifest <guide-manifest> --wiki docs/research/skill-guides-wiki.2026-10-08.v1.json --combat <combat-json>
-node scripts/research/skillguide-combat-corrections.mjs --export <combat-directory> --wiki C:/Users/User/Projects/rs3-cache-work --replace true
+node scripts/research/skillguide-combat-corrections.mjs --export <combat-directory> --wiki <cache-workspace> --replace true
 ```
 
 The combat correction generator's `--replace true` updates only the named worktree review/runtime evidence. Wiki snapshots are dated scratch evidence; refresh their API revisions intentionally when reviewing a new cache snapshot.

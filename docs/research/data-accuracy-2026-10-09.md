@@ -334,8 +334,8 @@ stores were cleaned before retrying. The full suite used
 actual copied PNG checks. The final performance command was:
 
 ```powershell
-$env:RS3_ICON_ASSETS_DIR = 'C:/Users/User/Projects/chunk-picker-rs3-wt/dataacc/.local/map-assets'
-npm run perf -- --runs 3 --label dataacc-final --scenarios reload,unlock --source .local/dataacc-save --map-assets C:/Users/User/Projects/chunk-picker-rs3/.local/map-assets --game-data C:/Users/User/Projects/chunk-picker-rs3/.local/game-data --timeout 300000
+$env:RS3_ICON_ASSETS_DIR = '<review-checkout>/.local/map-assets'
+npm run perf -- --runs 3 --label dataacc-final --scenarios reload,unlock --source .local/dataacc-save --map-assets <private-checkout>/.local/map-assets --game-data <private-checkout>/.local/game-data --timeout 300000
 ```
 
 Baseline commands additionally selected

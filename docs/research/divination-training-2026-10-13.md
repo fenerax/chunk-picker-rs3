@@ -99,7 +99,7 @@ to **18485:6**, runtime ID **18485-1000006**. The committed
 [cache supplement](../../app/data/cache-divination.2026-10-13.v1.json) retains
 the exact placement, witnesses and SHA-256 hashes for the read-only definitions,
 placements and component masks. The original exports are under
-`C:/Users/User/Projects/chunk-picker-rs3/.local/game-data`; no cache file was
+`<private-checkout>/.local/game-data`; no cache file was
 rewritten. Guide struct **37891**, source **22/1184/3**, independently records
 level 77, members and Memory stone **63916**. Object **140913**, Exalted colossus
 in 18229, is a separate Mining resource and supplies no Divination selector.

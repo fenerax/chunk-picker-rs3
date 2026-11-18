@@ -1,12 +1,12 @@
 # If the desktop dies
 
-Player 1, your daily ZIPs are in OneDrive under **personal → RS3 Chunk Picker backups**, currently `C:\Users\User\OneDrive - GroupeDesRoches\personal\RS3 Chunk Picker backups`. Choose the newest `rs3-chunk-picker-YYYY-MM-DD.zip` and download it fully. Backups run at **04:00 local time** while you are signed in, catching up after sleep. The picker must be running.
+Find the daily ZIPs in the private backup directory recorded by the operator (shown here as `<backup-directory>`). Choose the newest `rs3-chunk-picker-YYYY-MM-DD.zip` and download it fully. Backups run at **04:00 local time** while you are signed in, catching up after sleep. The picker must be running.
 
 A ZIP contains both maps, progress, rules, notes, imported records and History, plus any feedback. The desktop's labelled previous saves live in `.local/duo/backups`; the ZIP excludes that collection. The helper also restores a labelled full `.json.gz`. Files over 32 MiB exceed the app's upload limit: use the helper for files or **Browse previous saves** for retained snapshots.
 
 ## Get running on a new Windows PC
 
-1. Install **Node 24**, **PowerShell 7** and **Tailscale**. Sign into your OneDrive and Tailscale accounts. Recover the private project into `C:\Users\<you>\Projects\chunk-picker-rs3`, including `app`, `scripts`, `resources` and `reference`. No `npm install` is needed. For the same map/data, recover `.local/map-assets` and `.local/game-data` separately. They are outside Git and the ZIP; rebuilding needs extra source files.
+1. Install **Node 24**, **PowerShell 7** and **Tailscale**. Sign into your OneDrive and Tailscale accounts. Recover the private project into `<private-checkout>`, including `app`, `scripts`, `resources` and `reference`. No `npm install` is needed. For the same map/data, recover `.local/map-assets` and `.local/game-data` separately. They are outside Git and the ZIP; rebuilding needs extra source files.
 2. Open PowerShell in that project. On a fresh checkout, run this, replacing the ZIP path:
 
    ```powershell

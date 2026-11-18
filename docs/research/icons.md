@@ -10,7 +10,7 @@ All **50 Team capes** already had inventory art in the October 8 manifest. Their
 
 `scripts/export-tier-item-icons.mjs` reproduces the supplement from a copied retained Wiki snapshot and direct Wiki file metadata requests. Its default outputs are entirely inside this worktree, and it refuses finalized output manifests or reviews. It never opens a cache database, game client, live picker or private save. Full manifest identity and artwork hashes are independent of the HTTP encoding differences documented below. Focused checks passed **20 tests** covering existing icon behavior, all Team cape row shapes, every supplemental tier name, conflicting names/tiers/state images, pinned review integrity and client/server catalogue agreement. A separate byte audit checked all 63 PNG hashes, byte counts and dimensions and verified that the installed supplement manifest exactly matches the tracked one. The parent integration owns full-suite and representative-save/runtime verification.
 
-This bundle supplies local artwork and name lookups for Activity Info and task lists. It changes no UI placement. Work used `codex/icons` at `5dbd24c`, the copied cache and pinned rsmv in `C:/Users/User/Projects/rs3-cache-work`. The main checkout's tracked files, private duo save, game client, and pickers on ports 8788 and 8790 were not used or changed.
+This bundle supplies local artwork and name lookups for Activity Info and task lists. It changes no UI placement. Work used `codex/icons` at `5dbd24c`, the copied cache and pinned rsmv in `<cache-workspace>`. The main checkout's tracked files, private duo save, game client, and pickers on ports 8788 and 8790 were not used or changed.
 
 ## Skill source and identity
 
@@ -55,8 +55,8 @@ The **2,678 unmatched requested names** comprise 869 missing item infoboxes, 770
 
 The immutable local asset folders are:
 
-- `C:/Users/User/Projects/chunk-picker-rs3/.local/map-assets/icons-skills.2026-10-08.v1/`
-- `C:/Users/User/Projects/chunk-picker-rs3/.local/map-assets/icons-items.2026-10-08.v1/`
+- `<private-checkout>/.local/map-assets/icons-skills.2026-10-08.v1/`
+- `<private-checkout>/.local/map-assets/icons-items.2026-10-08.v1/`
 
 Each contains a full `manifest.json`, identical to its tracked counterpart under `app/data/`. PNGs stay local and are not committed. Existing asset folders were preserved. A future refresh must use a new version and folder.
 

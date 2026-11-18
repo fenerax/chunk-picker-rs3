@@ -17,7 +17,7 @@ The usual explicit `.local/with-light.ps1 npm run screens` wrapper also works.
 The command adopts an existing lock only when its owner is an ancestor process.
 
 The default save source is the main repository's `.local/duo`, currently
-`C:\Users\User\Projects\chunk-picker-rs3\.local\duo`. `--source PATH` selects
+`<private-checkout>\.local\duo`. `--source PATH` selects
 a different read-only snapshot. The runner copies it below this worktree's
 `.local/screens/scratch-*`, excluding `store.lock`, `access-token`, invitation
 and feedback files. It verifies `state.json` stayed stable during the copy,
