@@ -164,15 +164,15 @@ Other relevant options are:
 | Training methods | Reviewed requirements, recipes and contextual rates | Level/tool curves, actual travel costs and several output rates |
 | POH storage | Furniture/storage objectives and requirements | A general gathering-bank substitute |
 
-The [resource catalogue](<C:/Users/User/Projects/chunk-picker-rs3-wt/redesign/app/data/cache-resources.2026-10-08.v1.json>) contains **9,846 placements**. For example, it identifies willow object 38616 at 2546,3385, oak object 38731 at 2524,2967, and copper rock 113027 at 2965,3234. This supports genuine node-level clustering and switching distances. Generic unknown trees/rocks and conditional alternatives must remain uncertain.
+The [resource catalogue](../../app/data/cache-resources.2026-10-08.v1.json) contains **9,846 placements**. For example, it identifies willow object 38616 at 2546,3385, oak object 38731 at 2524,2967, and copper rock 113027 at 2965,3234. This supports genuine node-level clustering and switching distances. Generic unknown trees/rocks and conditional alternatives must remain uncertain.
 
 Banks are not wholly missing: the catalogue contains **92 booths, 29 chests, 23 deposit boxes, 17 counters, and one bank table**. These are physical candidates across the catalogue, not a validated list of usable F2P services. Membership, quests, interaction tiles, and actual service availability still need review.
 
-Crucially, the full tile data **does exist locally** in [walkability.v1.json.gz](<C:/Users/User/Projects/rs3-cache-work/outputs/cache-audit-2026-10-07-v4/walkability.v1.json.gz>). Its hash matches the recorded manifest. It contains per-tile blocker reasons, cardinal and diagonal wall masks, planes, component labels, exact portals, doors, and uncertainties. The committed compact export omits these. [Walkability research, line 85](<C:/Users/User/Projects/chunk-picker-rs3-wt/redesign/docs/research/cache-walkability.md:85>), [serializer](<C:/Users/User/Projects/chunk-picker-rs3-wt/redesign/scripts/cache/collision.mjs:421>).
+Crucially, the full tile data **does exist locally** in walkability.v1.json.gz (`<cache-workspace>/outputs/cache-audit-2026-10-07-v4/walkability.v1.json.gz`). Its hash matches the recorded manifest. It contains per-tile blocker reasons, cardinal and diagonal wall masks, planes, component labels, exact portals, doors, and uncertainties. The committed compact export omits these. [Walkability research, line 85](cache-walkability.md), [serializer](../../scripts/cache/collision.mjs).
 
 That makes offline tile pathing practical after a scoped, portable export. It remains a conservative **closed-door, surface-cache model**, with 1,415 unverified doors/gates and 7,034 conditional morph placements. It cannot independently establish quest-controlled passages, stairs, transport, or current player state.
 
-The [NPC catalogue](<C:/Users/User/Projects/chunk-picker-rs3-wt/redesign/app/data/cache-npcs.2026-10-08.v1.json>) explicitly has **zero verified spawn locations**. The resource catalogue has only two static fishing placements. Ordinary fishing spots therefore need separately authored or verified location records, including possible relocation tiles.
+The [NPC catalogue](../../app/data/cache-npcs.2026-10-08.v1.json) explicitly has **zero verified spawn locations**. The resource catalogue has only two static fishing placements. Ordinary fishing spots therefore need separately authored or verified location records, including possible relocation tiles.
 
 The reviewed cache fields provide geometry and identity. They do **not currently provide interpreted gathering-success formulas, durability tables, or complete requirements**. Those mechanics should come from a separately sourced rules catalogue. POH data should likewise retain its documented scope: catalogued deposit-storage furniture is members content, not an automatic F2P banking option.
 
@@ -209,9 +209,9 @@ Each generated entry should retain formula/source revisions, cache hashes, profi
 
 Those percentage ranges are **engineering expectations to test**, not measured confidence intervals. The main errors will probably come from attention and downtime, rather than the small success-formula denominator discrepancy.
 
-This would directly improve the Helper’s current flat rates. Normal and oak currently retain low-level guide rates above their original context, while Mining lacks a defensible ore/hour conversion and banked Fishing lacks throughput. [Current methods](<C:/Users/User/Projects/chunk-picker-rs3-wt/redesign/app/data/training/methods.f2p.json:32>), [training research](<C:/Users/User/Projects/chunk-picker-rs3-wt/redesign/docs/research/training-helper.md:58>).
+This would directly improve the Helper’s current flat rates. Normal and oak currently retain low-level guide rates above their original context, while Mining lacks a defensible ore/hour conversion and banked Fishing lacks throughput. [Current methods](../../app/data/training/methods.f2p.json), [training research](training-helper.md).
 
-The new tables could explain **how much material a player retains, how much XP she earns, and how long a particular accessible route takes**. The Helper should preserve its current treatment of unknown rates until an entry has sufficient evidence. [Helper’s existing limits](<C:/Users/User/Projects/chunk-picker-rs3-wt/redesign/docs/helper.md:25>).
+The new tables could explain **how much material a player retains, how much XP she earns, and how long a particular accessible route takes**. The Helper should preserve its current treatment of unknown rates until an entry has sufficient evidence. [Helper’s existing limits](../helper.md).
 
 The principal sources for implementing and refreshing the model are:
 
@@ -221,7 +221,7 @@ The principal sources for implementing and refreshing the model are:
 - **Fishing and success rolls:** [Fishing data rev. 37011174](https://runescape.wiki/w/Module:Fishing_chance_calculator/data?oldid=37011174), [Fishing calculator rev. 37011173](https://runescape.wiki/w/Module:Fishing_chance_calculator?oldid=37011173), and [generic success mechanics rev. 37009675](https://runescape.wiki/w/Skilling_success_chance?oldid=37009675).
 - **Movement:** [Energy rev. 36948212](https://runescape.wiki/w/Energy?oldid=36948212), [Weight rev. 37158898](https://runescape.wiki/w/Weight?oldid=37158898), and [Surge rev. 37177973](https://runescape.wiki/w/Surge?oldid=37177973).
 - **Storage and processing:** [Ore boxes rev. 36853238](https://runescape.wiki/w/Ore_boxes?oldid=36853238), [Wood boxes rev. 37004796](https://runescape.wiki/w/Wood_boxes?oldid=37004796), [Cooking rev. 37179285](https://runescape.wiki/w/Cooking?oldid=37179285), and [action timings rev. 37145287](https://runescape.wiki/w/Game_tick/Ticks_per_action?oldid=37145287).
-- **Repo evidence:** the resource/NPC catalogues, [walkability research](<C:/Users/User/Projects/chunk-picker-rs3-wt/redesign/docs/research/cache-walkability.md>), [training research](<C:/Users/User/Projects/chunk-picker-rs3-wt/redesign/docs/research/training-helper.md>), and [Helper documentation](<C:/Users/User/Projects/chunk-picker-rs3-wt/redesign/docs/helper.md>).
+- **Repo evidence:** the resource/NPC catalogues, [walkability research](cache-walkability.md), [training research](training-helper.md), and [Helper documentation](../helper.md).
 
 ## Step 1: Mining
 

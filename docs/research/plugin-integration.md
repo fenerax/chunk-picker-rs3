@@ -4,7 +4,7 @@
 
 **Recommendation:** prepare a versioned companion API, stable identifiers, player-bound credentials and a review inbox now. Keep the game adapter small and replaceable. The official Jagex plugin beta is real, but public developer access and a complete API contract are still pending. The intended chunk overlay and completion sync are plausible; neither the required coordinate coverage nor private-server access is guaranteed yet.
 
-This task remained read-only in C:/Users/User/Projects/chunk-picker-rs3. No repository file was edited, created, moved or deleted; no git write command, server, test suite or download into the repository was run. This report is the sole requested output, outside the repository. No private .local save or invitation secret was read.
+This task remained read-only in <private-checkout>. No repository file was edited, created, moved or deleted; no git write command, server, test suite or download into the repository was run. This report is the sole requested output, outside the repository. No private .local save or invitation secret was read.
 
 ## 1. Public programme: facts, previews and unknowns
 

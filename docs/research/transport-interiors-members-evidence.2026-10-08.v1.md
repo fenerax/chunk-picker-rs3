@@ -84,9 +84,9 @@ The Dwarven Mine crevice pairs both exact object5906 placements, level42 Agility
 
 ## Read-only cache provenance
 
-- `C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/objects-2026-10-08-v3/objects.transitions.v1.json.gz` SHA-256 `e7bbf79507c32ec2bb1859438dce724bb1cc84f26b218c2b8adf997c02fba867`.
-- `C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/places-2026-10-08-v3/places.v1.json` SHA-256 `dc88b9e37f0d638f9b63976bb358b76e7967e64e390d8310a12299abe8ce5312`.
-- `C:/Users/User/Projects/chunk-picker-rs3-wt/transport/rs3-chunkpicker-chunkinfo-export.json` SHA-256 `9dd835266f381abaa4d14033abcd0b43a001fe96d7df0a7f046fcc8676d66553`.
+- `<private-checkout>/.local/game-data/objects-2026-10-08-v3/objects.transitions.v1.json.gz` SHA-256 `e7bbf79507c32ec2bb1859438dce724bb1cc84f26b218c2b8adf997c02fba867`.
+- `<private-checkout>/.local/game-data/places-2026-10-08-v3/places.v1.json` SHA-256 `dc88b9e37f0d638f9b63976bb358b76e7967e64e390d8310a12299abe8ce5312`.
+- `<review-checkout>/rs3-chunkpicker-chunkinfo-export.json` SHA-256 `9dd835266f381abaa4d14033abcd0b43a001fe96d7df0a7f046fcc8676d66553`.
 
 Validation: unique station and route IDs, all endpoint references resolve, all gameplay provenance URLs end with numeric oldid, every selected cache placement is unique, all interior source coordinates match the claimed cache map source bounds, and retained interior location IDs correspond to existing retained chunk names. These are authored-data checks; gameplay has not been observed.
 

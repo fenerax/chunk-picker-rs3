@@ -2,7 +2,7 @@
 
 The display catalogue maps **893 of 1,979 non-surface picker records** to **246 cache maps, 263 independently rendered map planes and 1,361 PNG tiles**. The remaining **1,086 records** have explicit unknowns. This includes numeric aliases whose packed numbers overlap the surface grid: `9030` is Burthorpe Mine and `8774` is Burthorpe Slayer Cave because their retained records use `Name`. Surface records use `Nickname`. Of 419 named area records, 164 have rendered mappings. Other off-surface locations are retained in the same census; the count is not a claim that all records are underground dungeons.
 
-The selected assets are the new, immutable directory `C:/Users/User/Projects/chunk-picker-rs3/.local/map-assets/interiors.cache-2026-10-08-archmaps-v3`. The root asset manifest was not replaced. Historical v1 output and an interrupted v2 run remain unselected. The [machine-readable review](interior-maps.2026-10-08.v1.json) records exact inputs, generator hashes, all unknowns, sample identities and verification. The [application catalogue](../../app/data/cache-interiors.2026-10-08.v1.json) contains map layers, exact tile hashes and per-area entrance evidence. It has `displayOnly:true` and `accessEffect:"none"`.
+The selected assets are the new, immutable directory `<private-checkout>/.local/map-assets/interiors.cache-2026-10-08-archmaps-v3`. The root asset manifest was not replaced. Historical v1 output and an interrupted v2 run remain unselected. The [machine-readable review](interior-maps.2026-10-08.v1.json) records exact inputs, generator hashes, all unknowns, sample identities and verification. The [application catalogue](../../app/data/cache-interiors.2026-10-08.v1.json) contains map layers, exact tile hashes and per-area entrance evidence. It has `displayOnly:true` and `accessEffect:"none"`.
 
 ## Named samples
 
@@ -32,7 +32,7 @@ The catalogue joins **23 reviewed entrance route identities** from the existing 
 
 Independent Pillow verification checked all **1,361 PNGs** for SHA-256, byte length, 256×256 RGBA dimensions, colourless transparent pixels and exact agreement between alpha counts and definition-backed coverage. It found zero errors, **274 fully transparent tiles**, **47,167,690 transparent pixels** and **21,720,151 PNG bytes**. The selected manifest SHA-256 is `18aa59bdec93255fe4ed83d9ed6e930e60f80cc67329495801d17abcb1a7b564`.
 
-The [sample contact sheet](C:/Users/User/Projects/rs3-cache-work/archmaps-interiors/samples.v3.png) was visually inspected: upper/lower catacombs have distinct floor plans, the Draynor bend and northern room are intact, Edgeville/Varrock share their connected layout, Ashdale retains its cove floor shapes, and Burthorpe retains separate cave layouts. No baked labels or icons appear. This is an agent inspection of generated cache artwork, not an observed in-game visit.
+The sample contact sheet (`<cache-workspace>/archmaps-interiors/samples.v3.png`) was visually inspected: upper/lower catacombs have distinct floor plans, the Draynor bend and northern room are intact, Edgeville/Varrock share their connected layout, Ashdale retains its cove floor shapes, and Burthorpe retains separate cave layouts. No baked labels or icons appear. This is an agent inspection of generated cache artwork, not an observed in-game visit.
 
 `node --test tests/interior-maps.test.mjs` passes seven tests: complete explicit area coverage and current LF provenance, named/numeric identities, independent planes and north-up coordinates, unsafe tile/path rejection, exact partial-paste/source-plane transforms, ambiguous-name unknowns and an actual task-engine preview.
 
@@ -41,9 +41,9 @@ The [sample contact sheet](C:/Users/User/Projects/rs3-cache-work/archmaps-interi
 ## Reproduction and application hooks
 
 ```powershell
-node --max-old-space-size=768 scripts/render-cache-interiors.mjs --places C:/Users/User/Projects/rs3-cache-work/archmaps-interiors/places.2026-10-08.v3.copy.json --output C:/Users/User/Projects/chunk-picker-rs3/.local/map-assets/interiors.cache-NEW-VERSION --catalogue C:/Users/User/Projects/rs3-cache-work/archmaps-interiors/cache-interiors.NEW.json
-node scripts/cache/interior-review.mjs C:/Users/User/Projects/rs3-cache-work/archmaps-interiors/cache-interiors.NEW.json
-python scripts/cache/interior-verification.py --assets C:/Users/User/Projects/chunk-picker-rs3/.local/map-assets --manifest C:/Users/User/Projects/chunk-picker-rs3/.local/map-assets/interiors.cache-NEW-VERSION/manifest.json --output C:/Users/User/Projects/rs3-cache-work/archmaps-interiors/verification.NEW.json --samples C:/Users/User/Projects/rs3-cache-work/archmaps-interiors/samples.NEW.png
+node --max-old-space-size=768 scripts/render-cache-interiors.mjs --places <cache-workspace>/archmaps-interiors/places.2026-10-08.v3.copy.json --output <private-checkout>/.local/map-assets/interiors.cache-NEW-VERSION --catalogue <cache-workspace>/archmaps-interiors/cache-interiors.NEW.json
+node scripts/cache/interior-review.mjs <cache-workspace>/archmaps-interiors/cache-interiors.NEW.json
+python scripts/cache/interior-verification.py --assets <private-checkout>/.local/map-assets --manifest <private-checkout>/.local/map-assets/interiors.cache-NEW-VERSION/manifest.json --output <cache-workspace>/archmaps-interiors/verification.NEW.json --samples <cache-workspace>/archmaps-interiors/samples.NEW.png
 ```
 
 Rendering refuses an existing version directory and existing catalogue output. Review enrichment writes only the worker-owned new catalogue, with its own LF source hash and pinned Wiki sample hashes. It does not alter the immutable assets or their manifest.

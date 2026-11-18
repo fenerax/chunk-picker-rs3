@@ -16,7 +16,7 @@ baseline; this report records the additional M7 preparation evidence.
 ## Public artifact identity
 
 The final local artifact is
-`C:/Users/User/Projects/chunk-picker-rs3-public-m7prep-final`.
+`<public-export>`.
 
 | Identity | Value |
 | --- | --- |
@@ -151,7 +151,7 @@ The successful browser acceptance run used `.local/m7prep/browser.mjs` under
 the shared light lock, one owned scratch server, a fresh disposable save copy
 and fresh scratch credentials. The main browser checked both widths and dialog
 workflows, then the exact existing
-`C:/Users/User/Projects/chunk-picker-rs3/.local/claude-tools/scratch/gallery-check.mjs`
+`<private-checkout>/.local/claude-tools/scratch/gallery-check.mjs`
 ran with `<origin> <inviteFile>`, plain and with `FRAMED=1`. All processes and
 browser profiles were closed. The main-browser report records zero runtime
 exceptions, console errors, outside requests, interception failures, allowed

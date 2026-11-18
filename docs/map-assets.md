@@ -26,10 +26,10 @@ From the authored application checkout, with Node.js 22 or later:
 
 ```powershell
 # Probe 12 terrain slots, write their coverage/hashes, and print a size estimate.
-node scripts/import-map-assets.mjs --output C:/Users/User/Projects/chunk-picker-rs3/.local/map-assets
+node scripts/import-map-assets.mjs --output <private-checkout>/.local/map-assets
 
 # Import or resume the same version and crop.
-node scripts/import-map-assets.mjs --output C:/Users/User/Projects/chunk-picker-rs3/.local/map-assets --download
+node scripts/import-map-assets.mjs --output <private-checkout>/.local/map-assets --download
 ```
 
 Both commands are explicit manual operations. Estimate mode fetches only its small sample. The full import aborts if the estimate exceeds **400 MB (400,000,000 bytes)**, and also enforces that cap on transferred payloads. The estimate uses twice the measured mean across urban/rural/corner samples, multiplied by all 2,350 slots, plus 5 MiB for pins and icons. It is a budget estimate rather than a promise of actual storage size.
@@ -43,7 +43,7 @@ The output directory is private local storage, excluded by the repository's `/.l
 The server defaults to `.local/map-assets` beneath its own storage directory. A worktree or another checkout can serve the approved shared directory explicitly:
 
 ```powershell
-$env:RS3_MAP_ASSETS_DIR = 'C:/Users/User/Projects/chunk-picker-rs3/.local/map-assets'
+$env:RS3_MAP_ASSETS_DIR = '<private-checkout>/.local/map-assets'
 node app/server.mjs
 ```
 
@@ -59,7 +59,7 @@ This only selects local files for the server; the browser does not fetch communi
 
 The terrain repository commit date does not establish the rendering/cache date of every tile. Icon files can be newer than the pin positions. The manifest records source URLs, commit/date information, retrieval dates, bytes and SHA-256 hashes for terrain, raw source JSON, the normalized pin file and individual PNG icons. `raw/wiki-icons.json` retains the exact API batches, file description links, metadata and licensing wikitext.
 
-The real private import completed on 7 October 2026 at `C:/Users/User/Projects/chunk-picker-rs3/.local/map-assets`:
+The real private import completed on 7 October 2026 at `<private-checkout>/.local/map-assets`:
 
 | Measured output | Count or bytes |
 | --- | --- |
@@ -114,7 +114,7 @@ Explicit maplink records use their supplied destination only when its map ID is 
 Existing local pins can be repaired offline without downloading or changing raw assets, terrain or icons:
 
 ```powershell
-node scripts/import-map-assets.mjs --output C:/Users/User/Projects/chunk-picker-rs3/.local/map-assets --rebuild-pins
+node scripts/import-map-assets.mjs --output <private-checkout>/.local/map-assets --rebuild-pins
 ```
 
 This verifies cached raw/terrain hashes first and updates only `pins.normalized.json` and `manifest.json`. The real repair transferred zero bytes and retained the IDs of all 2,054 displayed markers. Its 2,803 excluded raw rows comprise 1,916 outside-crop, 584 other-plane, 114 explicit other-map, 151 surface-unverified, one missing-sprite, and 37 duplicate rows.

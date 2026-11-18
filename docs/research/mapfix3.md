@@ -511,13 +511,13 @@ Headless Chrome uses an ephemeral localhost server and synthetic state, the real
 
 | View | Before | After |
 | --- | --- | --- |
-| anachronia | [before](C:/Users/User/Projects/chunk-picker-rs3-wt/mapfix3/.local/mapfix3/before-anachronia.png) | [after](C:/Users/User/Projects/chunk-picker-rs3-wt/mapfix3/.local/mapfix3/after-anachronia.png) |
-| ocean | [before](C:/Users/User/Projects/chunk-picker-rs3-wt/mapfix3/.local/mapfix3/before-ocean.png) | [after](C:/Users/User/Projects/chunk-picker-rs3-wt/mapfix3/.local/mapfix3/after-ocean.png) |
-| ocean-native | [before](C:/Users/User/Projects/chunk-picker-rs3-wt/mapfix3/.local/mapfix3/before-ocean-native.png) | [after](C:/Users/User/Projects/chunk-picker-rs3-wt/mapfix3/.local/mapfix3/after-ocean-native.png) |
-| islands | [before](C:/Users/User/Projects/chunk-picker-rs3-wt/mapfix3/.local/mapfix3/before-islands.png) | [after](C:/Users/User/Projects/chunk-picker-rs3-wt/mapfix3/.local/mapfix3/after-islands.png) |
-| havenhythe | [before](C:/Users/User/Projects/chunk-picker-rs3-wt/mapfix3/.local/mapfix3/before-havenhythe.png) | [after](C:/Users/User/Projects/chunk-picker-rs3-wt/mapfix3/.local/mapfix3/after-havenhythe.png) |
-| haven-southeast | [before](C:/Users/User/Projects/chunk-picker-rs3-wt/mapfix3/.local/mapfix3/before-haven-southeast.png) | [after](C:/Users/User/Projects/chunk-picker-rs3-wt/mapfix3/.local/mapfix3/after-haven-southeast.png) |
-| overview | [before](C:/Users/User/Projects/chunk-picker-rs3-wt/mapfix3/.local/mapfix3/before-overview.png) | [after](C:/Users/User/Projects/chunk-picker-rs3-wt/mapfix3/.local/mapfix3/after-overview.png) |
+| anachronia | before (`<review-checkout>/.local/mapfix3/before-anachronia.png`) | after (`<review-checkout>/.local/mapfix3/after-anachronia.png`) |
+| ocean | before (`<review-checkout>/.local/mapfix3/before-ocean.png`) | after (`<review-checkout>/.local/mapfix3/after-ocean.png`) |
+| ocean-native | before (`<review-checkout>/.local/mapfix3/before-ocean-native.png`) | after (`<review-checkout>/.local/mapfix3/after-ocean-native.png`) |
+| islands | before (`<review-checkout>/.local/mapfix3/before-islands.png`) | after (`<review-checkout>/.local/mapfix3/after-islands.png`) |
+| havenhythe | before (`<review-checkout>/.local/mapfix3/before-havenhythe.png`) | after (`<review-checkout>/.local/mapfix3/after-havenhythe.png`) |
+| haven-southeast | before (`<review-checkout>/.local/mapfix3/before-haven-southeast.png`) | after (`<review-checkout>/.local/mapfix3/after-haven-southeast.png`) |
+| overview | before (`<review-checkout>/.local/mapfix3/before-overview.png`) | after (`<review-checkout>/.local/mapfix3/after-overview.png`) |
 
 All seven before/after pairs were visually checked. The obsolete Anachronia east/north coast disappears; ocean region 14630 matches surrounding ocean; southeast no-entry hatching disappears; Havenhythe retains only evidenced walking regions. The overview checks the whole crop, including western and linked northern edges. Both browser runs have zero page errors. After has zero failed tiles; before has the expected rejected black placeholder at 63,56. Pixel probes at zooms 0.1, 0.35, 0.8 and 2 match exactly after: fogged water and uncovered ocean are RGBA (73,77,82,255). Before, uncovered ocean was (86,87,89,255).
 
@@ -525,7 +525,7 @@ All seven before/after pairs were visually checked. The obsolete Anachronia east
 
 The final renderer version is `.local/map-assets/terrain.cache-mapfix3-transparent-v5/`. Its independent verification covers all **1211 PNGs**, including **518 fully transparent PNGs**, with zero errors: hashes/byte sizes, 256×256 RGBA dimensions, exact map-28 layout addresses, colourless transparent pixels and coverage counts. PNGs total 20,125,532 bytes. The mask removes 48,528,123 shared-water pixels and 282,870 void pixels while retaining 30,553,103 artwork pixels. All comparable original-renderer probes retain artwork byte-for-byte.
 
-The version manifest SHA-256 is `18f1c1430737d94b7d790ee8cda6658e68825549f50f47588d7bebf84208ba90`. The new selected asset root is `.local/mapfix3/map-assets-v5/`, with copies of community terrain, current pins/icons/sprites and the v5 cache renders. Existing manifests and assets were not replaced. To select these files for a separately managed server, set `RS3_MAP_ASSETS_DIR` to `C:/Users/User/Projects/chunk-picker-rs3-wt/mapfix3/.local/mapfix3/map-assets-v5`. No server or live configuration was changed.
+The version manifest SHA-256 is `18f1c1430737d94b7d790ee8cda6658e68825549f50f47588d7bebf84208ba90`. The new selected asset root is `.local/mapfix3/map-assets-v5/`, with copies of community terrain, current pins/icons/sprites and the v5 cache renders. Existing manifests and assets were not replaced. To select these files for a separately managed server, set `RS3_MAP_ASSETS_DIR` to `<review-checkout>/.local/mapfix3/map-assets-v5`. No server or live configuration was changed.
 
 `npm test -- --test-concurrency=4` passed **941 tests**, zero failures/skips. Reduced concurrency retains the complete suite and avoids contention in the Windows process-helper timing checks. New regressions cover terrain source alignment at overview/native densities, transparent water/void and preserved floors, island qualification, blocked-origin traversal, restored pending offers, audited data corrections and browser data imports.
 
@@ -533,9 +533,9 @@ The version manifest SHA-256 is `18f1c1430737d94b7d790ee8cda6658e68825549f50f475
 
 - [Versioned surface corrections](../../app/data/cache-surface-corrections.2026-10-08.v1.json): copied archive hashes, floor-field histograms, exact portal witnesses, masks, label coordinates and layout transforms.
 - [Typed entry policy](../../app/data/cache-entry-policy.mjs): pinned Wiki revisions and retained typed route/lodestone data. Penguin region 10301 is the inaccessible eastern island; the AJS route lands at 10044.
-- [Complete machine-readable change report](C:/Users/User/Projects/chunk-picker-rs3-wt/mapfix3/.local/mapfix3/walkability-changes.json).
-- [Raw Havenhythe audit](C:/Users/User/Projects/chunk-picker-rs3-wt/mapfix3/.local/mapfix3/haven-audit.json).
-- [Renderer probe preservation](C:/Users/User/Projects/chunk-picker-rs3-wt/mapfix3/.local/mapfix3/terrain-probe-verification-final-v5.json).
-- [Full PNG verification](C:/Users/User/Projects/chunk-picker-rs3-wt/mapfix3/.local/mapfix3/terrain.cache-mapfix3-transparent-v5-verification.json).
-- [Before browser report](C:/Users/User/Projects/chunk-picker-rs3-wt/mapfix3/.local/mapfix3/before-visual-report.json) and [after browser report](C:/Users/User/Projects/chunk-picker-rs3-wt/mapfix3/.local/mapfix3/after-visual-report.json).
-- [Full test log](C:/Users/User/Projects/chunk-picker-rs3-wt/mapfix3/.local/mapfix3/full-tests-verified.log).
+- Complete machine-readable change report (`<review-checkout>/.local/mapfix3/walkability-changes.json`).
+- Raw Havenhythe audit (`<review-checkout>/.local/mapfix3/haven-audit.json`).
+- Renderer probe preservation (`<review-checkout>/.local/mapfix3/terrain-probe-verification-final-v5.json`).
+- Full PNG verification (`<review-checkout>/.local/mapfix3/terrain.cache-mapfix3-transparent-v5-verification.json`).
+- Before browser report (`<review-checkout>/.local/mapfix3/before-visual-report.json`) and after browser report (`<review-checkout>/.local/mapfix3/after-visual-report.json`).
+- Full test log (`<review-checkout>/.local/mapfix3/full-tests-verified.log`).

@@ -23,15 +23,15 @@ The script streams one surface paste at a time. Run with a **512 MB Node heap**;
 Use fresh directories for both runtime and terrain output. The command refuses an existing terrain version rather than replacing it.
 
 ```powershell
-$runtime = 'C:/Users/User/Projects/rs3-cache-work/terrain-render-runtime-2026-10-08-v1'
+$runtime = '<cache-workspace>/terrain-render-runtime-2026-10-08-v1'
 # In a fresh runtime directory only:
 npm install --prefix $runtime --ignore-scripts --no-audit --no-fund --save-exact @resvg/resvg-js@2.6.2
 
 node --max-old-space-size=512 scripts/render-cache-terrain.mjs `
-  --cache-copy C:/Users/User/Projects/rs3-cache-work/cache-copy `
-  --tool C:/Users/User/Projects/rs3-cache-work/rsmv `
+  --cache-copy <cache-workspace>/cache-copy `
+  --tool <cache-workspace>/rsmv `
   --rasterizer "$runtime/node_modules/@resvg/resvg-js/index.js" `
-  --output C:/Users/User/Projects/chunk-picker-rs3-wt/cacheapply/.local/map-assets/terrain.cache-NEW-VERSION
+  --output <review-checkout>/.local/map-assets/terrain.cache-NEW-VERSION
 ```
 
 An optional `--regions 12850,17460,...` selects exact picker region IDs. It still uses the exact surface paste for each selected region. A completed version writes its provenance manifest beside the PNGs. Merge its `cacheTerrain` field into the worktree's selected `.local/map-assets/manifest.json` after checking the output. Preserve the existing community `terrain` field.

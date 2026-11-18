@@ -6,21 +6,21 @@ This is a private advisory extraction from the copied cache, using rsmv [a92b892
 
 ```powershell
 node --max-old-space-size=8192 scripts/cache/game-data-objects.mjs `
-  --workspace C:/Users/User/Projects/rs3-cache-work `
-  --output C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/NEW-objects-version
+  --workspace <cache-workspace> `
+  --output <private-checkout>/.local/game-data/NEW-objects-version
 
 # Reuse raw definition/layout checkpoints; source archives are scanned again:
 node --max-old-space-size=8192 scripts/cache/game-data-objects.mjs `
-  --workspace C:/Users/User/Projects/rs3-cache-work `
-  --input C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/objects-2026-10-08-v1 `
-  --output C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/NEW-reprocessed-version
+  --workspace <cache-workspace> `
+  --input <private-checkout>/.local/game-data/objects-2026-10-08-v1 `
+  --output <private-checkout>/.local/game-data/NEW-reprocessed-version
 
 node --test tests/cache-game-data-objects.test.mjs
 ```
 
 ## Measured result
 
-The completed snapshot is `C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/objects-2026-10-08-v3`. The [compact review](cache-game-data-objects.2026-10-08.v1.json) copies the final manifest summary exactly, records output/source/decoder hashes, and binds `objects.manifest.v1.json` by SHA-256 `641043bf628f3d0ef1d9434d9acbe76688a7628015d17e866530ffd435bad99e`.
+The completed snapshot is `<private-checkout>/.local/game-data/objects-2026-10-08-v3`. The [compact review](cache-game-data-objects.2026-10-08.v1.json) copies the final manifest summary exactly, records output/source/decoder hashes, and binds `objects.manifest.v1.json` by SHA-256 `641043bf628f3d0ef1d9434d9acbe76688a7628015d17e866530ffd435bad99e`.
 
 | Inventory | Count |
 | --- | ---: |

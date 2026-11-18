@@ -38,7 +38,7 @@ The processed JSON retains schemaVersion 1 and adds normalizationVersion 2, norm
 Run the following explicit offline repair from the authored checkout:
 
 ```powershell
-node scripts/import-map-assets.mjs --output C:/Users/User/Projects/chunk-picker-rs3/.local/map-assets --rebuild-pins
+node scripts/import-map-assets.mjs --output <private-checkout>/.local/map-assets --rebuild-pins
 ```
 
 This mode verifies pinned manifest versions, hashes/sizes of all three coordinate raw files, and every downloaded terrain tile before writing. It performs no network requests and modifies only pins.normalized.json and manifest.json; it preserves raw files, terrain, icons and manifest completion state. It recalculates processed-file hashes, pin/exclusion counts and manifest asset totals. It refuses --download together with --rebuild-pins. Normal full imports apply the same policy after terrain coverage is downloaded. Existing normalized files require this rebuild; a browser reload alone does not reprocess old source rows.

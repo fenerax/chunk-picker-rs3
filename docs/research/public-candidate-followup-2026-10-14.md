@@ -149,8 +149,8 @@ checks that equality against the browser-tested runtime.
 
 ## Final candidate
 
-The deliverable is `C:/Users/User/Projects/chunk-picker-rs3-public-m5polish`.
-The earlier first-pass `chunk-picker-rs3-public` directory was left untouched.
+The deliverable is `<public-export>`.
+The earlier first-pass `<earlier-public-export>` directory was left untouched.
 
 | Identifier | Value |
 | --- | --- |

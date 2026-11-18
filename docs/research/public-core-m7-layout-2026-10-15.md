@@ -12,19 +12,20 @@ history. Never copy the old repository's object database or remote settings.
 
 ## Proposed directories and ownership
 
-Use these absolute locations at cutover, after checking that the two new
-destinations are absent. These names are a proposal; the code accepts explicit
-absolute roots and does not infer a live save from its own location.
+The roots and operator filenames below are synthetic examples, not deployment
+locations or installed helper names. Replace each placeholder with an explicit
+absolute local path and the matching private helper before use. Check that new
+destinations are absent. Code does not infer a live save from its own location.
 
 ```text
-C:/Users/User/Projects/
-  chunk-picker-rs3-core/                 public shared-code source
+<workspace>/
+  <public-core>/                        public shared-code source
     app/                                shared application and independent data
     tests/                              public synthetic and independent tests
     scripts/                            public build/test tooling
     docs/                               reviewed public documentation
     .git/                               fresh public history only
-  chunk-picker-rs3-private/              private companion, never public-exported
+  <private-companion>/                  private companion, never public-exported
     packs/selection.json                copied immutable selection
     packs/<id>/<version>/pack.json       verified manifests and listed payloads
     profile.json                        pinned inert catalogue/default profile
@@ -39,18 +40,18 @@ C:/Users/User/Projects/
     release-gate/                       private scanner corpus and release evidence
     companion.json                      private source/pack/profile/addon receipt
     .local/                             ignored scratch assemblies and logs
-  chunk-picker-rs3/                      old source/history retained read only
-    .local/duo/                         unchanged live storage
-    .local/duo.dataset.json              required sibling binding; absent at prep
-    .local/public-origin                existing origin, never printed
-    .local/backup-destination            existing backup destination
-    .local/backup-status.json            existing backup status
-    .local/server-runtime.json          same operator ownership record location
-    .local/helper.lock                  same operator serialization lock
-    .local/picker-paused                existing watchdog pause marker
+  <private-checkout>/                   old source/history retained read only
+    .local/example-game/                existing bound storage
+    .local/example-game.dataset.json    required sibling binding
+    .local/origin.example                existing origin, never printed
+    .local/backup-target.example         existing backup destination
+    .local/backup-state.example.json     existing backup status
+    .local/writer-record.example.json    same operator ownership record location
+    .local/operator.example.lock         same operator serialization lock
+    .local/watchdog-paused.example       existing watchdog pause marker
 ```
 
-Shared application changes belong in `chunk-picker-rs3-core` once M7 is accepted.
+Shared application changes belong in `<public-core>` once M7 is accepted.
 Do not maintain shared application copies in the companion or continue editing
 the old source tree. Private changelog/roadmap records remain under the private
 source portion and in the pinned addon built from them. Pack input research,
@@ -63,7 +64,7 @@ artifact and inspect its fresh history.
 Build an absent companion with the private tool:
 
 ```powershell
-node scripts/build-private-companion.mjs --public-root C:/Users/User/Projects/chunk-picker-rs3-core --packs-dir C:/Users/User/Projects/chunk-picker-rs3/.local/packs --output C:/Users/User/Projects/chunk-picker-rs3-private
+node scripts/build-private-companion.mjs --public-root '<public-core>' --packs-dir '<private-checkout>/.local/packs' --output '<private-companion>'
 ```
 
 The builder copies and verifies manifest-listed pack payloads and creates the
@@ -76,8 +77,8 @@ immutable versions available.
 Run checks against the current shared source:
 
 ```powershell
-node C:/Users/User/Projects/chunk-picker-rs3-private/tools/companion-check.mjs --core C:/Users/User/Projects/chunk-picker-rs3-core --lane quick
-powershell -NoProfile -File C:/Users/User/Projects/chunk-picker-rs3/.local/with-heavy.ps1 node C:/Users/User/Projects/chunk-picker-rs3-private/tools/companion-check.mjs --core C:/Users/User/Projects/chunk-picker-rs3-core --lane full
+node '<private-companion>/tools/companion-check.mjs' --core '<public-core>' --lane quick
+powershell -NoProfile -File '<private-checkout>/.local/example-heavy-lock.ps1' node '<private-companion>/tools/companion-check.mjs' --core '<public-core>' --lane full
 ```
 
 The full command requires a valid inherited heavy-lock owner. The runner builds
@@ -97,8 +98,8 @@ sources under their existing private complement paths. Rebuild into absent
 private outputs using the current core, without reopening the old repo:
 
 ```powershell
-node C:/Users/User/Projects/chunk-picker-rs3-private/tools/companion-check.mjs --core C:/Users/User/Projects/chunk-picker-rs3-core --lane addon --output C:/Users/User/Projects/chunk-picker-rs3-private/addons-next
-node C:/Users/User/Projects/chunk-picker-rs3-private/tools/companion-check.mjs --core C:/Users/User/Projects/chunk-picker-rs3-core --lane profile --output C:/Users/User/Projects/chunk-picker-rs3-private/profile-next.json
+node '<private-companion>/tools/companion-check.mjs' --core '<public-core>' --lane addon --output '<private-companion>/addons-next'
+node '<private-companion>/tools/companion-check.mjs' --core '<public-core>' --lane profile --output '<private-companion>/profile-next.json'
 ```
 
 These commands print the new hash and leave the previous selection intact.
@@ -111,7 +112,7 @@ replacement runtime packs.
 Run the private gallery through its companion tool under the shared light lock:
 
 ```powershell
-powershell -NoProfile -File C:/Users/User/Projects/chunk-picker-rs3/.local/with-light.ps1 node C:/Users/User/Projects/chunk-picker-rs3-private/tools/gallery-check.mjs --core C:/Users/User/Projects/chunk-picker-rs3-core --checker C:/Users/User/Projects/chunk-picker-rs3-private/tools/gallery-browser-check.mjs
+powershell -NoProfile -File '<private-checkout>/.local/example-light-lock.ps1' node '<private-companion>/tools/gallery-check.mjs' --core '<public-core>' --checker '<private-companion>/tools/gallery-browser-check.mjs'
 ```
 
 The copied browser checker remains unchanged. The gallery tool stages only its
@@ -121,15 +122,15 @@ baseline until a reviewed gallery change updates that count.
 
 ## Operator configuration
 
-The private helpers are `Start-Core.ps1`, `Stop-Core.ps1`, `Rollback-Core.ps1`,
-`Ship-Core.ps1` and their shared `Operator-Common.ps1`. Keep the five files together. They require
+The example private helpers are `Start-Example.ps1`, `Stop-Example.ps1`, `Rollback-Example.ps1`,
+`Publish-Example.ps1` and their shared `Example-Operator.ps1`. Keep the five files together. They require
 Windows PowerShell, Node, explicit JSON configuration and existing bound storage.
 They never initialize a fresh game or create a credential. The configuration is
 local operator state and must not enter public history.
 
-Read-only preparation found that the actual live `duo.dataset.json` sibling is
-absent. The helpers deliberately require bound storage for Start. Preserve an
-existing binding when present. Here, validating/creating the correct binding
+For an unbound store, the sibling binding receipt (for example,
+`example-game.dataset.json`) is absent. The helpers deliberately require bound
+storage for Start. Preserve an existing binding when present. Creating a missing binding
 receipt is a cutover prerequisite with the writer stopped, after the secured
 snapshot, under a separately authorized live switch. Do not manufacture it
 during preparation or bypass the Start check. Stop can still validate ownership
@@ -142,14 +143,14 @@ run the retained private binding CLI with the candidate's explicit pinned profil
 and unchanged live pack selection:
 
 ```powershell
-$bindingConfig = Get-Content -LiteralPath C:/Users/User/Projects/chunk-picker-rs3-private/operator/candidate-v2.json -Raw | ConvertFrom-Json
+$bindingConfig = Get-Content -LiteralPath '<private-companion>/operator/example-candidate.json' -Raw | ConvertFrom-Json
 foreach ($lockName in 'store.lock', 'store.lock.recovery') {
     if (Test-Path -LiteralPath (Join-Path $bindingConfig.dataDir $lockName)) { throw 'Writer lock remains; binding refused.' }
 }
-$env:RS3_DATASET = 'duo-legacy'
+$env:RS3_DATASET = '<dataset-id>'
 $env:RS3_DATASET_PROFILE = $bindingConfig.profile.path
 $env:RS3_DATASET_PROFILE_SHA256 = $bindingConfig.profile.sha256
-& $bindingConfig.nodePath C:/Users/User/Projects/chunk-picker-rs3/scripts/bind-dataset.mjs --data-dir $bindingConfig.dataDir --packs-dir $bindingConfig.packsDir --selection $bindingConfig.selection.path
+& $bindingConfig.nodePath '<private-checkout>/scripts/bind-dataset.mjs' --data-dir $bindingConfig.dataDir --packs-dir $bindingConfig.packsDir --selection $bindingConfig.selection.path
 if ($LASTEXITCODE -ne 0) { throw 'Dataset binding failed; keep the writer stopped.' }
 ```
 
@@ -165,11 +166,11 @@ Each configuration has these exact fields:
 | --- | --- |
 | `schemaVersion` | `1` |
 | `coreRoot` | Absolute checkout containing `app/server.mjs` |
-| `dataDir` | Existing absolute `C:/Users/User/Projects/chunk-picker-rs3/.local/duo` |
+| `dataDir` | Existing absolute `<private-checkout>/.local/example-game` |
 | `nodePath` | Existing absolute Node executable |
-| `host`, `port` | Actual current private listener address and `8788` |
-| `loopbackPort` | Actual current secondary port, ordinarily `8789`, or explicit `null` |
-| `publicOriginFile` | Existing `public-origin` under the data directory's parent |
+| `host`, `port` | Existing private listener address and port (for example `8952`) |
+| `loopbackPort` | Existing secondary port (for example `8953`), or explicit `null` |
+| `publicOriginFile` | Existing origin sidecar under the data directory's parent, shown as `origin.example` |
 | `packsDir` | Existing absolute live pack root; do not silently substitute companion copies |
 | `selection` | `{ "path": "<absolute selection.json>", "sha256": "<64 lowercase hex>" }` |
 | `packs` | Object with `data`, `rulesText`, `art`, each an absolute manifest path and SHA-256 pin |
@@ -198,9 +199,9 @@ pointing to their existing paths. Their location follows the original data
 parent rather than the new code root.
 
 ```powershell
-powershell -NoProfile -File <private-operator>/Start-Core.ps1 -Config <absolute-new-config.json> -DryRun
-powershell -NoProfile -File <private-operator>/Stop-Core.ps1 -Config <absolute-new-config.json> -DryRun
-powershell -NoProfile -File <private-operator>/Rollback-Core.ps1 -Config <absolute-new-config.json> -PreviousConfig <absolute-previous-config.json> -DryRun
+powershell -NoProfile -File '<private-operator>/Start-Example.ps1' -Config '<absolute-new-config.json>' -DryRun
+powershell -NoProfile -File '<private-operator>/Stop-Example.ps1' -Config '<absolute-new-config.json>' -DryRun
+powershell -NoProfile -File '<private-operator>/Rollback-Example.ps1' -Config '<absolute-new-config.json>' -PreviousConfig '<absolute-previous-config.json>' -DryRun
 ```
 
 Dry runs only read configuration, input metadata and lock presence and print a bounded
@@ -214,7 +215,7 @@ validation for the new code and full start validation for previous code before
 touching the new process. All paths must be fully qualified local drive paths;
 unrecognized configuration fields are refused.
 
-Live operations serialize using the original parent's `helper.lock`. Start
+Live operations serialize using the original parent's `operator.example.lock`. Start
 refuses a storage/recovery lock or any Node command naming the same explicit
 data directory. It does not recover or delete stale locks. Managed operations
 bind the configuration hash, executable, server/data paths, listener arguments,
@@ -228,7 +229,7 @@ operator inspection, not an inferred process match.
 
 ## Cutover gate and release pipeline
 
-The current read-only `ship.ps1` has the sequence full tests, unchanged-revision
+A legacy release helper, shown here as `legacy-release-example.ps1`, has the sequence full tests, unchanged-revision
 check, fast-forward main, stop, local save copy, pack sync, start and health check.
 Its unencrypted save copy and current root-derived launchers do not constitute
 the M7 operational snapshot or new deployment layout. Do not execute it against
@@ -240,7 +241,7 @@ sync → start ordering and add the paired public/private gates:
 For ongoing releases after the initial managed M7 handover, use:
 
 ```powershell
-powershell -NoProfile -File C:/Users/User/Projects/chunk-picker-rs3-private/operator/Ship-Core.ps1 -Config C:/Users/User/Projects/chunk-picker-rs3-private/operator/candidate-v2.json -PreviousConfig C:/Users/User/Projects/chunk-picker-rs3-private/operator/accepted-v1.json -CoreRoot C:/Users/User/Projects/chunk-picker-rs3-core -CompanionRoot C:/Users/User/Projects/chunk-picker-rs3-private -HeavyLock C:/Users/User/Projects/chunk-picker-rs3/.local/with-heavy.ps1 -DryRun
+powershell -NoProfile -File '<private-companion>/operator/Publish-Example.ps1' -Config '<private-companion>/operator/example-candidate.json' -PreviousConfig '<private-companion>/operator/example-previous.json' -CoreRoot '<public-core>' -CompanionRoot '<private-companion>' -HeavyLock '<private-checkout>/.local/example-heavy-lock.ps1' -DryRun
 ```
 
 The dry run reads configuration/pins, the companion receipt and Git state. It
@@ -251,7 +252,7 @@ configuration checks, managed Stop, installation/data-sync verification, another
 revision/configuration check, and managed Start. The exact sync gate is:
 
 ```powershell
-node C:/Users/User/Projects/chunk-picker-rs3-private/tools/verify-install.mjs --core C:/Users/User/Projects/chunk-picker-rs3-core --companion C:/Users/User/Projects/chunk-picker-rs3-private
+node '<private-companion>/tools/verify-install.mjs' --core '<public-core>' --companion '<private-companion>'
 ```
 
 Create a new configuration filename whenever private profile/addon pins change.

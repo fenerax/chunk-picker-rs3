@@ -83,10 +83,9 @@ Open a capped, invite-only beta of roughly 25–50 groups once the [launch basic
 
 ## Sources of decisions
 
-- This chat: full recreation, from scratch, GIM/special rules, extensibility and speed; personal teleport eligibility.
-- Previous chat `01a1130a-4982-7e81-87f7-4c1fdc32f234`, “Find RS3 chunk picker source”: destination eligible to roll, private standalone use, earlier audit and feature proposals.
-- Planning notes (kept outside the repository), October 4: confirmed duo access/completion/supply/travel rules. Its account and map counts are dated snapshots, not current progress.
-- Local October 6 audit under `C:/Users/User/Projects/personal assistant/out/rs3-chunk-picker-audit-2026-10-06/`: measured defects, captured public gameplay data, and reference timings. Use its newer fixture for technical comparisons without claiming current gameplay state.
+- October 7, 2026: recreate the full picker from scratch, with Group Ironman and special rules, extensibility, faster calculations and personal teleport eligibility. Support private standalone use. A usable teleport makes its destination eligible to roll; it does not unlock it.
+- October 4, 2026: confirm separate ownership with shared connected access, duo completion, supplies and permitted travel. Account and map counts are dated snapshots, not current progress.
+- October 6, 2026: record measured defects, captured public gameplay data and reference timings. Use the newer audit fixture for technical comparisons without claiming current gameplay state.
 
 ## Switch-over decisions (2026-10-08)
 

@@ -2,7 +2,7 @@
 
 The runtime [place-label dataset](../../app/data/place-labels.2026-10-13.v1.json) exports **312 text anchors in 262 surface chunks** from the existing read-only `places-2026-10-08-v3` extraction. It includes **28 region**, **58 town**, and **226 place** labels. These levels follow the cache font-size hierarchy, so `town` includes some mountains, swamps and other features. The extraction's [place-name review](cache-game-data-places.md) establishes the decoder and exact map-paste method.
 
-The source is `C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/places-2026-10-08-v3/places.v1.json`, SHA-256 `dc88b9e37f0d638f9b63976bb358b76e7967e64e390d8310a12299abe8ce5312`. The exporter verifies its byte length and hash against the extraction manifest before writing. Runtime provenance retains both input-file hashes, the decoder commit and schema hashes, the relevant cache-file hashes, and the decompressed archive hashes for map elements, zones, pastes and surface placements. No fresh web fetch or cache decoding was needed.
+The source is `<private-checkout>/.local/game-data/places-2026-10-08-v3/places.v1.json`, SHA-256 `dc88b9e37f0d638f9b63976bb358b76e7967e64e390d8310a12299abe8ce5312`. The exporter verifies its byte length and hash against the extraction manifest before writing. Runtime provenance retains both input-file hashes, the decoder commit and schema hashes, the relevant cache-file hashes, and the decompressed archive hashes for map elements, zones, pastes and surface placements. No fresh web fetch or cache decoding was needed.
 
 ## Text and position
 
@@ -29,7 +29,7 @@ All nonempty surface text placements are exported, including eight labels with e
 ## Reproduction and validation
 
 ```powershell
-node scripts/export-place-labels.mjs --input C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/places-2026-10-08-v3 --output NEW-PLACE-LABELS.json
+node scripts/export-place-labels.mjs --input <private-checkout>/.local/game-data/places-2026-10-08-v3 --output NEW-PLACE-LABELS.json
 node --test --test-timeout=120000 tests/place-label-data.test.mjs
 ```
 

@@ -204,7 +204,7 @@ The latter defaults to the original asset root. Neither selection starts or
 changes the deployed service.
 
 ```powershell
-python scripts/build-terrain-assets.py --source C:/Users/User/Projects/chunk-picker-rs3/.local/map-assets --output .local/map-assets
+python scripts/build-terrain-assets.py --source <private-checkout>/.local/map-assets --output .local/map-assets
 python tests/terrain-assets-exporter.test.py
 npm test
 ```

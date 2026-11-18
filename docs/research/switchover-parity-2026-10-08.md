@@ -552,8 +552,8 @@ Run from an isolated worktree with a newly copied save under that worktree’s `
 ```powershell
 node scripts/research/original-parity.mjs `
   --data-dir .local/duo `
-  --game-data "C:/Users/User/Projects/chunk-picker-rs3/.local/game-data" `
-  --map-assets "C:/Users/User/Projects/chunk-picker-rs3/.local/map-assets" `
+  --game-data "<private-checkout>/.local/game-data" `
+  --map-assets "<private-checkout>/.local/map-assets" `
   --output .local/research/original-parity-review.json
 ```
 

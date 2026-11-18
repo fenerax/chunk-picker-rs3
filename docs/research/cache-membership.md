@@ -18,7 +18,7 @@ Code inspection alone did not establish polarity or within-byte bit order. A sub
 
 ### Independent copied-cache calibration
 
-The pinned external opcode interpreter decoded map index 5, archive `128*regionY+regionX`, subfile 3, using schema build 950. These reads used the isolated `rs3-cache-work/cache-copy`, never the live client cache. Wiki coordinates and membership were fetched directly through `api.php?action=parse&prop=wikitext|revid`; saved response snapshots are in the audit's own scratch folder. They are independent of picker nicknames and flags.
+The pinned external opcode interpreter decoded map index 5, archive `128*regionY+regionX`, subfile 3, using schema build 950. These reads used the isolated `<cache-workspace>/cache-copy`, never the live client cache. Wiki coordinates and membership were fetched directly through `api.php?action=parse&prop=wikitext|revid`; saved response snapshots are in the audit's own scratch folder. They are independent of picker nicknames and flags.
 
 | Calibration | Fresh Wiki evidence | Decoded observation / implication |
 |---|---|---|
@@ -90,7 +90,7 @@ Focused [membership tests](../../tests/cache-membership.test.mjs) verify indepen
 
 ## Final v4 output observations
 
-The generated `C:/Users/User/Projects/rs3-cache-work/outputs/cache-audit-2026-10-07-v4/membership.v1.json` was inspected after it appeared; its inspected SHA-256 is `972366f985be500c96c432246e18b79d6d9b56568ea74c7889c2189ab8d65173`. These values join calibrated source masks, map-28 full-square translations and the importer's conservative closed collision scenario. They are advisory observations, not gameplay changes or character movement validation.
+The generated `<cache-workspace>/outputs/cache-audit-2026-10-07-v4/membership.v1.json` was inspected after it appeared; its inspected SHA-256 is `972366f985be500c96c432246e18b79d6d9b56568ea74c7889c2189ab8d65173`. These values join calibrated source masks, map-28 full-square translations and the importer's conservative closed collision scenario. They are advisory observations, not gameplay changes or character movement validation.
 
 | Displayed picker region | Actual cache source square | Mask | Walkable mask classification |
 |---|---|---|---|

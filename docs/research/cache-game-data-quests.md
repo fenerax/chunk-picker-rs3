@@ -2,7 +2,7 @@
 
 The copied cache provides quest metadata and structured achievement definitions. This extraction produced **534 quest configs and 5,098 achievements with zero decoding errors**. The full datasets remain local; the [committed summary](cache-game-data-quests.2026-10-08.v1.json) contains counts, provenance, named samples, Wiki revision checks and quest metadata disagreements. Application data and behavior were not changed.
 
-The run used the existing copied databases under `C:/Users/User/Projects/rs3-cache-work/cache-copy`, read-only SQLite, and the untouched [rsmv decoder commit a92b8920b9b9842adde78822646ecad1a6f4fc15](https://github.com/skillbert/rsmv/tree/a92b8920b9b9842adde78822646ecad1a6f4fc15). Schema build 950 is inferred, as in the earlier [walkability](cache-walkability.md), [membership](cache-membership.md) and [pins](cache-pins.md) reports. It is not an independently confirmed live client build.
+The run used the existing copied databases under `<cache-workspace>/cache-copy`, read-only SQLite, and the untouched [rsmv decoder commit a92b8920b9b9842adde78822646ecad1a6f4fc15](https://github.com/skillbert/rsmv/tree/a92b8920b9b9842adde78822646ecad1a6f4fc15). Schema build 950 is inferred, as in the earlier [walkability](cache-walkability.md), [membership](cache-membership.md) and [pins](cache-pins.md) reports. It is not an independently confirmed live client build.
 
 ## Source and field interpretation
 
@@ -78,15 +78,15 @@ Run from this worktree, with a **new** output directory. The CLI refuses existin
 
 ```powershell
 node scripts/cache/game-data-quests.mjs `
-  --workspace C:/Users/User/Projects/rs3-cache-work `
-  --output C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/NEW-VERSION `
-  --wiki-snapshot C:/Users/User/Projects/rs3-cache-work/wiki-quest-validation-2026-10-08.json
+  --workspace <cache-workspace> `
+  --output <private-checkout>/.local/game-data/NEW-VERSION `
+  --wiki-snapshot <cache-workspace>/wiki-quest-validation-2026-10-08.json
 node --test tests/cache-game-data-quests.test.mjs
 ```
 
 `--wiki-snapshot` is optional for a cache-only rerun. The module exports `extractQuestsAchievements({workspace,output,build,wikiSnapshot})` for a combined importer.
 
-The final domain run is `C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/quests-achievements-2026-10-08-v2/`. Files:
+The final domain run is `<private-checkout>/.local/game-data/quests-achievements-2026-10-08-v2/`. Files:
 
 - `quests.v1.json`: normalized and raw quest definitions.
 - `achievements.v1.json`: normalized and raw achievement definitions.

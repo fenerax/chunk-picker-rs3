@@ -8,7 +8,7 @@ server, storage, engine, worker or application-data files changed.
 ## Backup found and checked
 
 The configured destination is
-`C:\Users\User\OneDrive - GroupeDesRoches\personal\RS3 Chunk Picker backups`.
+`<backup-directory>`.
 `scripts/Backup-Picker.ps1`, `.local/backup-destination`, `.local/backup.log`,
 `.local/backup-status.json` and the scheduled-task definition agree. The task
 runs at 04:00 local time while the user is signed in and catches up after sleep;

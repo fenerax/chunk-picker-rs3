@@ -1485,7 +1485,7 @@ Exact manifests remain in `.local/groupview-merge-perf-{prep,sources}.json`.
 The commands use read-only main map/game data and the same copied source:
 
 ```powershell
-$perfArgs = @('--source', '.local/groupview-merge-save', '--runs', '3', '--scenarios', 'reload,unlock', '--settlement', 'tasks', '--prewarm', 'on', '--map-assets', 'C:/Users/User/Projects/chunk-picker-rs3/.local/map-assets', '--game-data', 'C:/Users/User/Projects/chunk-picker-rs3/.local/game-data')
+$perfArgs = @('--source', '.local/groupview-merge-save', '--runs', '3', '--scenarios', 'reload,unlock', '--settlement', 'tasks', '--prewarm', 'on', '--map-assets', '<private-checkout>/.local/map-assets', '--game-data', '<private-checkout>/.local/game-data')
 npm run perf -- @perfArgs --group-view off --label groupmerge-redesign-off --server-entry .local/groupview-merge-redesign/app/server.mjs --server-revision af6e307ca20d597e1c6dede5c2e465a7db7773f9
 npm run perf -- @perfArgs --group-view on --task-milestone tasks --label groupmerge-redesign-on --server-entry .local/groupview-merge-redesign/app/server.mjs --server-revision af6e307ca20d597e1c6dede5c2e465a7db7773f9
 npm run perf -- @perfArgs --group-view off --label groupmerge-merged-off --server-entry app/server.mjs --server-revision c3bd7bd029a9d96cda45c9f7d2f15a0959b771e5

@@ -12,15 +12,15 @@ Run from this worktree with Node 24.19.0. The default extractor is offline; opti
 
 ```powershell
 node --max-old-space-size=4096 scripts/cache/game-data-items.mjs `
-  --workspace C:/Users/User/Projects/rs3-cache-work `
-  --output C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/items-NEW-VERSION `
-  --wiki-evidence C:/Users/User/Projects/rs3-cache-work/items-wiki-samples-2026-10-08-v1.json
+  --workspace <cache-workspace> `
+  --output <private-checkout>/.local/game-data/items-NEW-VERSION `
+  --wiki-evidence <cache-workspace>/items-wiki-samples-2026-10-08-v1.json
 node --test tests/cache-game-data-items.test.mjs
 ```
 
 `openGameCache()` verifies pristine [rsmv a92b8920b9b9842adde78822646ecad1a6f4fc15](https://github.com/skillbert/rsmv/tree/a92b8920b9b9842adde78822646ecad1a6f4fc15). Schema build **950** is inferred, not an independently verified game-client build. Only copied `js5-19.jcache` and `js5-2.jcache` are opened read-only with `query_only`. Major 19 was obtained by plain `Copy-Item` from the original directory. Pinned constants specify items major 19, grouped in 256 IDs, and params major 2/minor 11. The snapshot lacks filename major 67, which could otherwise supply internal parameter names.
 
-Final output directory: [items-2026-10-08-v2](C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/items-2026-10-08-v2). Its [manifest](C:/Users/User/Projects/chunk-picker-rs3/.local/game-data/items-2026-10-08-v2/items.manifest.v1.json) records full database hashes, every consumed decompressed archive hash/version/subfile inventory, decoder/schema hashes, reference hash and output hashes. Manifest SHA-256: `7faac7f68d9483e4e5e9c1fe4408787b3286568d474f5e71902214ad77dd45a9`. The earlier v1 is superseded; its preliminary comparisons included incompatible off-hand damage and slot conventions.
+Final output directory: items-2026-10-08-v2 (`<private-checkout>/.local/game-data/items-2026-10-08-v2`). Its manifest (`<private-checkout>/.local/game-data/items-2026-10-08-v2/items.manifest.v1.json`) records full database hashes, every consumed decompressed archive hash/version/subfile inventory, decoder/schema hashes, reference hash and output hashes. Manifest SHA-256: `7faac7f68d9483e4e5e9c1fe4408787b3286568d474f5e71902214ad77dd45a9`. The earlier v1 is superseded; its preliminary comparisons included incompatible off-hand damage and slot conventions.
 
 Full local datasets are `items.raw.v1.json`, `items.v1.json`, `items.params.v1.json`, `items.comparison.v1.json` and `items.wiki-samples.v1.json`. The [committed compact report](cache-game-data-items.2026-10-08.v1.json) contains counts, hashes, all consensus disagreement rows, all unmatched equipment names, all ambiguous equipment IDs, eleven decoded samples and exact Wiki revision checks. Complete per-candidate disagreements and the 9,169-name item inventory remain in the full comparison.
 

@@ -60,7 +60,7 @@ Fully free or fully members component masks settle component membership. Mixed/u
 Regenerate the companion policy after an intentional audited source/mapping change:
 
 ```powershell
-node scripts/cache/build-runtime-topology.mjs C:/Users/User/Projects/rs3-cache-work/outputs/cache-audit-2026-10-07-v4/membership.v1.json
+node scripts/cache/build-runtime-topology.mjs <cache-workspace>/outputs/cache-audit-2026-10-07-v4/membership.v1.json
 ```
 
 `buildWorld(definitions, {cacheWalking:false})` and `createTaskEngine(definitions, {cacheWalking:false})` expose the corrected retained overlay for independent comparisons. Automatic activation also checks the retained dataset's size and two shoreline identity sentinels; custom/synthetic worlds remain untouched and can explicitly select the adapter.

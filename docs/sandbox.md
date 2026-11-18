@@ -49,8 +49,8 @@ The endpoint never dispatches a saved command, writes gameplay state or appends 
 `npm test` includes strict request/auth/origin/stale/no-write tests, native multi-step and delta fixtures, cache/scheduler regressions, controller race/undo/exit checks, and shipped main-module save guards. Prepare a worktree-local copy of the private duo save, removing `store.lock`, `invites.json`, `feedback.json` and `access-token`; delete that source copy after checking. The browser check below creates/deletes its own disposable store and Chrome profile:
 
 ```powershell
-$env:RS3_GAME_DATA_DIR = 'C:\Users\User\Projects\chunk-picker-rs3\.local\game-data'
-$env:RS3_MAP_ASSETS_DIR = 'C:\Users\User\Projects\chunk-picker-rs3\.local\map-assets'
+$env:RS3_GAME_DATA_DIR = '<private-checkout>\.local\game-data'
+$env:RS3_MAP_ASSETS_DIR = '<private-checkout>\.local\map-assets'
 node scripts/research/sandbox-smoke.mjs --source .local/sandbox-real-save
 ```
 

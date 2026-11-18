@@ -4,7 +4,7 @@ The [milestone 5 follow-up](public-candidate-followup-2026-10-14.md) supersedes
 this first-pass candidate for publication readiness and test counts.
 
 Milestone 5 is complete locally. The candidate is
-`C:/Users/User/Projects/chunk-picker-rs3-public`: **416 working-tree files**, one
+`<public-export>`: **416 working-tree files**, one
 initial commit, no remotes, no private history. Nothing was published or uploaded.
 
 The [release receipt](../../.local/public-export/release-receipt.json) contains

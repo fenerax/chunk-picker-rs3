@@ -6,7 +6,7 @@ The [complete evidence file](../../app/data/cache-selector-evidence.2026-10-07.v
 
 ## Evidence and acceptance rule
 
-Sources are the audit's full <code>walkability.v1.json.gz</code> component masks and the read-only <code>rs3-cache-work/cache-copy</code> location, object-definition and layout databases. The generator verifies copied js5-5, js5-16 and js5-23 SHA-256 values against the audited manifest, and checks decoder interpreter/constants hashes. Those hashes and the full walkability hash are saved with the evidence. Original game files and private saves are not opened.
+Sources are the audit's full <code>walkability.v1.json.gz</code> component masks and the read-only <code>&lt;cache-workspace&gt;/cache-copy</code> location, object-definition and layout databases. The generator verifies copied js5-5, js5-16 and js5-23 SHA-256 values against the audited manifest, and checks decoder interpreter/constants hashes. Those hashes and the full walkability hash are saved with the evidence. Original game files and private saves are not opened.
 
 A retained Object name must match a decoded placement name exactly and occur in only this section among its siblings. No stripping qualifiers, approximate names or guessed quantities selects a placement. Unsplit -0 selectors use their top-level declarations. Only original plane-0 locations are used; conditional morph names cannot certify a correspondence. All matching placements in the declared region are retained, including disagreements. NPCs, monster spawns and ground-item spawns have no authoritative server placement catalogue in this copied export; their declarations are recorded but cannot manufacture coordinates.
 
@@ -37,8 +37,8 @@ Task Chunks/Sections declarations also require a task-location witness even if t
 Run from this checkout; the three commands write only authored evidence, policy and this report:
 
 ```powershell
-node scripts/cache/audit-selector-mapping.mjs C:/Users/User/Projects/rs3-cache-work
-node scripts/cache/build-runtime-topology.mjs C:/Users/User/Projects/rs3-cache-work/outputs/cache-audit-2026-10-07-v4/membership.v1.json
+node scripts/cache/audit-selector-mapping.mjs <cache-workspace>
+node scripts/cache/build-runtime-topology.mjs <cache-workspace>/outputs/cache-audit-2026-10-07-v4/membership.v1.json
 node scripts/cache/report-selector-mapping.mjs
 node --test tests/cache-selector-mapping.test.mjs tests/cache-topology-application.test.mjs tests/cache-task-access.test.mjs
 ```
