@@ -7,6 +7,75 @@ import { playerControlSkills } from '../app/core/player-controls.mjs';
 const observedSkill = playerControlSkills[0];
 import { openStore } from '../app/storage/store.mjs';
 import { createGroupState } from '../app/core/state.mjs';
+import { buildXpChoiceCatalogue } from '../app/core/xp-choices.mjs';
+
+const protectedUndos = [
+  [{ type: 'claim-task', taskId: 'custom:task' }, 'You can only undo task claims made by your signed-in player.'],
+  [{ type: 'clear-task-claim', taskId: 'custom:task' }, 'You can only undo task claims made by your signed-in player.'],
+  [{ type: 'tick-active-tasks', taskIds: ['custom:task'] }, 'You can only undo your own ticked tasks.'],
+  [{ type: 'set-obtained-equipment', equipmentName: 'Synthetic pickaxe', obtained: true }, 'You can only undo obtained equipment records for your signed-in player.'],
+  [{ type: 'set-xp-choices', taskId: 'custom:reward', choices: ['Mining'] }, 'You can only undo XP choices for your signed-in player.'],
+  [{ type: 'set-transport-facts', facts: { currencies: { coins: 100 } } }, 'You can only undo travel facts for your signed-in player.'],
+  [{ type: 'set-finish-line-custom', itemId: 'finish:goal', completed: true }, 'You can only undo finish line ticks for your signed-in player.'],
+];
+const inviteActor = memberId => ({ kind: 'invite', label: memberId ?? 'Unassigned', inviteId: `invite-${memberId ?? 'unassigned'}`, ...(memberId ? { memberId } : {}) });
+
+for (const [command, message] of protectedUndos) for (const archived of [false, true]) for (const undoer of ['owner', 'master', 'admin invite']) {
+  test(`${command.type} Undo checks the owner in ${archived ? 'archived' : 'recent'} History and allows ${undoer}`, async t => {
+    const dataDir = await mkdtemp(path.join(os.tmpdir(), 'rs3-undo-owner-'));
+    const initialState = createGroupState([{ id: 'owner', name: 'Owner' }, { id: 'other', name: 'Other' }]);
+    initialState.tasks = [{ id: 'custom:task', label: 'Synthetic task', category: 'Custom' }];
+    const reward = { id: 'custom:reward', label: 'Reward', category: 'Quest' };
+    initialState.tasks.push(reward);
+    const xpChoiceCatalogue = buildXpChoiceCatalogue({ challenges: { Quest: { Reward: { XpReward: { Any: 100 } } } } }, [reward]);
+    const world = { chunks: new Map(), neighbors: new Map(), walkable: new Set(), f2p: new Set() };
+    const store = await openStore({ dataDir, initialState, world, xpChoiceCatalogue, retention: { backupDays: 90, historyEntries: 1 } });
+    t.after(async () => { await store.close(); await rm(dataDir, { recursive: true }); });
+    const save = command => store.command(command, store.getInfo().revision, { actor: inviteActor('owner') });
+    if (command.type === 'clear-task-claim') await save({ type: 'claim-task', memberId: 'owner', taskId: 'custom:task' });
+    if (command.type === 'set-finish-line-custom') await save({ type: 'add-finish-line-custom', itemId: 'finish:goal', text: 'Synthetic goal' });
+    const before = store.getState();
+    const changed = await save({ ...command, memberId: 'owner' });
+    const undo = { type: 'undo', undoRevision: changed.revision };
+    if (archived) {
+      for (let index = 0; index < 4; index++) await save({ type: 'set-journal', memberId: 'other', note: `Later ${index}` });
+      assert.ok(store.getInfo().retention.historyArchives > 0);
+      assert.equal(store.getHistoryEvent(changed.revision), undefined, 'The target really left resident History');
+    } else assert.equal(store.getHistoryEvent(changed.revision).type, command.type);
+    let baseline = store.getState(), revision = baseline.revision;
+    let broadcasts = 0;
+    store.subscribe(() => broadcasts++);
+    await assert.rejects(store.command(undo, revision, { actor: inviteActor('other') }), { status: 403, message });
+    await assert.rejects(store.commandSerialized(undo, revision, { actor: inviteActor('other') }), { status: 403, message });
+    if (!archived) await assert.rejects(store.commandSerialized({ type: 'undo' }, revision, { actor: inviteActor('other') }), { status: 403, message });
+    if (!['claim-task', 'clear-task-claim'].includes(command.type)) {
+      await assert.rejects(store.command(undo, revision, { actor: inviteActor() }), { status: 403, message });
+    } else {
+      // Admin invites assigned to a player retain the existing claim rule.
+      await assert.rejects(store.command(undo, revision, { actor: inviteActor('other'), admin: true }), { status: 403, message });
+    }
+    assert.deepEqual(store.getState(), baseline, 'Refusals leave gameplay and History unchanged');
+    assert.equal(broadcasts, 0);
+    const access = undoer === 'owner' ? { actor: inviteActor('owner') }
+      : undoer === 'master' ? { actor: { kind: 'master', label: 'Administrator' } }
+        : { actor: inviteActor(['claim-task', 'clear-task-claim'].includes(command.type) ? undefined : 'other'), admin: true };
+    if (archived && command.type === 'set-finish-line-custom') {
+      // Finish line inverses already require later reversible edits to be
+      // undone first. Authorization must not relax that independent guard.
+      await assert.rejects(store.command(undo, revision, access), /Older undo is supported only for guarded personal changes/);
+      for (let index = 0; index < 4; index++) await store.command({ type: 'undo' }, store.getInfo().revision);
+      baseline = store.getState(); revision = baseline.revision;
+    }
+    await store.commandSerialized(archived ? undo : { type: 'undo' }, revision, access);
+    const restored = store.getState();
+    assert.deepEqual(restored.members[0], before.members[0]);
+    assert.deepEqual(restored.taskClaims ?? {}, before.taskClaims ?? {});
+    assert.deepEqual(restored.finishLine, before.finishLine);
+    assert.deepEqual(restored.members[1], baseline.members[1], 'Selected Undo preserves unrelated changes');
+    assert.equal(restored.revision, revision + 1);
+    assert.equal((await store.readHistoryEvent(changed.revision)).event.undoneRevision, restored.revision);
+  });
+}
 
 test('store previews and metadata avoid full history snapshots and selected undo survives restart', async t => {
   const dataDir = await mkdtemp(path.join(os.tmpdir(), 'rs3-undo-safety-'));

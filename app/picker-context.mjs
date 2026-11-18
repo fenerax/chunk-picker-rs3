@@ -1821,34 +1821,12 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
                 throw httpError(403, 'You can only tick custom finish line items for your signed-in player.');
               }
               if (command?.type === TICK_ACTIVE_TASKS) { const denied = tickActiveTasksDenied(identity, command); if (denied) throw httpError(403, denied); }
-              if (command?.type === 'undo' && !identity.admin) {
-                const target = store.getHistoryEvent(command.undoRevision ?? store.getUndoEligibility().undoRevision);
-                const tickDenied = tickActiveTasksDenied(identity, command, target);
-                if (tickDenied) throw httpError(403, tickDenied);
-                if (target?.type === 'set-finish-line-custom' && (!identity.memberId || target.command?.memberId !== identity.memberId)) {
-                  throw httpError(403, 'You can only undo finish line ticks for your signed-in player.');
-                }
-                if (target?.type === 'set-transport-facts' && (!identity.memberId || target.command?.memberId !== identity.memberId)) {
-                  throw httpError(403, 'You can only undo travel facts for your signed-in player.');
-                }
-                if (target?.type === 'set-xp-choices' && (!identity.memberId || target.command?.memberId !== identity.memberId)) {
-                  throw httpError(403, 'You can only undo XP choices for your signed-in player.');
-                }
-              }
               if (command?.type === 'set-obtained-equipment') {
                 if (!identity.admin && command.memberId !== identity.memberId) throw httpError(403, 'You can only record obtained equipment for your signed-in player.');
                 if (typeof command.equipmentName !== 'string' || !Object.hasOwn(parsedDefinitions.equipment ?? {}, command.equipmentName)) throw httpError(400, 'Choose known equipment from the catalogue.');
               }
               if (['claim-task', 'clear-task-claim'].includes(command?.type) && identity.memberId && command.memberId !== identity.memberId) {
                 throw httpError(403, 'You can only mark or stop tasks as your signed-in player.');
-              }
-              if (command?.type === 'undo' && identity.memberId) {
-                const revision = command.undoRevision ?? store.getUndoEligibility().undoRevision;
-                const target = store.getHistoryEvent(revision);
-                if (target?.type === 'set-obtained-equipment' && !identity.admin && target.command?.memberId !== identity.memberId) throw httpError(403, 'You can only undo obtained equipment records for your signed-in player.');
-                if (['claim-task', 'clear-task-claim'].includes(target?.type) && target.command?.memberId !== identity.memberId) {
-                  throw httpError(403, 'You can only undo task claims made by your signed-in player.');
-                }
               }
               response.once('finish', scheduleClaimCleanup);
               if (command?.type === 'sync-original') {
@@ -1867,7 +1845,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
                 originalSyncPreviews.delete(previewId);
                 await commandJSON(request, response, saved); return;
               }
-              await commandJSON(request, response, await store.commandSerialized(command, body.expectedRevision, { omitUnchanged: true, actor: identity.actor, view: viewFor(request), requestId: body.requestId, requestAck: body.requestAck })); return;
+              await commandJSON(request, response, await store.commandSerialized(command, body.expectedRevision, { omitUnchanged: true, actor: identity.actor, admin: identity.admin, view: viewFor(request), requestId: body.requestId, requestAck: body.requestAck })); return;
             }
             if (isImportRoute(route)) {
               if (body.originalPaste && !originalPasteEnabled) throw httpError(404, 'Original picker paste import is unavailable.');

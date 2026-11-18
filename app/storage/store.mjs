@@ -46,6 +46,7 @@ import { readHistoryEvents } from './history-reader.mjs';
 import { computeRollStats, selectRollStatsEvent } from '../core/roll-stats.mjs';
 import { describeHistoryEvent, historyChangeType, historyChangeTypes } from '../web/history-text.mjs';
 import { loadGameDefaults } from '../game-defaults.mjs';
+import { tickActiveTasksDenied } from '../core/tick-active-tasks.mjs';
 import { ACTION_CLIENT_SLOTS, loadActionReceipts, inspectActionReceipt, commitActionReceipt, openActionSession, acknowledgeActionSession } from './action-receipts.mjs';
 import { reportActivationTiming } from '../live-swap-timing.mjs';
 import { currencyAfterCommand, currencyAfterRestore, loadPluginCurrency, observePluginCurrency } from './plugin-currency.mjs';
@@ -1399,7 +1400,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
       : serializedResult ? { ...await preparedCommandSnapshot(baseline, omitUnchanged, view), ...(receiptResult ? { receipt: receiptResult } : {}) } : cloneCurrent();
   }
   const commandReceipt = (command, actor, requestId, requestAck) => inspectActionReceipt(receipts, command, actor, requestId, requestAck);
-  function runCommand(command, expectedRevision, serializedResult = false, omitUnchanged = false, actor, view, requestId, requestAck, pluginHandled, itemReview) {
+  function runCommand(command, expectedRevision, serializedResult = false, omitUnchanged = false, actor, view, requestId, requestAck, pluginHandled, itemReview, admin = false) {
     const attribution = actor === undefined ? undefined : validateHistoryActor(actor);
     const suppression = pluginHandled === undefined ? undefined : structuredClone(pluginHandled);
     const work = async () => {
@@ -1424,6 +1425,22 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
       if (attribution?.memberId && ['claim-task', 'clear-task-claim'].includes(undoTarget?.type)
         && undoTarget.command?.memberId !== attribution.memberId) {
         throw Object.assign(new Error('You can only undo task claims made by your signed-in player.'), { status: 403 });
+      }
+      // Authorize the same hydrated event used by this serialized write. Actor
+      // attribution does not carry invite permissions; admin is trusted caller
+      // context, never a command field or a durable History actor property.
+      if (undoTarget && attribution && attribution.kind !== 'master' && !admin) {
+        const identity = { memberId: attribution.memberId };
+        let denied = tickActiveTasksDenied(identity, command, undoTarget);
+        if (!identity.memberId || undoTarget?.command?.memberId !== identity.memberId) {
+          denied ??= {
+            'set-obtained-equipment': 'You can only undo obtained equipment records for your signed-in player.',
+            'set-xp-choices': 'You can only undo XP choices for your signed-in player.',
+            'set-transport-facts': 'You can only undo travel facts for your signed-in player.',
+            'set-finish-line-custom': 'You can only undo finish line ticks for your signed-in player.',
+          }[undoTarget?.type];
+        }
+        if (denied) throw Object.assign(new Error(denied), { status: 403 });
       }
       let precomputedPool;
       if (command.type === 'roll' && computeRollPool && [1, 2].includes(command.count)
@@ -1797,8 +1814,8 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
         return persist(inheritStateMetadata(current, next), 'plugin-settings', undefined, false, current, false, undefined, { cleanup: true });
       });
     },
-    command(command, expectedRevision, { actor, requestId, requestAck, pluginHandled } = {}) {
-      return runCommand(command, expectedRevision, false, false, actor, undefined, requestId, requestAck, pluginHandled);
+    command(command, expectedRevision, { actor, admin = false, requestId, requestAck, pluginHandled } = {}) {
+      return runCommand(command, expectedRevision, false, false, actor, undefined, requestId, requestAck, pluginHandled, undefined, admin);
     },
     commitPluginReview({ memberId, taskIds, taskWorlds, unmappedIds, command }, expectedRevision, { actor } = {}) {
       if (!current.members.some(member => member.id === memberId)
@@ -1823,7 +1840,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
         return { currencyRetry: result.retry };
       });
     },
-    commandSerialized(command, expectedRevision, { omitUnchanged = false, actor, view, requestId, requestAck } = {}) { return runCommand(command, expectedRevision, true, omitUnchanged, actor, view, requestId, requestAck); },
+    commandSerialized(command, expectedRevision, { omitUnchanged = false, actor, admin = false, view, requestId, requestAck } = {}) { return runCommand(command, expectedRevision, true, omitUnchanged, actor, view, requestId, requestAck, undefined, undefined, admin); },
     async replayCommandSerialized(command, requestId, { actor, view, requestAck } = {}) {
       const receipt = commandReceipt(command, actor, requestId, requestAck);
       if (receipt?.replay) await syncRosterProjection();
