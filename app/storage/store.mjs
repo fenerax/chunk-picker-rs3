@@ -332,6 +332,9 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     if (existing && !existing.equals(bytes)) throw new Error('Action receipt quarantine evidence changed.');
     if (!existing) {
       if (importDependencies) await writeDependency(file, bytes);
+      // Stage diagnostics with the preimages: storage admission counts them,
+      // and they still publish before the commit hook can refuse the state.
+      else if (pendingPublication) pendingPublication.preimages.push({ file, bytes });
       else reportDurability(await atomicWrite(file, bytes));
     }
     receiptQuarantine = undefined;
