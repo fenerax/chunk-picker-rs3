@@ -44,6 +44,6 @@ test('closed dialogs discard pending results and failed loading offers retry', a
   c.ensureDuoDetails = () => fail ? Promise.reject(new Error('Failed')) : new Promise(done => { resolve = done; });
   const view = createPartnerSupplyView(c), pending = view.open(); generation++;
   resolve({ memberId: 'a', stateRevision: 0, tasks: [], items: [] }); await pending;
-  assert.ok(all(shown).some(node => node.textContent === 'Loading partner supplies…'));
-  fail = true; await view.open(); assert.ok(all(shown).some(node => node.textContent === 'Refresh partner supplies'));
+  assert.ok(all(shown).some(node => node.textContent === 'Loading shared supplies…'));
+  fail = true; await view.open(); assert.ok(all(shown).some(node => node.textContent === 'Refresh supplies'));
 });

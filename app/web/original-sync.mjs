@@ -67,7 +67,7 @@ export function createOriginalSync(context) {
       if (advanced()) content.append(el('p', `Saved revision ${value.currentRevision}`, 'info-meta'));
       for (const warning of value.warnings ?? []) content.append(el('p', typeof warning === 'string' ? warning : warning.message ?? (advanced() ? JSON.stringify(warning) : 'Some original-picker information needs review.'), 'warning'));
       if (value.members.some(member => member.rules.some(rule => rule.shared || rule.id === 'F2P' || rule.id === 'content.f2p'))) {
-        content.append(el('p', 'F2P is shared: applying it changes the content rules for both players.', 'warning'));
+        content.append(el('p', `F2P is shared: applying it changes the content rules for ${context.state().members.length === 1 ? 'you' : context.state().members.length === 2 ? 'both players' : 'all players'}.`, 'warning'));
       }
       for (const member of value.members) {
         const section = el('section', undefined, 'dialog-section form-stack');
@@ -135,7 +135,7 @@ export function createOriginalSync(context) {
         } finally { if (active(request)) { setBusy(false); updateApply(); } }
       });
       const actions = el('div', undefined, 'form-actions'); actions.append(applyButton, button('Cancel', () => { if (current() && !busy) abandon(); })); content.append(actions);
-      review.replaceChildren(content); setStatus('Review both players’ differences, then Apply or Cancel.'); updateApply();
+      review.replaceChildren(content); setStatus(`Review ${context.state().members.length === 1 ? 'your' : context.state().members.length === 2 ? 'both players’' : 'all players’'} differences, then Apply or Cancel.`); updateApply();
     }
 
     async function fetchPreview() {

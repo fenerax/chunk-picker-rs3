@@ -1,3 +1,4 @@
+import { playersLabel } from './roster-labels.mjs';
 import { datasetJSON } from "../dataset-runtime.mjs";
 const capturedCatalogue = await datasetJSON("app/data/original-rules-ui.2026-10-08.v1.json");
 import { ANCIENT_EFFIGIES_RULE, taskRuleDefinitions, taskRuleCutoffDefaults, independentTaskRuleControls, EARLY_TRAVEL_UNLOCKS_RULE, earlyTravelUnlocksExplanation } from '../data/settings.mjs';
@@ -200,7 +201,7 @@ export function reviewPreset(state, memberIds, preset, catalogue = rulesCatalogu
   // F2P has one authoritative, shared control in this app.
   if (own(values, 'F2P')) {
     const after = values.F2P, before = state.rules?.['content.f2p'] ?? true;
-    if (before !== after) changes.push({ memberName: 'Both players', ruleId: 'F2P', before, after, shared: true });
+    if (before !== after) changes.push({ memberName: playersLabel(state.members), ruleId: 'F2P', before, after, shared: true });
     sharedRules['content.f2p'] = after; delete values.F2P;
   }
   changes.push(...personalChanges(state, memberIds, values));

@@ -69,6 +69,20 @@ function ui(task, writable = true) {
   return c;
 }
 
+for (const size of [1, 3, 5]) test(`custom task editor lists ${size} players and preserves an imported subset`, async () => {
+  const roster = Array.from({ length: size }, (_, i) => ({ id: `explorer${i + 1}`, name: `Explorer ${i + 1}` }));
+  const memberIds = size === 1 ? [roster[0].id] : [roster[0].id, roster.at(-1).id];
+  const task = saved('assigned', { memberIds }), c = ui(task);
+  c.state.members = roster; c.customTaskDialog(task);
+  const assignment = c.control('Assigned to');
+  for (const member of roster) assert.ok(assignment.options.some(option => option.value === member.id && option.label === member.name));
+  assert.ok(assignment.options.some(option => option.value === 'both' && option.label === (size === 1 ? 'You' : 'All players')));
+  c.control('Task description').value = 'Edited description';
+  await c.stack.emit('submit');
+  assert.deepEqual(c.calls[0][0].task.memberIds, memberIds);
+  assert.deepEqual(task.memberIds, memberIds);
+});
+
 test('imported numeric custom requirements appear in the editor and row and gate Doable now', () => {
   const input = { tasks: [], members: members().map(member => ({ ...member, sourceMapId: 'old' })),
     legacy: { maps: { old: { userTasks: { Mining: { 'Synthetic ore~||~': '50' } } } } } };

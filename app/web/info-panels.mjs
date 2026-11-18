@@ -15,9 +15,9 @@ function plainInfoText(value) {
   let text = String(value ?? '');
   const phrases = [
     ['No declared weight metadata.', 'Item weights are unknown.'],
-    ['The dataset does not identify item tradeability; access and challenge completion do not establish a transferable reward.', 'Tradeability is unknown. Being able to reach an item or finish a task does not mean you can give its reward to your partner.'],
+    ['The dataset does not identify item tradeability; access and challenge completion do not establish a transferable reward.', 'Tradeability is unknown. Being able to reach an item or finish a task does not mean you can share its reward.'],
     ['A personal obtain record exists, but the engine currently has no eligible source and equipability result for this item.', 'You marked this obtained, but a source and the requirements to equip it are not confirmed in your current chunks.'],
-    ['Only explicit personal obtain-task records with current engine eligibility participate. Unrecorded ammunition, challenge-only checks and another member’s obtain records do not supply gear.', 'Only gear you marked obtained and can use in your chunks is compared. Mark ammunition obtained too. A shared task check or your partner’s gear does not mean you own it.'],
+    ['Only explicit personal obtain-task records with current engine eligibility participate. Unrecorded ammunition, challenge-only checks and another member’s obtain records do not supply gear.', 'Only gear you marked obtained and can use in your chunks is compared. Mark ammunition obtained too. A shared task check or someone else’s gear does not mean you own it.'],
     ['Explicit personal obtain-task completion; current possession and equipped slot are unconfirmed.', 'You marked this obtained. Whether you still own or wear it is unknown.'],
     ['Personal obtain record added by hand; current possession and equipped slot are unconfirmed.', 'You recorded this as obtained. Whether you still own or wear it is unknown.'],
     ['No engine-confirmed reachable assignment method for this master.', 'No way to get an assignment from this Slayer master is known in your chunks yet.'],
@@ -298,7 +298,7 @@ export function createInfoPanels(context) {
   }
 
   function progress(row) {
-    return paragraph(row.challengeSatisfied ? `Done${row.personalCompleted ? ' · you did it in-game' : ' (counts for the duo)'}` : row.personalCompleted ? 'Done in-game' : 'Not done yet', 'info-progress');
+    return paragraph(row.challengeSatisfied ? `Done${row.personalCompleted ? ' · you did it in-game' : context.state().members.length === 1 ? ' (counts for you)' : ` (counts for the ${context.state().members.length === 2 ? 'duo' : 'group'})`}` : row.personalCompleted ? 'Done in-game' : 'Not done yet', 'info-progress');
   }
 
   function taskRow(task, result) {
@@ -426,7 +426,7 @@ export function createInfoPanels(context) {
         const gear = item.equipment, entry = el('div', undefined, 'bis-item');
         if (item.role) entry.append(el('small', item.role, 'bis-component-role'));
         entry.append(gearIdentity(gear, gear.slot));
-        if (item.recommendation?.challenge) entry.append(paragraph(item.recommendation.challenge.challengeSatisfied ? (item.recommendation.challenge.personalCompleted ? 'Done' : 'Done (counts for the duo)') : 'Not done yet', 'bis-item-progress'));
+        if (item.recommendation?.challenge) entry.append(paragraph(item.recommendation.challenge.challengeSatisfied ? (item.recommendation.challenge.personalCompleted ? 'Done' : context.state().members.length === 1 ? 'Done (counts for you)' : `Done (counts for the ${context.state().members.length === 2 ? 'duo' : 'group'})`) : 'Not done yet', 'bis-item-progress'));
         identity.append(entry);
         const declared = gearStats(gear);
         if (declared.length) stats.append(paragraph(`${model.chosen ? `${text(gear.name)}: ` : ''}${declared.join(' · ')}`, 'bis-declared-stats'));
@@ -523,8 +523,9 @@ export function createInfoPanels(context) {
     }
     if (!view) { openDialog('Current BiS', empty('Equipment information is unavailable. Retry after the task calculation finishes.')); return; }
     const snapshot = capture(result, request);
-    const intro = paragraph(`${snapshot.memberName} · ${view.accessPolicy === 'shared' ? 'Shared unlocked access' : 'Personal unlocked access'} · ${view.completionScope === 'any' ? 'Either member may satisfy a challenge' : view.completionScope === 'all' ? 'Every member must satisfy a challenge' : 'Personal challenge completion'}`, 'section-intro');
-    const partner = context.state().members.find(member => member.id !== snapshot.memberId), compareLabel = partner ? `Compare with ${partner.name}` : 'Compare gear';
+    const completionText = context.state().members.length === 1 ? 'Personal challenge completion' : view.completionScope === 'any' ? (context.state().members.length === 2 ? 'Either member may satisfy a challenge' : 'Any member may satisfy a challenge') : view.completionScope === 'all' ? 'Every member must satisfy a challenge' : 'Personal challenge completion';
+    const intro = paragraph(`${snapshot.memberName} · ${view.accessPolicy === 'shared' ? 'Shared unlocked access' : 'Personal unlocked access'} · ${completionText}`, 'section-intro');
+    const partner = context.state().members.find(member => member.id !== snapshot.memberId), compareLabel = partner ? context.state().members.length === 2 ? `Compare with ${partner.name}` : 'Compare with a player' : 'Compare gear';
     const tabNames = ['Obtainable', 'Recorded obtained', compareLabel];
     const canRecord = () => context.canWriteMember?.(snapshot.memberId) ?? context.canWrite?.() !== false;
     let generation;

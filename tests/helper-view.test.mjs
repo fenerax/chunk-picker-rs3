@@ -42,6 +42,31 @@ function dom() {
   roots.push(document.head);
   return { document, host: new Node('div'), addRoot: node => roots.push(node), nodes: () => walk(roots) };
 }
+
+for (const size of [1, 2, 3, 5]) test(`drop calculator includes all ${size} players and retains drafts by member ID`, async () => {
+  const members = Array.from({ length: size }, (_, i) => ({ id: `explorer${i + 1}`, name: `Explorer ${i + 1}` }));
+  const h = dom(), api = async () => ({ memberId: members[0].id, stateRevision: 1, f2p: true, drops: [] });
+  const context = { document: h.document, api, member: members[0], partners: members.slice(1), stateRevision: 1, isCurrent: () => true };
+  const dispose = renderDrops(h.host, context);
+  await Promise.resolve();
+  const form = find(h.host, 'form'), inputs = walk([form]).filter(node => node.tag === 'input' && node.attributes['data-amount']);
+  assert.equal(inputs.length, size + 1);
+  for (const member of members) assert.ok(text(form).includes(`${member.name}’s kills`));
+  inputs[0].value = '128';
+  for (let i = 1; i < inputs.length; i++) inputs[i].value = String(i * 10);
+  submit(form);
+  const total = size * (size + 1) * 5;
+  assert.ok(text(h.host).includes(`after ${total} combined kills`));
+  if (size === 1) assert.doesNotMatch(text(h.host), /partner|you both/i);
+  const draft = dispose.getDraft(); dispose();
+  const restored = dom(), reversed = members.slice(1).reverse();
+  const end = renderDrops(restored.host, { ...context, document: restored.document, partners: reversed, draft });
+  await Promise.resolve();
+  const restoredInputs = walk([find(restored.host, 'form')]).filter(node => node.tag === 'input' && node.attributes['data-amount']);
+  assert.deepEqual(restoredInputs.slice(2).map(input => input.value), reversed.map(member => draft.killsByMember[member.id]));
+  assert.ok(text(restored.host).includes(`after ${total} combined kills`));
+  end();
+});
 function walk(nodes) { return nodes.flatMap(node => [node, ...walk(node.children ?? [])]); }
 const text = node => [String(node.textContent ?? ''), ...node.children.map(text)].filter(Boolean).join(' ');
 const find = (host, tag, label) => walk([host]).find(node => node.tag === tag && (label === undefined || node.textContent === label));
@@ -185,7 +210,7 @@ test('drop renderer refuses newer server rows against an older local save while 
     return Promise.resolve({ memberId: owner.id, stateRevision: 8, f2p: true,
       drops: [{ monster: 'Goblin', item: 'Ore', denominator: 128, rate: '1/128' }] });
   };
-  const dispose = renderDrops(h.host, { document: h.document, member: owner, api, stateRevision: 7, isCurrent: () => true });
+  const dispose = renderDrops(h.host, { document: h.document, member: owner, partner: { id: 'actor2', name: 'Partner' }, api, stateRevision: 7, isCurrent: () => true });
   try {
     await new Promise(resolve => setImmediate(resolve));
     const source = find(h.host, 'select');
@@ -209,7 +234,7 @@ test('drop drafts retain kills and selected rates across reordered source data, 
   const goblin = { monster: 'Goblin', item: 'Ore', denominator: 128, rate: '1/128' };
   const chicken = { monster: 'Chicken', item: 'Bones', denominator: 1, rate: 'Always' };
   const api = (revision, drops) => () => Promise.resolve({ memberId: owner.id, stateRevision: revision, drops, f2p: true });
-  const dispose = renderDrops(h.host, { document: h.document, member: owner, api: api(7, [goblin, chicken]), stateRevision: 7, isCurrent: () => true });
+  const dispose = renderDrops(h.host, { document: h.document, member: owner, partner: { id: 'actor2', name: 'Partner' }, api: api(7, [goblin, chicken]), stateRevision: 7, isCurrent: () => true });
   await new Promise(resolve => setImmediate(resolve));
   const form = find(h.host, 'form'), source = find(form, 'select');
   source.value = '0'; source.dispatchEvent({ type: 'change' });
@@ -217,7 +242,7 @@ test('drop drafts retain kills and selected rates across reordered source data, 
   own.value = '300'; partner.value = '200'; submit(form);
   assert.match(text(h.host), /from this loot roll after 500 combined kills/);
   const draft = dispose.getDraft(); dispose();
-  const restored = dom(), restoredDispose = renderDrops(restored.host, { document: restored.document, member: owner,
+  const restored = dom(), restoredDispose = renderDrops(restored.host, { document: restored.document, member: owner, partner: { id: 'actor2', name: 'Partner' },
     api: api(8, [chicken, goblin]), stateRevision: 8, isCurrent: () => true, draft });
   try {
     await new Promise(resolve => setImmediate(resolve));
@@ -241,7 +266,7 @@ test('a numerically equal manual rate typed during source refresh keeps the rest
   const h = dom(), owner = member(), before = structuredClone(owner);
   let resolveSources;
   const api = () => new Promise(resolve => { resolveSources = resolve; });
-  const dispose = renderDrops(h.host, { document: h.document, api, member: owner, stateRevision: 8, isCurrent: () => true,
+  const dispose = renderDrops(h.host, { document: h.document, api, member: owner, partner: { id: 'actor2', name: 'Partner' }, stateRevision: 8, isCurrent: () => true,
     draft: { denominator: '128', ownKills: '10', partnerKills: '20', filter: '',
       selectedRoll: { monster: 'Goblin', item: 'Ore', denominator: 128 } } });
   try {

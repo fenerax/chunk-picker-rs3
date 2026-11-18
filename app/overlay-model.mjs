@@ -77,7 +77,7 @@ export function overlayPayload({ state, world, widget, player, goals = 'personal
   if (widget === 'count') {
     const surface = new Set([...(world.surface ?? world.chunks.keys())].map(id => String(id).split('-')[0]));
     const unlocked = new Set(members.flatMap(member => member.unlocked ?? []).map(id => id.split('-')[0]).filter(id => surface.has(id)));
-    const name = player === 'duo' ? 'Duo' : overlayText(members[0]?.name ?? player, 80);
+    const name = player === 'duo' ? (members.length === 1 ? 'Solo' : members.length === 2 ? 'Duo' : 'Group') : overlayText(members[0]?.name ?? player, 80);
     return { ...base, heading: `${name} · Unlocked chunks`, unlocked: unlocked.size, total: surface.size };
   }
   throw new TypeError('Unknown overlay widget.');

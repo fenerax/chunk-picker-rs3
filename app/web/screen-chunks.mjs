@@ -117,11 +117,11 @@ export function createScreenChunks(c) {
     if (!area && c.member().selected.includes(id) && c.state.rules?.['roll.selected'] === false) facts.append(c.el('p', `Hand selections are disabled for ${c.member().name}. The saved selection is kept.`, 'status-detail'));
     const connection = mine ? null : c.result?.partnerConnections?.byChunk?.[id];
     if (connection) {
-      facts.append(c.el('p', connection.connected ? `Connected partner chunk · usable by ${c.member().name}` : `Partner chunk · no round trip for ${c.member().name}`, 'status-detail'));
+      facts.append(c.el('p', connection.connected ? `Connected ${c.state.members.length === 2 ? 'partner' : 'group'} chunk · usable by ${c.member().name}` : `${c.state.members.length === 2 ? 'Partner' : 'Group'} chunk · no round trip for ${c.member().name}`, 'status-detail'));
       const travel = c.el('div', undefined, 'form-stack');
       if (connection.connected) travel.append(c.el('p', `Route there: ${connection.out}`, 'status-detail'), c.el('p', `Route back: ${connection.back}`, 'status-detail'));
       else travel.append(c.el('p', connection.reason, 'status-detail'));
-      travel.append(c.el('p', 'Connected partner chunks provide resources and training. Their tasks still belong to the player who unlocked them.', 'status-detail'));
+      travel.append(c.el('p', `Connected ${c.state.members.length === 2 ? 'partner' : 'group'} chunks provide resources and training. Their tasks still belong to the player who unlocked them.`, 'status-detail'));
       facts.append(c.details('Partner connection', travel));
     }
     if (entry?.reasons.length && !mine) {

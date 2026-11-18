@@ -34,7 +34,7 @@ export function changeSentences(events, lookups = {}, burstMs = 3000) {
     const suffix = ownName ? ` for ${ownName}` : '';
     const action = suffix && description.endsWith(suffix) ? description.slice(0, -suffix.length) : description;
     const namedClaim = event.type === 'claim-task' || event.type === 'clear-task-claim';
-    const text = namedClaim ? description : `${actor?.label ?? 'Your partner'} ${action.charAt(0).toLowerCase()}${action.slice(1)}`;
+    const text = namedClaim ? description : `${actor?.label ?? (lookups.memberCount === 2 ? 'Your partner' : 'Another player')} ${action.charAt(0).toLowerCase()}${action.slice(1)}`;
     const targetName = target ? lookups.memberName?.(target) ?? target : '';
     const forWho = targetName && targetName !== ownName ? ` for ${targetName}` : '';
     groups.push({ text, tick, author, target, forWho, time, tasks: new Set(tick ? [event.command.taskId] : []) });
@@ -148,7 +148,7 @@ export function createDuoCoordination({ canWrite = () => true, api, viewer, getS
     const time = now();
     liveEvents = time - liveTime <= 3000 ? [...liveEvents, ...events].slice(-30) : events.slice(-30); liveTime = time;
     clearTimer(liveTimer);
-    const text = changeSentences(liveEvents, lookups()).slice(-3).join(' · ');
+    const text = changeSentences(liveEvents, { ...lookups(), memberCount: getState().members.length }).slice(-3).join(' · ');
     liveHost.replaceChildren(el('span', text), historyLink(), button('Dismiss', () => { liveHost.hidden = true; })); liveHost.hidden = false;
     liveTimer = setTimer(() => { liveHost.hidden = true; liveEvents = []; }, 10000);
   }
@@ -156,7 +156,7 @@ export function createDuoCoordination({ canWrite = () => true, api, viewer, getS
     if (value.stateRevision !== getState().revision) return;
     snapshot = value; metadataFailed = false;
     if (!initialized) {
-      showCatchUp(catchUpChanges(value.history, viewer, lastVisit, lookups(), 5, openedRevision));
+      showCatchUp(catchUpChanges(value.history, viewer, lastVisit, { ...lookups(), memberCount: getState().members.length }, 5, openedRevision));
       showLive(otherPlayerChanges(value.history, viewer, openedRevision, value.stateRevision)); initialized = true;
     } else if (value.stateRevision > processedRevision) {
       showLive(otherPlayerChanges(value.history, viewer, processedRevision, value.stateRevision));

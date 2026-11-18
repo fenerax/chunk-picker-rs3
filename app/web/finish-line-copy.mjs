@@ -1,13 +1,15 @@
+import { rosterLabel } from './roster-labels.mjs';
 const safe = value => String(value ?? '').replace(/\s+/gu, ' ').trim().slice(0, 140)
   .replace(/[\\`*_~|<>\[\]]/gu, '\\$&').replace(/@/gu, '@\u200b');
 
 export function formatFinishLineSummary(model) {
+  const combined = rosterLabel(model.members);
   const lines = ['**F2P finish line · Draft**', 'Our editable goals before members.',
     ...model.members.map(member => `${safe(member.name)}: ${member.percent}% · ${member.done}/${member.total} done`),
-    `Duo: ${model.duo.percent}% · ${model.duo.done}/${model.duo.total} done`];
+    `${combined}: ${model.duo.percent}% · ${model.duo.done}/${model.duo.total} done`];
   for (const group of model.groups) {
     if (!group.total) continue;
-    lines.push(`**${safe(group.label)} · ${group.done}/${group.total} duo done**`);
+    lines.push(`**${safe(group.label)} · ${group.done}/${group.total} ${combined.toLowerCase()} done**`);
     for (const item of group.items.filter(item => item.enabled && !item.duo.done)) {
       lines.push(`${safe(item.label)}: ${safe(item.status)}`);
     }

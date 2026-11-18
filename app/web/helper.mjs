@@ -29,7 +29,7 @@ export function createHelperView({ viewCache, api, getState, getMemberId, getRes
     const section = helperSections.find(section => section.id === active);
     try {
       const module = await import(section.module); if (generation !== request || page.hidden) return;
-      host.replaceChildren(); renderedKey = `${owner}:${active}`; dispose = module[section.render](host, { viewCache, document, api, member, f2p, command, canWrite, getState, getPreferences: () => getPreferences(member.id), advanced: canWrite() && getPreferences(member.id).advanced === true, partner: getState().members.find(other => other.id !== member.id), stateRevision: getState().revision, getResult: matchingResult, target: requestedTarget, draft: drafts.get(renderedKey),
+      host.replaceChildren(); renderedKey = `${owner}:${active}`; dispose = module[section.render](host, { viewCache, document, api, member, f2p, command, canWrite, getState, getPreferences: () => getPreferences(member.id), advanced: canWrite() && getPreferences(member.id).advanced === true, partners: getState().members.filter(other => other.id !== member.id), stateRevision: getState().revision, getResult: matchingResult, target: requestedTarget, draft: drafts.get(renderedKey),
         isCurrent: () => generation === request && !page.hidden && scope === currentScope(),
         onPlan: (skill, level) => { requestedTarget = { skill, level }; active = 'training'; void render(); } });
       requestedTarget = undefined;

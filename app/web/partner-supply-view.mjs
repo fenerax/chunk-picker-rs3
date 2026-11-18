@@ -6,12 +6,12 @@ const itemLabel = item => `${item.quantity == null ? '' : `${item.quantity} × `
 
 export function renderPartnerSupply(c, model) {
   const root = c.el('div', undefined, 'partner-supply-content');
-  root.append(c.el('p', 'Supplies for your unfinished tasks that come from your partner’s chunks. Check your bank before gathering.', 'partner-supply-intro'));
+  root.append(c.el('p', model.members.length === 1 ? 'Your tasks use your own supplies. Check your bank before gathering.' : model.members.length === 2 ? 'Supplies for your unfinished tasks that come from your partner’s chunks. Check your bank before gathering.' : 'Supplies for your unfinished tasks that come from other players’ chunks. Check your bank before gathering.', 'partner-supply-intro'));
   for (const member of model.members) {
     const section = c.el('section', undefined, 'partner-supply-member'); section.dataset.member = member.id;
     section.append(c.el('h2', member.name));
     if (!member.ready) section.append(c.el('p', 'Saved task details are still loading. Refresh to try again.', 'status-detail'));
-    else if (!member.requests.length) section.append(c.el('p', 'No partner supplies needed for the current tasks.', 'partner-supply-note'));
+    else if (!member.requests.length) section.append(c.el('p', model.members.length === 2 ? 'No partner supplies needed for the current tasks.' : 'No shared supplies needed for the current tasks.', 'partner-supply-note'));
     else {
       const list = c.el('ul', undefined, 'partner-supply-list');
       for (const request of member.requests) {
@@ -68,6 +68,7 @@ export function createPartnerSupplyCopy(c, model, getClipboard = () => globalThi
 }
 
 export function createPartnerSupplyView(c) {
+  const title = () => c.state.members.length === 1 ? 'Supplies' : c.state.members.length === 2 ? 'Ask your partner' : 'Ask your group';
   let active, sequence = 0, loading;
   const current = run => active && run === sequence && c.dialogCurrent(active.generation);
   function load(force = false) {
@@ -78,10 +79,10 @@ export function createPartnerSupplyView(c) {
     const run = ++sequence, revision = c.state.revision;
     active.revision = revision; active.content.setAttribute('aria-busy', 'true');
     // Remove an old copy button while the save is changing.
-    active.content.replaceChildren(c.el('p', 'Loading partner supplies…', 'status-detail'));
+    active.content.replaceChildren(c.el('p', c.state.members.length === 2 ? 'Loading partner supplies…' : 'Loading shared supplies…', 'status-detail'));
     const promise = (async () => {
       try {
-        if (c.sandbox?.active) throw new Error('Exit Sandbox to view saved partner supplies.');
+        if (c.sandbox?.active) throw new Error(c.state.members.length === 2 ? 'Exit Sandbox to view saved partner supplies.' : 'Exit Sandbox to view saved supplies.');
         const results = new Map();
         for (const member of c.state.members) results.set(member.id, await c.ensureDuoDetails(member.id, false, false));
         if (!current(run)) return;
@@ -94,16 +95,16 @@ export function createPartnerSupplyView(c) {
       } catch (error) {
         if (!current(run)) return;
         active.rendered = undefined;
-        active.content.replaceChildren(c.el('p', error.code === 'TASK_RESULTS_UNAVAILABLE' ? 'Saved task details are still loading. Refresh to try again.' : 'Partner supplies could not be loaded. Refresh to try again.', 'status-detail'), c.button('Refresh partner supplies', () => load(true)));
+        active.content.replaceChildren(c.el('p', error.code === 'TASK_RESULTS_UNAVAILABLE' ? 'Saved task details are still loading. Refresh to try again.' : c.state.members.length === 2 ? 'Partner supplies could not be loaded. Refresh to try again.' : 'Supplies could not be loaded. Refresh to try again.', 'status-detail'), c.button(c.state.members.length === 2 ? 'Refresh partner supplies' : 'Refresh supplies', () => load(true)));
       } finally { if (current(run)) active.content.setAttribute('aria-busy', 'false'); }
     })();
     loading = { signature, promise }; promise.finally(() => { if (loading?.promise === promise) loading = undefined; }); return promise;
   }
   async function open() {
     c.closeTopMenus?.();
-    if (c.sandbox?.active) { c.openDialog('Ask your partner', c.el('p', 'Exit Sandbox to view saved partner supplies.', 'status-detail')); return; }
+    if (c.sandbox?.active) { c.openDialog(title(), c.el('p', c.state.members.length === 2 ? 'Exit Sandbox to view saved partner supplies.' : 'Exit Sandbox to view saved supplies.', 'status-detail')); return; }
     const root = c.el('div', undefined, 'partner-supply-panel'), content = c.el('div'); root.append(content);
-    active = { content, generation: c.openDialog('Ask your partner', root), revision: c.state.revision }; await load();
+    active = { content, generation: c.openDialog(title(), root), revision: c.state.revision }; await load();
   }
   function refresh() { if (active && c.dialogCurrent(active.generation) && active.revision !== c.state.revision) void load(); }
   c.$('partner-supply-open')?.addEventListener('click', () => open().catch(c.showError));

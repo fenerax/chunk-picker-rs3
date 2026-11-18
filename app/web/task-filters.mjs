@@ -45,7 +45,7 @@ export function createTaskFilters({ document, getStorage = () => gameStorage(), 
   const checkbox = (id, text, key) => {
     const label = el('label'), control = el('input'); control.type = 'checkbox'; control.id = id; control.checked = filters[key];
     control.addEventListener('change', () => { filters = { ...filters, [key]: control.checked }; save(); });
-    label.append(control, document.createTextNode(text)); return { label, control };
+    const copy = document.createTextNode(text); label.append(control, copy); return { label, control, copy };
   };
   const doable = checkbox('task-doable', 'Doable now', 'doable'), pinned = checkbox('task-pinned', 'Pinned only', 'pinned');
   const hidePartnerClaims = checkbox('task-hide-partner-claims', 'Hide tasks my partner is doing', 'hidePartnerClaims');
@@ -91,11 +91,14 @@ export function createTaskFilters({ document, getStorage = () => gameStorage(), 
     element: root,
     preferences: () => filters,
     select(rows, options, { group = false, ownerHidden = 0, search = '', externalActive = false, doableFixed = false } = {}) {
+      const members = options?.state?.members;
+      hidePartnerClaims.label.hidden = members?.length === 1;
+      hidePartnerClaims.copy.textContent = members?.length === 2 ? 'Hide tasks my partner is doing' : 'Hide tasks other players are doing';
       const claimIdentity = getClaimMemberId ? { claimMemberId: getClaimMemberId() } : {};
       const selection = selectTaskFilters(rows, { ...claimIdentity, ...options, filters, search }); refreshCategories(selection.categories);
       const fixedHint = doableFixed ? `This view already shows tasks ${options?.state?.members?.find(member => member.id === options.memberId)?.name ?? 'the selected player'} can do now.` : '';
       doable.control.disabled = doableFixed; doable.control.title = doable.label.title = fixedHint;
-      help.textContent = fixedHint || (group ? 'Doable now hides tasks that need a level or requirement you don’t have yet. In group view, a task stays if either player on it can do it.' : 'Doable now hides tasks that need a level or requirement you don’t have yet.');
+      help.textContent = fixedHint || (group ? `Doable now hides tasks that need a level or requirement you don’t have yet. In group view, a task stays if ${members?.length === 2 ? 'either player' : 'any player'} on it can do it.` : 'Doable now hides tasks that need a level or requirement you don’t have yet.');
       const shown = selection.rows;
       shownCategories = [...new Set(shown.map(row => (row.task ?? row).category))];
       categoryBodies = []; refreshFoldAll();

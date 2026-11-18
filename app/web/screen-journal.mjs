@@ -18,7 +18,7 @@ export function createScreenJournal(c) {
       onChange: () => drafts.set(ownerId, review),
       onSaved: value => { if (drafts.get(ownerId)?.value === value) drafts.delete(ownerId); },
     });
-    content.append(c.el('p', editable ? 'Notes for the whole map. Both players can read them. Up to 10,000 characters.' : 'Notes for the whole map. Both players can read them.', 'status-detail'), editor, partners);
+    content.append(c.el('p', `Notes for the whole map. ${c.state.members.length === 1 ? 'Your personal map journal.' : c.state.members.length === 2 ? 'Both players can read them.' : 'All players can read them.'}${editable ? ' Up to 10,000 characters.' : ''}`, 'status-detail'), editor, partners);
     generation = c.openDialog('Map journal', content);
     view = { ownerId, review, text: editor.querySelector('textarea'), partners, current, editable };
     refresh();

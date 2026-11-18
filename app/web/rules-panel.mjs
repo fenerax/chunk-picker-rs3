@@ -1,3 +1,4 @@
+import { playersLabel } from './roster-labels.mjs';
 import { ANCIENT_EFFIGIES_RULE, taskRuleBehavior } from '../data/settings.mjs';
 import { rulesCatalogue, buildRulesSections, taskRuleValue, taskRuleAutomaticValue, ruleEnabled, filterRulesSections, planTaskRuleChange, reviewPreset, profileCommands } from './rules-model.mjs';
 import { visibleRulesSections } from './kept-rules.mjs';
@@ -20,7 +21,7 @@ export function createRulesPanel(ctx) {
     const expanded = new Set([rulesCatalogue.sections[0].id]);
     const root = el('div', undefined, 'rules-panel');
     const tools = el('div', undefined, 'rules-tools'), targetControl = select([
-      ...ctx.state().members.map(member => ({ value: member.id, label: member.name })), { value: 'both', label: 'Both players' },
+      ...ctx.state().members.map(member => ({ value: member.id, label: member.name })), { value: 'both', label: playersLabel(ctx.state().members) },
     ], target);
     targetControl.id = 'rules-target';
     const presetControl = select(rulesCatalogue.presets.map(preset => ({ value: preset.name, label: preset.name })), rulesCatalogue.presets[0].name);
@@ -40,14 +41,14 @@ export function createRulesPanel(ctx) {
     const registry = () => ctx.registry();
     const ruleDefinitions = () => visibleRulesSections(buildRulesSections(rulesCatalogue, ctx.state(), registry().definitions), advanced(ctx));
     const savedFact = (definition, memberId) => definition.sharedRuleId
-      ? { value: registry().resolve(ctx.state().rules)[definition.sharedRuleId], source: 'Shared · both players', explicit: true }
+      ? { value: registry().resolve(ctx.state().rules)[definition.sharedRuleId], source: `Shared · ${playersLabel(ctx.state().members).toLowerCase()}`, explicit: true }
       : taskRuleValue(ctx.state(), memberId, definition);
     const fact = (definition, memberId) => pendingChange?.ruleId === definition.id && pendingChange.memberIds.includes(memberId)
       ? { ...savedFact(definition, memberId), value: pendingChange.value, source: 'Saving…', explicit: true } : savedFact(definition, memberId);
     function combinedFact(definition) {
       const ids = memberIds(), facts = ids.map(id => fact(definition, id)), same = facts.every(item => Object.is(item.value, facts[0].value));
       return { ...facts[0], value: same ? facts[0].value : undefined, mixed: !same,
-        source: definition.sharedRuleId ? 'Shared · both players' : ids.length === 1 ? facts[0].source : ids.map((id, index) => `${ctx.state().members.find(member => member.id === id).name}: ${displayValue(facts[index].value)}`).join(' · ') };
+        source: definition.sharedRuleId ? `Shared · ${playersLabel(ctx.state().members).toLowerCase()}` : ids.length === 1 ? facts[0].source : ids.map((id, index) => `${ctx.state().members.find(member => member.id === id).name}: ${displayValue(facts[index].value)}`).join(' · ') };
     }
     function sectionCount(section) {
       return section.rules.filter(rule => memberIds().some(id => fact(rule, id).value === true)).length;
@@ -60,7 +61,7 @@ export function createRulesPanel(ctx) {
       let applied = 0, unconfirmed = false;
       try {
         for (const payload of commands) { await command(payload, simpleToggle ? undefined : revision + applied); applied++; }
-        if (current()) status.textContent = commands.length === 1 ? 'Saved. Undo is available in History.' : 'Saved for both players. Each player’s save can be undone in History.';
+        if (current()) status.textContent = commands.length === 1 ? 'Saved. Undo is available in History.' : `Saved for ${playersLabel(ctx.state().members).toLowerCase()}. Each player’s save can be undone in History.`;
       } catch (error) {
         unconfirmed = !!pending && error.pendingCommand === true;
         if (current()) { status.textContent = unconfirmed ? 'Save not confirmed. Use Retry save to confirm this choice.' : applied ? 'One player’s change was saved before the next save failed. Use History to review or undo it.' : 'Change was not saved. Review the latest rules and try again.'; showError(error); }
@@ -155,7 +156,7 @@ export function createRulesPanel(ctx) {
       const note = value.mixed ? `${ctx.state().members.map(member => member.name).join(' and ')} have different values.` : !canEdit ? `Turn on ${definition.parent ?? 'the parent rule'} to change this; its value is kept.` : '';
       if (note) copy.append(el('p', !canEdit ? `Inactive while a parent is Off. ${note}` : note, 'rules-value-source'));
       if (behavior?.status === 'partial') copy.append(el('p', behavior.detail, 'rules-coverage-detail'));
-      const help = details('More', el('p', isShared ? 'Shared by both players.' : 'For the selected player.', 'rules-current-description')); if (advanced(ctx)) help.append(el('p', `${isShared ? 'Shared by both players' : 'Personal'} · ${value.source}`, 'rules-current-description'));
+      const help = details('More', el('p', isShared ? `Shared by ${playersLabel(ctx.state().members).toLowerCase()}.` : 'For the selected player.', 'rules-current-description')); if (advanced(ctx)) help.append(el('p', `${isShared ? `Shared by ${playersLabel(ctx.state().members).toLowerCase()}` : 'Personal'} · ${value.source}`, 'rules-current-description'));
       if (definition.explanation && definition.description) help.append(el('p', definition.description, 'rules-original-tooltip'));
       if (limited && behavior.status !== 'partial') help.append(el('p', 'This rule is saved but does not affect tasks yet.', 'rules-coverage-detail'));
       for (const tooltip of definition.tooltips ?? []) help.append(el('p', tooltip, 'rules-original-tooltip'));
@@ -220,7 +221,7 @@ export function createRulesPanel(ctx) {
       const filtered = filterRulesSections(sections, values, { query: search.value, onlyOn: onlyOn.checked });
       navigation.replaceChildren(); sectionsHost.replaceChildren(); jump.replaceChildren();
       const jumpPrompt = el('option', 'Choose a section…'); jumpPrompt.value = ''; jump.append(jumpPrompt);
-      scope.textContent = target === 'both' ? `Task rules apply to ${ctx.state().members.map(member => member.name).join(' and ')}. Shared map rules always affect both players.` : `Task rules belong to ${ctx.state().members.find(member => member.id === target).name}. Shared map rules always affect both players.`;
+      scope.textContent = target === 'both' ? `Task rules apply to ${ctx.state().members.map(member => member.name).join(' and ')}. Shared map rules always affect ${playersLabel(ctx.state().members).toLowerCase()}.` : `Task rules belong to ${ctx.state().members.find(member => member.id === target).name}. Shared map rules always affect ${playersLabel(ctx.state().members).toLowerCase()}.`;
       targetControl.disabled = presetControl.disabled = reviewButton.disabled = !writable || busy || !!pendingChange;
       if (reviewApply) reviewApply.button.disabled = busy || !!pendingChange || !reviewApply.hasChanges;
       for (const section of filtered) {
@@ -258,7 +259,7 @@ export function createRulesPanel(ctx) {
         }));
       } catch (error) { if (ctx.dialogCurrent?.(requestGeneration)) showError(error); }
     });
-    profileHost.append(el('h3', 'Saved profiles'), el('p', 'Export or import a profile for the selected player. With Both players selected, the current map player owns the profile.', 'field-help'), exportButton, field('Import rule profile', file));
+    profileHost.append(el('h3', 'Saved profiles'), el('p', `Export or import a profile for the selected player. With ${playersLabel(ctx.state().members)} selected, the current map player owns the profile.`, 'field-help'), exportButton, field('Import rule profile', file));
     if (writable) root.append(details('Profiles & history', profileHost));
     const footer = el('div', undefined, 'rules-footer');
     footer.append(el('p', 'Automatic clears your personal choice and uses the shared or imported value, then the picker’s default if neither exists. The value beside Automatic shows the result. Turning off a parent rule keeps the choices beneath it.', 'field-help'), button(writable ? 'History & Undo' : 'History', () => { guidedReview.cancel(); ctx.historyDialog(); }));

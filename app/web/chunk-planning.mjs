@@ -136,7 +136,7 @@ export function createChunkPlanning(context) {
       const onMap = context.mapTasksAt?.(snapshot.chunkId) ?? [], mine = onMap.filter(entry => entry.memberIds.includes(snapshot.memberId));
       const own = new Set(mine.map(entry => entry.taskIdByMember[snapshot.memberId])), others = onMap.length - mine.length;
       const otherNames = [...new Set(onMap.filter(entry => !entry.memberIds.includes(snapshot.memberId)).flatMap(entry => entry.memberIds))]
-        .map(id => plain(context.state().members.find(member => member.id === id)?.name ?? 'your partner'));
+        .map(id => plain(context.state().members.find(member => member.id === id)?.name ?? 'another player'));
       const partner = otherNames.length === 1 ? otherNames[0] : 'other players';
       const filters = [['highest', 'Highest level', highest], ['doable', 'Doable', row => row.task.status === 'available'],
         ['blocked', 'Blocked', row => row.task.status !== 'available'], ['all', 'All', () => true]];
