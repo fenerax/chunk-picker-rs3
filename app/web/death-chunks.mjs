@@ -165,7 +165,7 @@ export function createDeathChunks(ctx) {
       const routes = el('ul');
       for (const segment of row.route) {
         const route = el('li', undefined, 'status-detail');
-        route.append(`${segment.label} · ${Math.ceil(segment.actions).toLocaleString()} actions at ${segment.xpPerAction} XP each · ${estimateHoursLabel(segment.hours)}${segment.viaPartner ? ' · uses connected group territory' : ''}`);
+        route.append(`${segment.label} · ${Math.ceil(segment.actions).toLocaleString()} actions at ${segment.xpPerAction} XP each · ${estimateHoursLabel(segment.hours)}${segment.viaPartner ? ` · uses connected ${ctx.state()?.members.length === 2 ? 'partner' : 'group'} territory` : ''}`);
         if (Number.isFinite(segment.processingSeconds) && Number.isFinite(segment.supplySeconds)) route.append(el('p', `Processing ${estimateHoursLabel(segment.processingSeconds / 3600)}; gathering supplies ${estimateHoursLabel(segment.supplySeconds / 3600)}.`, 'status-detail'));
         routes.append(route);
       }

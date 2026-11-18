@@ -1592,9 +1592,7 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
       const own = obligation(task);
       if (!own) filters.push(sourcePolicyRejections.some(reason => reason.local)
         ? 'Local supplies do not meet this task’s source conditions.'
-        : state.members.length === 2 ? 'This task is outside the member’s own reachable map; partner access is a convenience.'
-        : state.members.length === 1 ? 'This task is outside the member’s own reachable map.'
-        : 'This task is outside the member’s own reachable map; shared access is a convenience.');
+        : 'This task is outside the member’s own reachable map; partner access is a convenience.');
       if (caps[task.category] && hideSkills) filters.push('Skills are hidden by the task rule.');
       if (task.category === 'Quest' && hideQuests) filters.push('Quests are hidden by the task rule.');
       if (task.category === 'Quest' && wholeQuests && record.QuestPoints === undefined && !record.ManualShow) filters.push('Quest tasks are configured to show whole completion tasks.');
@@ -1604,7 +1602,7 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
         partnerTraining.push(`${skill} training available via ${[...(trainingVia.get(skill) ?? [])].join(' and ')}'s connected chunks.`);
       }
       for (const requirement of task.itemRequirements) if (!ownRequirement(requirement, task, new Set(), false) && requirementAvailable(requirement, task)) {
-        partnerSupplies.push(`${requirement.displayLabel} supplies available via connected ${state.members.length === 2 ? 'partner' : 'group'} chunks.`);
+        partnerSupplies.push(`${requirement.displayLabel} supplies available via connected partner chunks.`);
         // Share the proof already used above. An alias counts distinct choices,
         // never units; consumers need not recalculate task source policies.
         const names = requirement.alternatives ?? [requirement.clean];

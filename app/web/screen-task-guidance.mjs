@@ -62,8 +62,9 @@ export function renderTaskBlockerGuidance(c, task, result, { memberId, openTask 
   }
   for (const prerequisite of guidance.prerequisites) host.append(c.button(`View prerequisite: ${c.plain(prerequisite.label)}`, () => openTask(prerequisite)));
   if (guidance.connections.length) {
+    const duo = (c.state?.members?.length ?? 2) === 2;
     const body = c.el('div', undefined, 'form-stack');
-    body.append(c.el('p', `Disconnected ${c.state.members.length === 2 ? 'partner' : 'group'} chunks may provide more training or supplies once connected. The calculation does not identify which connection would meet this task’s requirement.`, 'field-help'));
+    body.append(c.el('p', `Disconnected ${duo ? 'partner' : 'group'} chunks may provide more training or supplies once connected. The calculation does not identify which connection would meet this task’s requirement.`, 'field-help'));
     for (const region of guidance.connections) {
       const id = region.bases?.[0];
       body.append(c.el('p', `${region.ownerName}: ${region.reason}`, 'status-detail'));
@@ -76,7 +77,7 @@ export function renderTaskBlockerGuidance(c, task, result, { memberId, openTask 
         c.closeDialog(); c.map.centerOnChunk(id); c.showChunk(id);
       }));
     }
-    host.append(c.details(c.state.members.length === 2 ? 'Review partner connections' : 'Review group connections', body));
+    host.append(c.details(duo ? 'Review partner connections' : 'Review group connections', body));
   }
   return host.childElementCount || host.children?.length ? host : null;
 }

@@ -11,6 +11,7 @@ import { buildPartnerSupplyModel } from '../app/web/partner-supply-model.mjs';
 import { selectDuoTasks } from '../app/web/duo-tasks.mjs';
 import { selectDuoTaskLists } from '../app/web/duo-task-lists.mjs';
 import { describeHistoryEvent } from '../app/web/history-text.mjs';
+import { createScreenDialogs } from '../app/web/screen-dialogs.mjs';
 
 const now = () => '2026-11-18T12:00:00.000Z';
 const registry = createRuleRegistry();
@@ -83,18 +84,17 @@ for (const size of [1, 2, 3, 4, 5]) {
     for (const [i, member] of state.members.entries()) {
       const result = results.get(member.id);
       assert.equal(result.tasks.find(task => task.id === taskId('Extra', `Personal ${i + 1}`)).obligation, true);
+      // Computed explanations keep baseline wording for every roster; UI copy is separate.
       for (let j = 0; j < size; j++) if (j !== i) {
         const otherTask = result.tasks.find(task => task.id === taskId('Extra', `Personal ${j + 1}`));
         assert.equal(otherTask.obligation, false);
-        assert.ok(otherTask.hiddenReasons.includes(size === 2
-          ? 'This task is outside the member’s own reachable map; partner access is a convenience.'
-          : 'This task is outside the member’s own reachable map; shared access is a convenience.'));
+        assert.ok(otherTask.hiddenReasons.includes('This task is outside the member’s own reachable map; partner access is a convenience.'));
       }
       if (i !== size - 1) {
         const ownTask = result.tasks.find(task => task.id === taskId('Extra', `Personal ${i + 1}`));
-        assert.ok(ownTask.explanation.includes(`Token ${size} supplies available via connected ${size === 2 ? 'partner' : 'group'} chunks.`));
+        assert.ok(ownTask.explanation.includes(`Token ${size} supplies available via connected partner chunks.`));
         const proof = f.engine.how(state, member.id, ownTask.id);
-        assert.ok(proof.gaps.some(gap => gap.detail === (size === 2 ? 'This supply uses partner access.' : 'This supply uses shared access.')));
+        assert.ok(proof.gaps.some(gap => gap.detail === 'This supply uses partner access.'));
       }
       assert.ok(result.items.some(item => item.name === `Token ${size}`));
       const connections = partnerConnections(f.world, state, member.id, registry);
@@ -147,4 +147,19 @@ test('five-player travel refuses unclaimed gaps and one-way routes without copyi
   const oneWay = partnerConnections(world, state, state.members[0].id, registry);
   assert.ok(oneWay.regions.some(region => region.ownerId === state.members[4].id && region.reason === 'no route back'));
   assert.deepEqual(state.members[4].teleports, []);
+});
+
+test('replacement summaries use the preview roster without requiring current screen state', () => {
+  const el = (tag, text = '') => ({ tag, text, children: [], append(...children) { this.children.push(...children); } });
+  for (const size of [1, 2, 3, 5, 32]) for (const currentSize of [undefined, 2, 5]) {
+    const members = Array.from({ length: size }, (_, i) => ({ id: `preview${i}`, name: `Preview ${i}` }));
+    const preview = { members }, incoming = { members }, before = JSON.stringify({ preview, incoming });
+    const c = { el, advanced: () => false, ...(currentSize ? { state: { members: Array(currentSize).fill({}) } } : {}) };
+    createScreenDialogs(c);
+    const summary = c.replacementSummary(preview, incoming);
+    assert.equal(summary.children.at(-1).text, `After replacing ${size === 1 ? 'the map' : size === 2 ? 'both maps' : 'all maps'}, Undo only goes back as far as this replacement. Earlier changes remain in History and the full backup.`);
+    assert.equal(c.replacementSummary(preview, incoming, { memberReplacement: true }).children.at(-1).text,
+      'Undo can reverse this player replacement. The previous save is retained under Browse previous saves.');
+    assert.equal(JSON.stringify({ preview, incoming }), before);
+  }
 });
