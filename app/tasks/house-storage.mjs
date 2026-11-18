@@ -72,7 +72,7 @@ export function evaluateHouseStorage({ rules, f2p, rows, items, sourceList, acce
     const blockers = backlogged ? [{ kind: 'backlog', detail: 'This house-storage task is backlogged by the current member.' }] : [];
     const sources = [...new Set([...parts, ...Object.keys(furniture.materials)])].flatMap(item => sourceList(item).map(source => ({ ...source, item })));
     const obligation = objectHas(ownAccess, catalogue.housing.workbench) && objectHas(ownAccess, catalogue.housing.storage) && housingQuest.obligation !== false;
-    const hiddenReasons = obligation ? [] : ['This task is outside the member’s own reachable map; shared access is a convenience.'];
+    const hiddenReasons = obligation ? [] : ['This task is outside the member’s own reachable map; partner access is a convenience.'];
     const label = visibleLabel(slot, catalogue);
     result.tasks.push({ ...identity, label, rawLabel: label, generated: true, level: furniture.construction, primary: false, primaryMethod: false,
       status: blockers.length ? 'blocked' : 'available', blockers, sources, obligation, hidden: !obligation, hiddenReasons,

@@ -84,7 +84,17 @@ for (const size of [1, 2, 3, 4, 5]) {
       const result = results.get(member.id);
       assert.equal(result.tasks.find(task => task.id === taskId('Extra', `Personal ${i + 1}`)).obligation, true);
       for (let j = 0; j < size; j++) if (j !== i) {
-        assert.equal(result.tasks.find(task => task.id === taskId('Extra', `Personal ${j + 1}`)).obligation, false);
+        const otherTask = result.tasks.find(task => task.id === taskId('Extra', `Personal ${j + 1}`));
+        assert.equal(otherTask.obligation, false);
+        assert.ok(otherTask.hiddenReasons.includes(size === 2
+          ? 'This task is outside the member’s own reachable map; partner access is a convenience.'
+          : 'This task is outside the member’s own reachable map; shared access is a convenience.'));
+      }
+      if (i !== size - 1) {
+        const ownTask = result.tasks.find(task => task.id === taskId('Extra', `Personal ${i + 1}`));
+        assert.ok(ownTask.explanation.includes(`Token ${size} supplies available via connected ${size === 2 ? 'partner' : 'group'} chunks.`));
+        const proof = f.engine.how(state, member.id, ownTask.id);
+        assert.ok(proof.gaps.some(gap => gap.detail === (size === 2 ? 'This supply uses partner access.' : 'This supply uses shared access.')));
       }
       assert.ok(result.items.some(item => item.name === `Token ${size}`));
       const connections = partnerConnections(f.world, state, member.id, registry);
