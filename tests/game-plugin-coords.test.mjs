@@ -50,7 +50,7 @@ test('Anachronia report stores picker identity, shades game squares and filters 
   assert.deepEqual(first.nearby[12], { chunkId: '21283', state: 'unlocked', by: 'me' });
   const rows = Object.fromEntries(first.nearby.map(row => [row.chunkId, row]));
   assert.deepEqual(rows['21282'], { chunkId: '21282', state: 'unlocked', by: 'both' });
-  assert.deepEqual(rows['21284'], { chunkId: '21284', state: 'unlocked', by: 'partner' });
+  assert.deepEqual(rows['21284'], { chunkId: '21284', state: 'locked', by: 'partner' }, 'Displaced partner ownership alone grants no access');
   assert.equal(rows['21281'].state, 'locked'); assert.equal(rows['21285'].state, 'available');
   assert.ok(!rows['15426'], 'nearby row shape and map-square positions remain compatible with current Lua');
   assert.deepEqual(first.pendingRoll, [{ chunkId: '21287-2', chunkName: 'Fixture 15430', summary: null }]);

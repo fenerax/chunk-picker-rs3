@@ -1,9 +1,119 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { openGamePlugin } from '../app/game-plugin.mjs';
+import { buildWorld } from '../app/data/world.mjs';
+import { createGroupState } from '../app/core/state.mjs';
+import { createRuleRegistry, partnerConnections } from '../app/core/rules.mjs';
+import { createTaskEngine } from '../app/tasks/engine.mjs';
+import { selectedDataset } from '../app/dataset-runtime.mjs';
+import { startingSectionLocations } from '../app/core/cache-surface.mjs';
+
+async function territoryPlugin(t, world, state, registry = createRuleRegistry()) {
+  const dataDir = await mkdtemp(path.join(tmpdir(), 'picker-plugin-territory-'));
+  let at = Date.parse('2026-10-19T12:00:00Z'), seq = 0, input, output, pool = { eligible: [] };
+  const controller = await openGamePlugin({ dataDir, world, registry, clock: () => at,
+    store: { getInfo: () => ({ revision: state.revision }), getCalculationSnapshot: () => ({ state, members: state.members }),
+      peekRollPool: () => pool, rollPool: () => { throw new Error('Position/status must not calculate a pool or task engine.'); } },
+    questMapping: new Map(), serializeMutation: operation => operation(), bodyJSON: async () => input,
+    json: async (_request, _response, _status, value) => { output = value; }, checkRequestOrigin: () => {},
+  });
+  t.after(async () => { await controller.close(); await rm(dataDir, { recursive: true }); });
+  const { key } = await controller.create({ admin: true }, { memberId: state.members[0].id, label: 'Territory contract' });
+  async function call(id) {
+    at += 1001;
+    if (id !== undefined) input = { v: 1, seq: ++seq, sentAt: new Date(at).toISOString(),
+      position: { x: Math.floor(+id / 256), z: +id % 256, floor: 0 } };
+    const url = `/api/plugin/v1/${id === undefined ? 'status' : 'report'}`;
+    await controller.handle({ method: id === undefined ? 'GET' : 'POST', url, headers: { authorization: `Bearer ${key}` } }, {}, { route: url, security: {} });
+    return output;
+  }
+  return { report: call, status: () => call(), setPool: value => { pool = value; } };
+}
+
+function territoryFixture(kind) {
+  const ids = ['13107', '13108', '13109'];
+  const sections = {
+    '13107': { '0': ['connected', 'gap'].includes(kind) ? ['13108'] : [] },
+    '13108': { '0': kind === 'disconnected' ? [] : ['13107', '13109'] },
+    '13109': { '0': ['13108'] },
+  };
+  const data = { chunks: Object.fromEntries(ids.map(id => [id, {}])), sections, challenges: {}, walkableChunks: ids, walkableChunksF2P: ids };
+  const world = buildWorld(data);
+  const state = createGroupState([{ id: 'a', name: 'Explorer 1', unlocked: ['13107'] },
+    { id: 'b', name: 'Explorer 2', unlocked: [kind === 'gap' ? '13109' : '13108'] }]);
+  return { data, world, state, target: state.members[1].unlocked[0] };
+}
+
+for (const kind of ['disconnected', 'one-way', 'gap', 'connected']) {
+  test(`plugin and picker agree on ${kind} partner territory`, async t => {
+    const { data, world, state, target } = territoryFixture(kind), before = structuredClone(state);
+    const connections = partnerConnections(world, state, 'a');
+    const picker = createTaskEngine(data).evaluate(state, 'a');
+    const connected = kind === 'connected';
+    assert.equal(connections.byChunk[target].connected, connected);
+    assert.equal(picker.access.bases.includes(target), connected, 'Task access agrees with the map travel projection');
+    if (kind === 'one-way') assert.equal(connections.byChunk[target].reason, 'no route back');
+    if (kind === 'gap') assert.equal(connections.byChunk[target].reason, 'no route out', 'An unclaimed intermediate cannot be crossed');
+    const plugin = await territoryPlugin(t, world, state);
+    plugin.setPool({ eligible: [{ id: target }] });
+    const status = await plugin.report(target), expected = connected ? 'unlocked' : 'locked';
+    assert.equal(status.state, expected, 'A roll offer cannot grant access to unreachable partner territory');
+    assert.deepEqual(status.nearby[12], { chunkId: target, state: expected, by: 'partner' });
+    assert.equal((await plugin.status()).state, expected, 'GET status and report replies share the same contract');
+    assert.equal((await plugin.report('13107')).state, 'unlocked', 'Personal ownership stays accessible');
+    assert.deepEqual(state, before);
+  });
+}
+
+test('plugin reuses travel projection across reports and pool fills, then refreshes at the next save revision', async t => {
+  const { world, state, target } = territoryFixture('connected');
+  const topology = world.sectionTopology;
+  let reads = 0;
+  Object.defineProperty(world, 'sectionTopology', { get: () => { reads++; return topology; } });
+  const plugin = await territoryPlugin(t, world, state);
+  assert.equal((await plugin.report(target)).state, 'unlocked');
+  const initialReads = reads;
+  assert.ok(initialReads > 0, 'Travel topology was consulted');
+  await plugin.report(target); await plugin.status();
+  plugin.setPool({ eligible: [{ id: '13109' }] });
+  assert.equal((await plugin.report('13109')).state, 'available', 'Late pool results still refresh');
+  assert.equal(reads, initialReads, 'Reports, GET status and pool identity changes reuse accessibility');
+  state.members[0].sectionOverrides = { '13108-0': false }; state.revision++;
+  assert.equal(partnerConnections(world, state, 'a').byChunk[target].connected, false);
+  const beforeRefresh = reads;
+  assert.equal((await plugin.report(target)).state, 'locked');
+  assert.ok(reads > beforeRefresh, 'The new revision recalculates travel');
+  const refreshedReads = reads;
+  assert.equal((await plugin.status()).state, 'locked'); assert.equal(reads, refreshedReads);
+  state.members[0].sectionOverrides = {}; state.rules['access.shared'] = false; state.revision++;
+  const privateStatus = await plugin.report(target);
+  assert.equal(privateStatus.state, 'locked'); assert.equal(privateStatus.nearby[12].by, undefined, 'Shared ownership colouring follows the saved rule');
+  state.rules['access.shared'] = true; state.members[0].unlocked.push(target); state.revision++;
+  const both = await plugin.report(target);
+  assert.equal(both.state, 'unlocked'); assert.equal(both.nearby[12].by, 'both');
+});
+
+test('plugin and picker map agree with real world topology for connected mainland and disconnected island ownership', async t => {
+  const definitions = JSON.parse(await readFile(new URL('../rs3-chunkpicker-chunkinfo-export.json', import.meta.url)));
+  const world = buildWorld(definitions, { dataset: selectedDataset });
+  const state = createGroupState([{ id: 'a', name: 'Explorer 1', unlocked: ['12850'] },
+    { id: 'b', name: 'Explorer 2', unlocked: ['12851', '11569'] }]);
+  // Seed each synthetic start exactly as the picker does for split chunks.
+  for (const owner of state.members) owner.sectionOverrides = Object.fromEntries(owner.unlocked
+    .flatMap(base => startingSectionLocations(world, base).map(id => [id, true])));
+  const connections = partnerConnections(world, state, 'a');
+  assert.equal(connections.byChunk['12851'].connected, true, 'Recorded mainland topology has a round trip');
+  assert.equal(connections.byChunk['11569'].connected, false, 'Claiming an island does not create a crossing');
+  const plugin = await territoryPlugin(t, world, state);
+  for (const id of ['12851', '11569']) {
+    const status = await plugin.report(id), expected = connections.bases.includes(id) ? 'unlocked' : 'locked';
+    assert.equal(status.state, expected);
+    assert.deepEqual(status.nearby[12], { chunkId: id, state: expected, by: 'partner' });
+  }
+});
 
 test('plugin status needs no engine or pool calculation; expired positions preserve unreviewed deltas', async t => {
   const dataDir = await mkdtemp(path.join(tmpdir(), 'picker-plugin-status-'));
@@ -39,8 +149,8 @@ test('plugin status needs no engine or pool calculation; expired positions prese
   assert.equal(second.state, 'available', 'An existing same-revision pool can become available without recomputation');
   assert.equal(states(second)['13107'], 'available');
   const third = await report(3, 45, 49);
-  assert.equal(third.state, 'unlocked', 'Saved shared access includes partner ownership');
-  assert.equal(states(third)['11569'], 'unlocked');
+  assert.equal(third.state, 'locked', 'Partner ownership without a proven round trip grants no shared access');
+  assert.deepEqual(third.nearby[12], { chunkId: '11569', state: 'locked', by: 'partner' });
   const corner = await report(4, 199, 0);
   assert.equal(corner.nearby.length, 9, 'Map squares outside 0-199 are omitted');
   assert.ok(corner.nearby.every(row => row.state === 'unknown'));
@@ -129,7 +239,8 @@ test('status names whose chunks are whose, partners\' chunks and a waiting roll'
   const status = await report(keyA, 2, 51, 51);
   const rows = Object.fromEntries(status.nearby.map(row => [row.chunkId, row]));
   assert.equal(rows['13107'].by, 'me'); assert.equal(rows['13108'].by, 'both'); assert.equal(rows['12851'].by, 'partner');
-  assert.equal(rows['13109'].by, undefined, 'Only unlocked rows say who unlocked them');
+  assert.equal(rows['12851'].state, 'locked', 'Ownership colouring does not grant shared access');
+  assert.equal(rows['13109'].by, undefined, 'Unclaimed rows have no owner');
   assert.deepEqual(status.partners, [{ name: 'Explorer 2', chunkId: '12851', chunkName: 'Swamp', seenAt: status.partners[0].seenAt }]);
   assert.ok(status.partners[0].seenAt);
   assert.deepEqual(status.pendingRoll, [{ chunkId: '13363', chunkName: 'Draynor', summary: null }]);

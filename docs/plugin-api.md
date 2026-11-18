@@ -594,14 +594,17 @@ No body or query parameters. Report and status return the same exact shape:
 ```
 
 `chunkId`, `chunkName`, `seenAt`, and `nearby` can be null. `state` is `unlocked`, `locked`,
-`available`, or `unknown`. Unlocked respects the saved shared-access rule;
-available means eligible in an already cached roll pool or already offered/selected.
+`available`, or `unknown`. Unlocked respects the saved shared-access rule:
+partner territory requires the picker's round trip through claimed chunks.
+Unreachable partner-owned chunks return `locked`, including when offered for a roll.
+Otherwise, available means eligible in an already cached roll pool or already offered/selected.
 Unknown means no recent position or no dataset chunk. A chunk known to be
 unlocked still returns unlocked if it lacks dataset metadata.
 `unlockedChunkCount` counts the player's own saved unlocks. `activeTaskCount`
 is the length of the in-game task list (below) once the plugin has read it at
 the current save revision, and null otherwise. Status caches saved ownership
-per revision, reuses an existing roll pool when present, and never runs the
+and the picker's map/UI partner travel projection once per player per revision,
+reuses an existing roll pool when present, and never runs the
 task engine. `pendingProgress` means a proposal is waiting for
 review, including proposals containing only unmatched/informational quests or
 achievement matches.
@@ -615,13 +618,16 @@ achievement names. Report and status responses use the same fields.
 
 `nearby` lists the 5×5 block of map squares centred on the reported position,
 so the plugin can shade neighbouring chunks. It is null whenever `chunkId` is
-null. Each row has exactly `chunkId` and `state`, with the same rules and cached
+null. Each row has `chunkId` and `state`, with the same rules and cached
 sets as the top-level `state`. Rows run from the south-west corner, x fastest:
 `(x-2, z-2)`, `(x-1, z-2)`, … `(x+2, z+2)`, so row 12 is the current chunk. Map
 squares outside 0–199 are omitted, which leaves fewer than 25 rows at the map
 edge. Match rows by `chunkId`, not by index. When access is shared and the
-group has more than one player, unlocked rows also carry `by`: `me`, `partner`
-or `both`, saying whose saved unlocks contain the chunk.
+group has more than one player, owned rows also carry `by`: `me`, `partner`
+or `both`, saying whose saved unlocks contain the chunk. This includes locked
+partner territory. Plugins may use `by` for ownership colouring, but must use
+`state` for access labels and locked-chunk warnings: `by: "partner"` never
+overrides `state: "locked"`. No new state value is required for older plugins.
 
 `pickableCount` is how many chunks the roll pool offers, or null until a pool
 exists. Status never calculates a pool inside its reply: when none exists it

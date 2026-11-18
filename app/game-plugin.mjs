@@ -9,6 +9,7 @@ import { fields, validatePluginReport, pluginProposal, matchPluginAchievements, 
 import { pluginTaskRows, pluginTaskList, pluginTaskFrom, pluginDoneRows, pluginDoneList, pluginDoneLocations, rememberActiveLocations, PLUGIN_DONE_AGE_MS, pluginRollSummary } from './game-plugin-tasks.mjs';
 import { createPluginProgressSource } from './integrations/progress-sources.mjs';
 import { createGameCoordinates } from './core/game-coords.mjs';
+import { partnerConnections } from './core/rules.mjs';
 
 const fail = (status, message) => Object.assign(new Error(message), { status });
 const LIFETIME = 10 * 60 * 1000;
@@ -506,19 +507,26 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
     // Nobody may have the picker page open. Warm the pool after this response, outside the
     // mutation queue, so a later status can say "can be picked next".
     if (!pool) warmRollPool(player);
-    if (!statuses.has(player) || statuses.get(player).pool !== pool) {
+    if (!statuses.has(player)) {
       const shared = registry.resolve(state().rules)['access.shared'];
       const base = id => id.split('-')[0], others = state().members.filter(other => other.id !== player);
-      statuses.set(player, { pool, unlocked: new Set((shared ? state().members : [owner]).flatMap(owner => owner.unlocked).map(base)),
+      const own = new Set(owner.unlocked.map(base)), partner = shared ? new Set(others.flatMap(other => other.unlocked).map(base)) : new Set();
+      // Reuse the picker's map travel projection once per player/save revision,
+      // independently of late roll-pool fills. Missing topology cannot prove shared access.
+      const connected = partner.size && world.sectionTopology ? partnerConnections(world, state(), player, registry).bases : [];
+      statuses.set(player, { unlocked: new Set([...own, ...connected]),
         // Shared access only: who unlocked each chunk, so the game can mark a partner's chunks.
-        own: new Set(owner.unlocked.map(base)), partner: shared ? new Set(others.flatMap(other => other.unlocked).map(base)) : new Set(),
-        available: new Set([...(pool?.eligible ?? []).map(row => row.id), ...(owner.pendingRoll ?? []), ...(owner.selected ?? [])].map(id => id.split('-')[0])), count: owner.unlocked.length });
+        own, partner, count: owner.unlocked.length });
     }
     const cached = statuses.get(player), latest = positions.get(player);
+    if (!cached.available || cached.pool !== pool) {
+      cached.pool = pool;
+      cached.available = new Set([...(pool?.eligible ?? []).map(row => row.id), ...(owner.pendingRoll ?? []), ...(owner.selected ?? [])].map(id => id.split('-')[0]));
+    }
     const position = latest && clock() - Date.parse(latest.seenAt) < LIFETIME ? latest : null;
     const chunkId = position?.chunkId ?? null, chunk = chunkId === null ? null : world.chunks.get(chunkId);
     // Set lookups only: the same cached sets answer the current chunk and its neighbours.
-    const stateOf = id => cached.unlocked.has(id) ? 'unlocked' : !world.chunks.get(id) ? 'unknown' : cached.available.has(id) ? 'available' : 'locked';
+    const stateOf = id => cached.unlocked.has(id) ? 'unlocked' : cached.partner.has(id) ? 'locked' : !world.chunks.get(id) ? 'unknown' : cached.available.has(id) ? 'available' : 'locked';
     let nearby = null;
     if (position) {
       nearby = [];
@@ -529,7 +537,7 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
         // Lua decodes chunkId into map squares for shading. Lookup ownership in
         // picker space, but leave the row at the reported game's coordinates.
         const id = coordinates.gameSquareToPickerChunk(nx, nz), row = { chunkId: String(nx * 256 + nz), state: stateOf(id) };
-        if (row.state === 'unlocked' && cached.partner.size) row.by = !cached.partner.has(id) ? 'me' : cached.own.has(id) ? 'both' : 'partner';
+        if (cached.partner.size && (cached.own.has(id) || cached.partner.has(id))) row.by = !cached.partner.has(id) ? 'me' : cached.own.has(id) ? 'both' : 'partner';
         nearby.push(row);
       }
     }
