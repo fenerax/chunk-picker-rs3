@@ -6,6 +6,7 @@ import { SNAPSHOT_EXCLUSIONS } from './store-identity-policy.mjs';
 import { capturePluginItemFiles, pluginItemFiles } from './plugin-item-snapshot.mjs';
 import { ownedArtifactSource } from './owned-storage.mjs';
 import { hasOwnedStorage } from './owned-detection.mjs';
+import { CAPTURE_FILE_BUDGET } from './storage-budget.mjs';
 
 const barriers = new Map(), context = new AsyncLocalStorage();
 function barrier(dataDir) {
@@ -56,7 +57,7 @@ export async function snapshotStore(dataDir, id, options = {}) {
   }
   return snapshotFormat1(dataDir, id, options);
 }
-async function snapshotFormat1(dataDir, id, { maxHoldMs = 1000, maxFiles = 4096 } = {}) {
+async function snapshotFormat1(dataDir, id, { maxHoldMs = 1000, maxFiles = CAPTURE_FILE_BUDGET } = {}) {
   const target = snapshotPath(dataDir, id);
   const state = barrier(dataDir);
   if (state.snapshotBusy) throw Object.assign(new Error('A snapshot is already being captured.'), { status: 503 });

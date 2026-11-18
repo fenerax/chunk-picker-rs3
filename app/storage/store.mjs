@@ -5,6 +5,7 @@ import { runImportJob, registryMetadata } from '../import-jobs.mjs';
 import { MAX_PORTABLE_BACKUP_BYTES, BACKUP_LIMIT_LABEL } from '../backup-transfer.mjs';
 import { parseJSONStream } from './json-stream.mjs';
 import { withStoreWrite } from './snapshot.mjs';
+import { storageBudget, storageUsage, withStorageBudget } from './storage-budget.mjs';
 import { hasPluginHandled, withPluginHandled, preserveCommittedPluginHandled } from './plugin-handled.mjs';
 import { foldLegacyPluginHandled } from './plugin-handled-sidecars.mjs';
 import { withPluginEvidence } from './plugin-evidence-lock.mjs';
@@ -129,6 +130,8 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     if (Object.keys(policy).some(key => !['backupDays', 'historyEntries'].includes(key))) throw new TypeError('Unknown retention policy setting.');
   }
   const directory = path.resolve(dataDir);
+  const storageLimits = storageBudget();
+  const budgeted = (rows, work, options) => withStorageBudget(directory, rows, storageLimits, work, options);
   await checkStoreInitialization(directory);
   const ownedStorage = ownedFormat2 === false ? undefined : createOwnedStorage(ownedFormat2, directory, { readOnly });
   ownedCatalogueSemantics = !!ownedStorage && ownedCatalogueSemantics === true;
@@ -141,8 +144,13 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
   const copyState = ownedStorage ? materializeResidentState : structuredClone;
   const sameState = ownedStorage ? ownedStorage.sameState : isDeepStrictEqual;
   const withCatalogue = ownedStorage ? (work, mode = 'shared') => ownedStorage.withLease(work, { mode }) : work => work();
-  const writeState = ownedStorage ? (bytes, options) => ownedStorage.writeState(stateFile, bytes, options)
+  const writeUncheckedState = ownedStorage ? (bytes, options) => ownedStorage.writeState(stateFile, bytes, options)
     : (bytes, options) => atomicWrite(stateFile, bytes, options);
+  const writeState = (bytes, options) => budgeted([{ file: stateFile, bytes },
+    ...(pendingPublication?.dependencies ?? []), ...(pendingPublication?.preimages ?? [])], async () => {
+    await publishPreimages();
+    return writeUncheckedState(bytes, options);
+  });
   const applyStoredCommand = deltaCommands?.apply ?? applyValidatedCommand;
   const residentCommandProofs = new WeakSet(), residentTaskIds = new WeakMap();
   function everydayResidentCommand(state, command) {
@@ -208,15 +216,23 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
   async function writeDependency(file, bytes, at) {
     if (importDependencies) { importDependencies.push({ file: path.relative(directory, file), bytes: Buffer.from(bytes) }); return; }
     if (pendingPublication) { pendingPublication.dependencies.push({ file, bytes, at }); return; }
-    reportDurability(await atomicWrite(file, bytes));
+    reportDurability(await budgeted([{ file, bytes }], () => atomicWrite(file, bytes)));
     if (at) await utimes(file, at, at);
   }
   async function publishDependencies(dependencies) {
-    for (const { file, bytes, at } of dependencies) {
-      await mkdir(path.dirname(file), { recursive: true });
-      reportDurability(await atomicWrite(file, bytes));
-      if (at) await utimes(file, at, at);
-    }
+    return budgeted(dependencies, async () => {
+      for (const { file, bytes, at } of dependencies) {
+        await mkdir(path.dirname(file), { recursive: true });
+        reportDurability(await atomicWrite(file, bytes));
+        if (at) await utimes(file, at, at);
+      }
+    });
+  }
+  async function publishPreimages() {
+    if (!pendingPublication?.preimages.length || pendingPublication.preimagesPublished) return;
+    await publishDependencies(pendingPublication.preimages);
+    pendingPublication.preimagesPublished = true;
+    await ownedStorage?.crash?.('preimage-durable');
   }
   const acknowledgementsFile = path.join(directory, 'action-acknowledgements.json');
   let durabilityWarnings = 0, lastDurabilityWarningAt;
@@ -792,6 +808,10 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
       { dataDir: directory, retainCommittedReplay: true, storeOwned: true })), { level: constants.Z_BEST_SPEED });
     const file = path.join(backupsDir, name);
     const at = new Date(timestamp());
+    if (pendingPublication) {
+      pendingPublication.preimages.push({ file, bytes, at }, ...(label ? [{ file: `${file}.meta.json`, bytes: JSON.stringify({ label }) }] : []));
+      return;
+    }
     if (importDependencies) {
       await writeDependency(file, bytes, at);
       if (label) await writeDependency(`${file}.meta.json`, JSON.stringify({ label }));
@@ -1038,7 +1058,8 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
         if (Buffer.byteLength(json) > MAX_PORTABLE_BACKUP_BYTES) return;
         const bytes = await gzipAsync(json, { level: constants.Z_BEST_COMPRESSION });
         await mkdir(archivesDir, { recursive: true });
-        reportDurability(await atomicWrite(path.join(archivesDir, packId), bytes));
+        const output = path.join(archivesDir, packId);
+        reportDurability(await budgeted([{ file: output, bytes }], () => atomicWrite(output, bytes), { maintenance: true }));
         const file = path.join(archivesDir, packId), version = retainedFileVersion(await stat(file, { bigint: true }));
         const reread = await decodeStoredBytes(await readFile(file), true);
         if (!reread.equals(Buffer.from(json))) throw new TypeError('Retained archive bytes differ after publication.');
@@ -1254,13 +1275,20 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     if (!readOnly && !liveSwapStrict && progressQuestPoints !== undefined) {
       const observed = await publicationState(observeStartupProgress(current));
       if (observed !== current) {
-        const diskDocument = await serializedDiskState(observed);
-        // Observations keep the same revision, but still replace the durable save.
-        await retainBackup(current, 'progress-snapshot');
-        const publication = await writeState(diskDocument, { onPostPublishSyncError: 'warn' });
-        current = observed; currentDiskSerialized = diskDocument;
-        pluginFoldPending = false;
-        reportDurability(publication);
+        try {
+          await withPublicationPreparation(async () => {
+            const diskDocument = await serializedDiskState(observed);
+            // Observations keep the same revision, but still replace the durable save.
+            await retainBackup(current, 'progress-snapshot');
+            const publication = await writeState(diskDocument, { onPostPublishSyncError: 'warn' });
+            current = observed; currentDiskSerialized = diskDocument;
+            pluginFoldPending = false;
+            reportDurability(publication);
+          });
+        } catch (error) {
+          // A daily observation must not make an over-budget save unreadable.
+          if (error.code !== 'STORAGE_BUDGET_EXCEEDED') throw error;
+        }
       }
     }
     if (!readOnly) {
@@ -1312,7 +1340,9 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
   // Authoritative state publishes first. Frozen-readable review lowering is
   // best effort, under the shared reentrant evidence mutex.
   async function publishItemState(state, bytes, operation, details = {}) {
-    return withPluginItemEvidenceWrite(directory, async () => {
+    const preimages = pendingPublication?.preimages ?? [];
+    return budgeted([{ file: stateFile, bytes }, ...(details.dependencies ?? []), ...preimages], () => withPluginItemEvidenceWrite(directory, async () => {
+      await publishPreimages();
       let staged;
       try { staged = await stagePluginItemDecisions(directory, state.provenance?.pluginItemEvidence,
         { memberIds: state.members.map(member => member.id) }); }
@@ -1327,7 +1357,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
       } finally {
         try { await staged?.cancel(); } catch { warnOptionalPluginData('item review lowering cleanup'); }
       }
-    });
+    }));
   }
   async function persist(...args) {
     return withPublicationPreparation(() => persistState(...args));
@@ -1337,7 +1367,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     // synced state temporary still precedes beforeCommit, preserving its crash
     // seam. Retained backups and quarantine diagnostics remain durable even
     // when that hook refuses the state replacement.
-    const pending = { dependencies: [], references: [], quarantine: receiptQuarantine, published: false };
+    const pending = { dependencies: [], preimages: [], references: [], quarantine: receiptQuarantine, published: false };
     pendingPublication = pending;
     try { return await work(pending); }
     finally {
@@ -1751,6 +1781,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
         blockers: ['active-history-policy-preserves-pending-roll-and-undo-suffixes', 'archive-references-have-no-cap', 'history-payload-bytes-have-no-cap'] };
     },
     getUndoEligibility: undoRevision => getUndoEligibility(current, undoRevision, { registry }),
+    storageUsage: async () => ({ ...await storageUsage(directory), limits: storageLimits }),
     getStateJSONParts: () => ['{', ...stateFields(current), '}'],
     getGameplayFingerprint: gameplayFingerprint,
     getInfo: () => ({ revision: current.revision, durable: durabilityWarnings === 0,
@@ -2003,9 +2034,11 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
         const backupFile = path.join(backupsDir, `${String(current.revision).padStart(16, '0')}-${randomBytes(8).toString('hex')}.json.gz`);
         dependencies.push({ file: backupFile, bytes: publication.backup, at: new Date(timestamp()) });
         const diagnostic = dependencies.filter(row => path.dirname(row.file) === path.join(directory, 'receipt-quarantine') || row.file === backupFile);
-        await publishDependencies(diagnostic);
-        const published = await publishItemState(publication.state, publication.disk, prepared.operation,
-          { ...publication, dependencies: dependencies.filter(row => !diagnostic.includes(row)) });
+        const published = await budgeted([{ file: stateFile, bytes: publication.disk }, ...dependencies], async () => {
+          await publishDependencies(diagnostic);
+          return publishItemState(publication.state, publication.disk, prepared.operation,
+            { ...publication, dependencies: dependencies.filter(row => !diagnostic.includes(row)) });
+        });
         const previous = current;
         current = ownedStorage ? shareResidentCatalogue(copyState(publication.state), ownedStorage.base) : publication.state;
         releaseObsoleteResponses(previous);
