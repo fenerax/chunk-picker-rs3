@@ -8,6 +8,7 @@ import { bodyJSON, json } from './picker-context-http.mjs';
 import { httpError, redactInviteTokens, serverReadyMessage, cachedJSON } from './picker-context-http.mjs';
 export { routePermissions, commandPermissions, apiPermission, redactInviteTokens, serverReadyMessage, gzipSavedTaskResult, coordinationView } from './picker-context-http.mjs';
 import { createPickerContext } from './picker-context.mjs';
+import { checkStoreInitialization } from './storage/initialization.mjs';
 import { createGuestMode, isGuestRoute } from './guest.mjs';
 import { prepareOwnedServingRelease, verifyOwnedServingConfiguration, verifyOwnedRuntimeRelease, selectOwnedServingPicker } from './storage/owned-serving.mjs';
 import { createPinnedOwnedMigration } from './owned-preparation.mjs';
@@ -474,6 +475,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
           const verifyStarted = openDiagnostics && performance.now();
           let opened;
           try {
+            await checkStoreInitialization(directory);
             const pinned = ownedServing ? await selectOwnedServingPicker(ownedServing, pickerId, directory) : undefined;
             const pickerDataset = await datasetWithEvidenceHistory(directory, pinned ? { ...dataset, datasetId: pinned.base.dataset.id,
               datasetContractVersion: pinned.base.dataset.contractVersion, digest: pinned.base.dataset.digest } : dataset);
