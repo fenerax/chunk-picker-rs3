@@ -229,3 +229,29 @@ test('a free-space sample that overlaps another group\'s release still counts th
   sampling = undefined;
   await withStorageBudget(b, plan(b), limits, async () => {});
 });
+
+test('stale-sample compensation applies only to that admission and never stays reserved', async t => {
+  const root = await fixture(t), a = path.join(root, 'a'), b = path.join(root, 'b'), c = path.join(root, 'c');
+  await mkdir(a); await mkdir(b); await mkdir(c);
+  const limits = storageBudget({ minFreeBytes: 1000 });
+  const plan = dir => [{ file: path.join(dir, 'state.json'), bytes: Buffer.alloc(4096) }];
+  const reservation = 1024 * 1024 + 4096 + 4096;
+  // Room for two outputs: B is admitted even after counting A's released bytes.
+  let sampling, called, free = 1000 + 2 * reservation;
+  const original = fs.statfs;
+  fs.statfs = async () => { called?.resolve(); await sampling; return { bavail: BigInt(free), bsize: 1n }; }; syncBuiltinESMExports();
+  t.after(() => { fs.statfs = original; syncBuiltinESMExports(); });
+  const entered = Promise.withResolvers(), finish = Promise.withResolvers(), sampled = Promise.withResolvers();
+  const holdB = Promise.withResolvers(), enteredB = Promise.withResolvers();
+  const first = withStorageBudget(a, plan(a), limits, async () => { entered.resolve(); await finish.promise; });
+  await entered.promise;
+  sampling = sampled.promise; called = Promise.withResolvers();
+  const second = withStorageBudget(b, plan(b), limits, async () => { enteredB.resolve(); await holdB.promise; });
+  await called.promise;
+  finish.resolve(); await first;
+  sampled.resolve(); called = undefined; sampling = undefined;
+  await enteredB.promise;
+  // While B holds only its own reservation, C fits in the remaining room.
+  await withStorageBudget(c, plan(c), limits, async () => {});
+  holdB.resolve(); await second;
+});

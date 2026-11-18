@@ -89,8 +89,8 @@ export async function withStorageBudget(dataDir, publications, limits, work, { m
     const disk = await statfs(directory, { bigint: true });
     const block = Math.max(4096, Number(disk.bsize));
     reserved = outputSizes.reduce((sum, size) => sum + Math.ceil(size / block) * block + block, 1024 * 1024);
-    const active = (reservations.get(device) ?? 0) + (released.get(device) ?? 0) - releasedBefore;
-    if (disk.bavail * disk.bsize < BigInt(limits.minFreeBytes) + BigInt(active) + BigInt(reserved)) {
+    const active = reservations.get(device) ?? 0, stale = (released.get(device) ?? 0) - releasedBefore;
+    if (disk.bavail * disk.bsize < BigInt(limits.minFreeBytes) + BigInt(active + stale) + BigInt(reserved)) {
       reserved = 0;
       throw refused('The server needs more free disk space before it can save this change.');
     }
