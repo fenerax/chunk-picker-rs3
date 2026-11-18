@@ -165,7 +165,8 @@ test('position stays ephemeral, optional progress deltas wait for explicit revie
   assert.equal(first.status, 200); const status = await first.json();
   assert.equal(status.chunkId, '11825'); assert.equal(status.state, 'unlocked'); assert.equal(status.pendingProgress, true);
   assert.equal(status.nearby.length, 25); assert.deepEqual(status.nearby[12], { chunkId: '11825', state: 'unlocked', by: 'me' });
-  for (const row of status.nearby) assert.deepEqual(Object.keys(row), row.state === 'unlocked' ? ['chunkId', 'state', 'by'] : ['chunkId', 'state']);
+  for (const row of status.nearby) assert.deepEqual(Object.keys(row), ['11825', '11569'].includes(row.chunkId) ? ['chunkId', 'state', 'by'] : ['chunkId', 'state']);
+  assert.deepEqual(status.nearby.find(row => row.chunkId === '11569'), { chunkId: '11569', state: 'locked', by: 'partner' });
   assert.deepEqual(status.pendingRoll, []); assert.ok(Array.isArray(status.partners));
   for (const partner of status.partners) assert.deepEqual(Object.keys(partner), ['name', 'chunkId', 'chunkName', 'seenAt']);
   for (const privateField of ['Private journal', 'completedTasks', 'skillProgress', 'tokenHash', 'history']) assert.equal(JSON.stringify(status).includes(privateField), false);
