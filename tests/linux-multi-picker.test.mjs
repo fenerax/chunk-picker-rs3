@@ -12,6 +12,8 @@ import { copyFile, mkdtemp, mkdir, readFile, readdir, rename, rm, writeFile } fr
 // Load production algorithms only after installing the same controlled disk,
 // process and lock boundary used by linux-tools-install. One runner hang guard.
 process.env.RS3_DATASET = 'open-starter';
+// The controlled disk reports 4 GiB free; keep the store reserve below it.
+process.env.RS3_STORE_MIN_FREE_BYTES = String(64 * 1024 * 1024);
 const restoreEffects = installEffects();
 mock.timers.enable({ apis: ['Date', 'setTimeout', 'setInterval'], now: Date.UTC(2026, 0, 1) });
 after(() => { restoreEffects(); mock.timers.reset(); });

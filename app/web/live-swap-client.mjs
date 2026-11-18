@@ -158,6 +158,7 @@ export function createLiveSwapCommandClient({ storage = sessionStorage(), fetch 
     'ACTION_SESSION_FULL', 'REQUEST_ACKNOWLEDGED', 'REQUEST_ID_MISMATCH', 'REQUEST_SEQUENCE',
     'RECEIPT_CAPACITY', 'ACTION_SESSION_CAPACITY']);
   const fatal = (status, code) => status === 401 || recoveryCodes.has(code);
+  const definitive = (status, code) => status === 507 && code === 'STORAGE_BUDGET_EXCEEDED';
   function pausedError(record) {
     const delay = Math.max(0, (record?.retryAt ?? 0) - now());
     const advice = delay > 0 ? `Use Retry save in ${Math.ceil(delay / 1000)} seconds.` : 'Use Retry save to try again.';
@@ -195,7 +196,8 @@ export function createLiveSwapCommandClient({ storage = sessionStorage(), fetch 
         const validAnswer = registration ? validSession(value)
           : integer(value?.state?.revision) && validReceipt(value?.receipt, JSON.parse(bytes).requestId)
             && value.receipt.revision <= value.state.revision;
-        if (response.status < 500 && response.status !== 429 && (!response.ok || validAnswer)) return result;
+        // A storage budget refusal happens before publication, so it is definitive.
+        if (definitive(response.status, value?.code) || response.status < 500 && response.status !== 429 && (!response.ok || validAnswer)) return result;
         const delay = retryAfterMs(response, now());
         if (delay > 0) { record = { ...record, retryAt: now() + delay }; persist(record); }
       }
@@ -346,7 +348,7 @@ export function requestError(response, value, delay = retryAfterMs(response)) {
       ? 'Saved tasks are not ready yet. Wait for a player to calculate them, then try again.'
       : 'The saved map changed. Review the latest view and try again.'
     : status === 413 ? 'This request is too large. Use a smaller file or make a smaller change, then try again.'
-    : status >= 500 ? 'The picker could not complete this request. Try again in a moment.' : null;
+    : status >= 500 && !(status === 507 && value?.code === 'STORAGE_BUDGET_EXCEEDED') ? 'The picker could not complete this request. Try again in a moment.' : null;
   // Keep ordinary validation guidance, but never display an exception or HTML.
   const detail = value?.message;
   message ??= typeof detail === 'string' && detail.length <= 400 && !/[\r\n<>]|(?:Error:|\bat \w+.*\()|ECONN|\bstack\b/i.test(detail)

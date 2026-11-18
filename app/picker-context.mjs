@@ -1927,7 +1927,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
         return;
       }
       await json(request, response, status, { message: status === 500 ? 'The save could not be completed. Your previous save remains available.' : error.code === 'ENOENT' ? 'Not found.' : redactInviteTokens(error.message),
-        ...(['TASK_RESULTS_UNAVAILABLE', 'TASK_DETAILS_UNAVAILABLE', 'TASK_WHY_UNAVAILABLE', 'SAVED_WHY_BUSY'].includes(error.code) || error.code === 'PICKER_UPDATING' || /^(?:REQUEST_|ACTION_SESSION_)/.test(error.code ?? '') ? { code: error.code } : {}),
+        ...(['TASK_RESULTS_UNAVAILABLE', 'TASK_DETAILS_UNAVAILABLE', 'TASK_WHY_UNAVAILABLE', 'SAVED_WHY_BUSY', 'STORAGE_BUDGET_EXCEEDED'].includes(error.code) || error.code === 'PICKER_UPDATING' || /^(?:REQUEST_|ACTION_SESSION_)/.test(error.code ?? '') ? { code: error.code } : {}),
         ...(error.code === 'ACTION_SESSION_RETIRED' && error.safeToRetry === true ? { safeToRetry: true } : {}),
         ...(error.code === 'REVISION_CONFLICT' ? await viewEnvelope(error.importConflict ? store.getState() : error.state, viewFor(request)) : {}),
         ...(error.code === 'REVISION_CONFLICT' && error.claimOnlyChanges === true ? { claimOnlyChanges: true } : {}),

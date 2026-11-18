@@ -161,3 +161,20 @@ test('standby and strict activation keep the exact corrupt-ledger checkpoint unt
   assert.equal((await readdir(path.join(f.dataDir, 'receipt-quarantine'))).length, 1);
   assert.equal(standby.getState().revision, 1);
 });
+
+test('a storage budget refusal writes no quarantine evidence; the next admitted mutation does', async t => {
+  const f = await fixture(t), bytes = await corrupt(f.file, { format: 2, slots: [{ sequence: -1, note: 'synthetic evidence' }] });
+  const previous = process.env.RS3_STORE_MAX_BYTES;
+  process.env.RS3_STORE_MAX_BYTES = '1';
+  let store;
+  try { store = await f.open(); } finally {
+    if (previous === undefined) delete process.env.RS3_STORE_MAX_BYTES; else process.env.RS3_STORE_MAX_BYTES = previous;
+  }
+  await assert.rejects(store.command(command, 0), { status: 507, code: 'STORAGE_BUDGET_EXCEEDED' });
+  assert.equal(await readFile(f.file, 'utf8'), bytes);
+  assert.ok(!(await readdir(f.dataDir)).includes('receipt-quarantine') || !(await readdir(path.join(f.dataDir, 'receipt-quarantine'))).length);
+  await store.close();
+  store = await f.open();
+  await store.command(command, 0);
+  assert.equal((await readdir(path.join(f.dataDir, 'receipt-quarantine'))).filter(name => name.endsWith('.json')).length, 1);
+});

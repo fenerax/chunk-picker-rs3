@@ -1,7 +1,9 @@
 import path from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { readFile, statfs } from 'node:fs/promises';
+import { lstat, readFile, readdir, statfs } from 'node:fs/promises';
+import { storageBudget, storageUsage, storagePressure } from '../../app/storage/storage-budget.mjs';
+import { operatorSettings } from './runtime.mjs';
 import { hostname } from 'node:os';
 import { isMain } from '../release/vps/entrypoint.mjs';
 import { atomic, directory, encode, exclusive, json } from './files.mjs';
@@ -25,6 +27,10 @@ export function evaluate(sample, previous = {}, now = Date.now()) {
   if (sample.offhostPause) put('offhost-paused');
   if (sample.lock && age(sample.lock.startedAt) >= 30 * 60000 || sample.marker && age(sample.marker.startedAt ?? sample.lock?.startedAt) >= 30 * 60000) put('operation-long', 'critical');
   if (sample.diskBytes < 15 * GiB) put('disk-low', sample.diskBytes < 5 * GiB ? 'urgent' : 'warning');
+  for (const group of sample.storage ?? []) {
+    const level = storagePressure(group, group.limits);
+    if (level) put('group-storage', level);
+  }
   const lowRamSince = sample.ramBytes < 2 * GiB ? previous.lowRamSince ?? now : null;
   if (sample.ramBytes < GiB) put('ram-low', 'urgent');
   else if (lowRamSince !== null && now - lowRamSince >= 10 * 60000) put('ram-low');
@@ -53,6 +59,24 @@ export async function lockOwnerAlive(lock, { identity = processIdentity, host = 
   } catch { return false; }
 }
 async function optional(file) { try { return await json(file); } catch (error) { if (error.code === 'ENOENT') return null; throw error; } }
+export async function collectStorage(config) {
+  const settings = config.dataDir ? config : await operatorSettings();
+  const limits = storageBudget();
+  const roots = [{ group: 'legacy', directory: settings.dataDir }];
+  const pickerRoot = settings.multiPicker?.pickerRoot;
+  if (pickerRoot) for (const entry of await readdir(pickerRoot, { withFileTypes: true })) {
+    if (/^p_[a-f0-9]{32}$/.test(entry.name)) {
+      if (!entry.isDirectory()) throw new Error('Invalid group storage directory.');
+      roots.push({ group: entry.name, directory: path.join(pickerRoot, entry.name) });
+    }
+  }
+  const result = [];
+  for (const { group, directory } of roots) {
+    if (!(await lstat(directory)).isDirectory()) throw new Error('Missing group storage directory.');
+    result.push({ group, ...await storageUsage(directory), limits });
+  }
+  return result;
+}
 export async function collect(config) {
   const sample = {}, read = async (key, file) => {
     try { sample[key] = await optional(file); } catch { sample.unreadable = true; }
@@ -71,6 +95,7 @@ export async function collect(config) {
   const disk = await statfs(config.diskPath); sample.diskBytes = Number(disk.bavail) * Number(disk.bsize);
   const available = /^MemAvailable:\s+(\d+) kB$/m.exec(await readFile('/proc/meminfo', 'utf8'));
   if (!available) throw Error('Memory evidence unavailable.'); sample.ramBytes = Number(available[1]) * 1024;
+  sample.storage = await collectStorage(config);
   return sample;
 }
 export async function monitor(config, { sample, now = Date.now(), send, collectSample = collect } = {}) {
@@ -86,6 +111,10 @@ export async function monitor(config, { sample, now = Date.now(), send, collectS
   });
 }
 if (isMain(import.meta.url)) {
-  try { await monitor(await json('/etc/chunk-picker/monitor.json')); }
+  try {
+    const config = await json('/etc/chunk-picker/monitor.json');
+    if (process.argv[2] === '--storage') process.stdout.write(JSON.stringify(await collectStorage(config), null, 2) + '\n');
+    else await monitor(config);
+  }
   catch { process.stderr.write('Monitor failed; inspect privately.\n'); process.exitCode = 1; }
 }

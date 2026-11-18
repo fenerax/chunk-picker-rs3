@@ -335,3 +335,13 @@ test('coins saves use action receipts, preserve facts, reject another invited me
   const undoOther = await request('/api/command', { expectedRevision: 4, command: { type: 'undo' } }, headers);
   assert.equal(undoOther.status, 403); await undoOther.arrayBuffer();
 });
+
+test('a storage budget refusal keeps its code and guidance in the command response', async t => {
+  const message = 'This group has reached its storage limit. Ask the group owner to contact the server operator.';
+  const { request } = await fixture(t, { beforeCommit: async ({ state }) => {
+    if (state.revision) throw Object.assign(new Error(message), { status: 507, code: 'STORAGE_BUDGET_EXCEEDED' });
+  } });
+  const response = await request('/api/command', { expectedRevision: 0, command: { type: 'set-note', memberId: 'one', chunkId: '12341', note: 'Refused' } });
+  assert.equal(response.status, 507);
+  assert.deepEqual(await response.json(), { message, code: 'STORAGE_BUDGET_EXCEEDED' });
+});

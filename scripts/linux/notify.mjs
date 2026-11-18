@@ -11,6 +11,7 @@ export const messages = Object.freeze({
   maintenance: 'Maintenance evidence is present', 'maintenance-abandoned': 'Maintenance needs operator reconciliation',
   'operation-long': 'An operation exceeded its time budget', 'disk-low': 'Disk reserve is low',
   'ram-low': 'Available memory is low', 'failed-units': 'System services have failed',
+  'group-storage': 'A group is nearing or has reached its retained storage limit; inspect monitor --storage',
   'operator-fault': 'An operator operation failed', 'health-fault': 'Health recovery failed',
   'backup-fault': 'Recovery backup failed', 'offhost-fault': 'Off-site backup failed',
   'offhost-paused': 'Off-site delivery is deliberately paused',

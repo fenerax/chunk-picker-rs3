@@ -39,6 +39,7 @@ export function runtimeEnvironment(config, { probe = false } = {}) {
   assign('RS3_DATASET_PROFILE', config.profile?.path); assign('RS3_DATASET_PROFILE_SHA256', config.profile?.sha256);
   assign('RS3_PRIVATE_ADDON', config.addons?.path); assign('RS3_PRIVATE_ADDON_SHA256', config.addons?.sha256);
   assign('RS3_WORKER_IDLE_MS', config.runtimeOptions?.workerIdleMs);
+  for (const key of ['RS3_STORE_MAX_BYTES', 'RS3_STORE_MAX_FILES', 'RS3_STORE_MIN_FREE_BYTES']) assign(key, process.env[key]);
   if (!probe) {
     for (const [key, value] of Object.entries(process.env)) if (/^RS3_(?:SIGNIN|(?:DISCORD|GOOGLE)_CLIENT_(?:ID|SECRET_FILE))$/.test(key)) assign(key, value);
     // The public listener must have an explicit public role, independent of headers.

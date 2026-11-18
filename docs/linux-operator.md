@@ -397,6 +397,11 @@ are checked against the deadline; an individual stalled filesystem call cannot
 be preempted. A timeout releases the barrier and fails the snapshot. It never
 abandons an active commit. Reads continue throughout.
 
+[Retained save budgets](storage-budgets.md) cap each group's accumulated file
+bytes/count before gameplay publication, reserve shared disk headroom, and
+warn through the existing monitor before capture's descriptor ceiling. Install
+the updated monitor unit so it reads the shared limits from `runtime.env`.
+
 On Linux, replacement and unlink do not change a pinned inode. Windows retains
 the write barrier until copying closes the descriptors, with the same cooperative
 deadline, so queued writes never run into a pinned-file rename refusal. Bytes are copied

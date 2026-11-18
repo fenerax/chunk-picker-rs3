@@ -1020,3 +1020,21 @@ test('Tailscale HTTP registers and saves using random bytes and exclusive HTTP o
   assert.equal(ownership, 1); assert.equal(released, 1);
   assert.deepEqual(paths, ['/api/action-session', '/api/command?view=play-v1']);
 });
+
+test('a storage budget refusal is definitive: no retry, no retained request, and its guidance is shown', async () => {
+  const requests = [], outbox = storage();
+  const message = 'This group has reached its storage limit. Ask the group owner to contact the server operator. Your saved progress, History and backup downloads remain available.';
+  const transport = client({ storage: outbox, fetch: async (_path, options) => {
+    requests.push(JSON.parse(options.body));
+    return requests.length === 1 ? answer(507, { message, code: 'STORAGE_BUDGET_EXCEEDED' }) : answer(200, { state: { revision: 8 } });
+  } });
+  const refused = await transport.send(command());
+  assert.equal(refused.response.status, 507);
+  assert.equal(requests.length, 1);
+  assert.equal(transport.pending(), null);
+  assert.equal(requestError(refused.response, refused.value).message, message);
+  // The refused bytes never committed, so a later action reuses the unused sequence.
+  await transport.send(command());
+  assert.equal(requests[1].requestId, requests[0].requestId);
+  assert.equal(requestError({ status: 507, headers: new Map() }, { message: 'x' }).message, 'The picker could not complete this request. Try again in a moment.');
+});
