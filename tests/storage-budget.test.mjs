@@ -255,3 +255,27 @@ test('stale-sample compensation applies only to that admission and never stays r
   await withStorageBudget(c, plan(c), limits, async () => {});
   holdB.resolve(); await second;
 });
+
+test('repeated refusals reuse the last walk; a smaller write, admission or maintenance rescans', async t => {
+  const root = await fixture(t), file = path.join(root, 'state.json'), extra = path.join(root, 'extra.json');
+  await writeFile(file, 'x'.repeat(20)); await writeFile(extra, 'x'.repeat(5));
+  const limits = storageBudget({ maxBytes: 25, maxFiles: 20, minFreeBytes: 1 });
+  const write = bytes => withStorageBudget(root, [{ file, bytes }], limits, () => writeFile(file, bytes));
+  await assert.rejects(write('x'.repeat(21)), refusal);
+  // Freed space is not seen until a rescan: the cached walk still refuses.
+  await rm(extra);
+  await assert.rejects(write('x'.repeat(21)), refusal);
+  // Maintenance clears the cached walk, so the same write is admitted.
+  await withStorageBudget(root, [{ file: path.join(root, 'pack.tmp'), bytes: '' }], limits, async () => {}, { maintenance: true });
+  await write('x'.repeat(21));
+  assert.equal((await storageUsage(root)).bytes, 21);
+  // A write that fits under the cached usage is confirmed by a fresh walk,
+  // which sees the freed space; admission then clears the cached refusal.
+  await writeFile(extra, 'x'.repeat(4));
+  await assert.rejects(write('x'.repeat(22)), refusal);
+  await rm(extra);
+  await assert.rejects(write('x'.repeat(22)), refusal);
+  await write('x'.repeat(20));
+  await write('x'.repeat(22));
+  assert.equal((await storageUsage(root)).bytes, 22);
+});

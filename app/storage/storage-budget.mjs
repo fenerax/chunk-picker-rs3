@@ -48,6 +48,9 @@ export function storagePressure(usage, limits = storageBudget()) {
 }
 
 const context = new AsyncLocalStorage(), queues = new Map(), reservations = new Map(), released = new Map();
+// A refused group reuses its last walk briefly, so repeated refused writes
+// cannot rescan a full store each time. Admission and maintenance clear it.
+const refusedUsage = new Map(), REFUSAL_RESCAN_NS = 10_000_000_000n;
 const refused = reason => Object.assign(new Error(reason + ' Ask the group owner to contact the server operator. Your saved progress, History and backup downloads remain available.'),
   { status: 507, code: 'STORAGE_BUDGET_EXCEEDED' });
 
@@ -65,7 +68,6 @@ export async function withStorageBudget(dataDir, publications, limits, work, { m
   let device, reserved = 0;
   const owner = { directory, active: true };
   try {
-    const usage = await storageUsage(directory);
     let growth = 0, addedFiles = 0;
     const outputSizes = [];
     const outputs = new Map(publications.map(row => [path.resolve(row.file), row.bytes]));
@@ -80,8 +82,19 @@ export async function withStorageBudget(dataDir, publications, limits, work, { m
       // names, directory metadata and optional plugin review lowering slack.
       outputSizes.push(size);
     }
-    if (!maintenance && (usage.bytes + growth > limits.maxBytes || usage.files + addedFiles + 8 > limits.maxFiles))
-      throw refused('This group has reached its retained save storage limit.');
+    // Maintenance (packing) only reduces the group, so it skips the walk.
+    if (!maintenance) {
+      const over = usage => usage.bytes + growth > limits.maxBytes || usage.files + addedFiles + 8 > limits.maxFiles;
+      const recent = refusedUsage.get(directory);
+      let usage = recent && process.hrtime.bigint() - recent.at < REFUSAL_RESCAN_NS ? recent.usage : undefined;
+      // A cached refusal can only refuse; anything that might fit is rescanned.
+      if (!usage || !over(usage)) usage = await storageUsage(directory);
+      if (over(usage)) {
+        if (usage !== recent?.usage) refusedUsage.set(directory, { usage, at: process.hrtime.bigint() });
+        throw refused('This group has reached its retained save storage limit.');
+      }
+    }
+    refusedUsage.delete(directory);
     device = String((await lstat(directory)).dev);
     // A reservation released while statfs runs may already be written but
     // missing from this sample. Treat its bytes as used rather than free.
