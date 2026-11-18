@@ -6,6 +6,52 @@ import os from 'node:os';
 import { createServer } from '../app/server.mjs';
 import { createGroupState } from '../app/core/state.mjs';
 
+test('HTTP Undo checks archived travel facts ownership and retains authenticated admin invite rights', async t => {
+  const dataDir = await mkdtemp(path.join(os.tmpdir(), 'rs3-history-undo-access-'));
+  const initialState = createGroupState([{ id: 'owner', name: 'Owner' }, { id: 'other', name: 'Other' }]);
+  const app = await createServer({ dataDir, initialState, port: 0, predictionPrewarm: false, taskMap: {},
+    definitions: { chunks: {}, walkableChunks: [], walkableChunksF2P: [] },
+    mapAssetsDir: path.join(dataDir, 'assets'), gameDataDir: path.join(dataDir, 'game-data'),
+    retention: { backupDays: 90, historyEntries: 1 } });
+  t.after(async () => { await app.close(); await rm(dataDir, { recursive: true }); });
+  await app.listen();
+  const origin = `http://127.0.0.1:${app.address().port}`;
+  const master = { Authorization: `Bearer ${app.store.getAccessToken()}` };
+  const api = (route, body, auth = master) => fetch(origin + route, { method: 'POST',
+    headers: { ...auth, Origin: origin, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  const invite = async input => {
+    const response = await api('/api/invites', input);
+    assert.equal(response.status, 201);
+    const joined = await fetch(origin + new URL((await response.json()).link).pathname, { redirect: 'manual' });
+    assert.equal(joined.status, 303);
+    return { Cookie: joined.headers.get('set-cookie').split(';')[0] };
+  };
+  const owner = await invite({ label: 'Owner', memberId: 'owner' });
+  const other = await invite({ label: 'Other', memberId: 'other' });
+  const unassigned = await invite({ label: 'Unassigned' });
+  const admin = await invite({ label: 'Admin', memberId: 'other', admin: true });
+  const send = (command, auth) => api('/api/command', { command, expectedRevision: app.store.getInfo().revision, admin: true }, auth);
+  for (const archived of [false, true]) for (const auth of [owner, master, admin]) {
+    const recorded = await send({ type: 'set-transport-facts', memberId: 'owner', facts: { currencies: { coins: 100 } } }, owner);
+    assert.equal(recorded.status, 200, await recorded.text());
+    const undoRevision = app.store.getInfo().revision;
+    if (archived) {
+      for (let index = 0; index < 4; index++) await app.store.command({ type: 'set-journal', memberId: 'other', note: `Later ${undoRevision}-${index}` }, app.store.getInfo().revision);
+      assert.equal(app.store.getHistoryEvent(undoRevision), undefined);
+    }
+    const baseline = app.store.getState();
+    for (const denied of [other, unassigned]) {
+      const response = await send({ type: 'undo', undoRevision }, denied);
+      assert.equal(response.status, 403);
+      assert.equal((await response.json()).message, 'You can only undo travel facts for your signed-in player.');
+      assert.deepEqual(app.store.getState(), baseline);
+    }
+    const undone = await send({ type: 'undo', undoRevision }, auth);
+    assert.equal(undone.status, 200, await undone.text());
+    assert.equal(app.store.getState().members[0].transportFacts, undefined);
+  }
+});
+
 test('authenticated History API validates filters, pages readable archive matches and preserves the bare-route contract', async t => {
   const dataDir = await mkdtemp(path.join(os.tmpdir(), 'rs3-history-api-'));
   const state = createGroupState([{ id: 'actor1', name: 'Player' }, { id: 'reed', name: 'Reed' }]);
