@@ -311,10 +311,11 @@ test('invalid plugin key sidecars fail startup and release the gameplay director
   const dataDir = await mkdtemp(path.join(tmpdir(), 'picker-plugin-invalid-'));
   let app;
   t.after(async () => { await app?.close(); await rm(dataDir, { recursive: true, force: true }); });
-  await prepareGameStorage(dataDir, fixtureDataset);
   const sidecar = path.join(dataDir, 'plugin-keys.json');
-  await writeFile(sidecar, JSON.stringify({ schemaVersion: 1, keys: [{ id: 'malformed' }] }));
   const options = { dataset: fixtureDataset, dataDir, definitions, taskMap: {}, host: '127.0.0.1', port: 0, publicOrigin: undefined, loopbackPort: undefined, predictionPrewarm: false };
+  app = await createServer(options);
+  await app.close(); app = undefined;
+  await writeFile(sidecar, JSON.stringify({ schemaVersion: 1, keys: [{ id: 'malformed' }] }));
   await assert.rejects(createServer(options), /Invalid plugin key record/);
   await writeFile(sidecar, JSON.stringify({ schemaVersion: 1, keys: [] }));
   app = await createServer(options); await app.listen();

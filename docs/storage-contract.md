@@ -106,6 +106,17 @@ It never synthesizes a new map or certifies the damaged group as uninitialized.
 Store startup checks before creating files, then rechecks under ownership;
 checkpoint capture checks under its per-picker write barrier.
 
+Accounts and invitations also count at the multi-picker service's legacy root.
+Fresh startup awaits `openStore` before `createPickerContext` opens its sidecars.
+Registry `firstLogin` writes registry/ledger records and provisions picker
+directories; it does not create legacy issuer files. Service recovery's
+`reconcileServiceRecoveryTombstones` opens only issuer files already present,
+leaving missing files missing. `restoreServiceStopped` requires empty restore
+targets and installs the complete legacy gameplay store before normal startup.
+None of these paths provisions new accounts/invites ahead of the first state.
+Tests invoking standalone sidecar APIs before reopening gameplay must establish
+the save first, just as the server does; there is no service-root exception.
+
 A binding, `access-token`, empty directories, unreferenced `static/` blobs and
 unpublished `.tmp` files can precede the first `state.json` publication. Those
 alone permit first-start initialization and an uninitialized checkpoint entry,
