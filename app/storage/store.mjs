@@ -1,4 +1,5 @@
 import { isMainThread } from 'node:worker_threads';
+import { memberNameChanges, authorizeMemberNames } from './member-name-authority.mjs';
 import { memberDeparture } from '../core/member-departure.mjs';
 import { createDeltaCommandValidator } from '../core/delta-validation.mjs';
 import { pluginTestingMode, withPluginTestingMode } from '../core/plugin-testing.mjs';
@@ -116,7 +117,7 @@ export class RevisionConflict extends Error {
 }
 
 /** One durable, exclusively locked store. All writes share one revision queue. */
-export async function openStore({ dataDir, world, registry, initialState, migrateState, prepareState, prepareImportState, beforeCommit, afterRosterCommit, beforeLockRecovery, now, random, tokenRandomBytes, taskCatalogue, retention, progressQuestPoints, membersStartBanks, xpChoiceCatalogue, readOnly = false, importReader = false, liveSwapStrict = false, expectedCheckpoint, onActivationTiming, rollPoolCache, computeRollPool, completionCodec = process.env.RS3_COMPLETION_CODEC === '1', startupDiagnostics, ownedFormat2 = false, ownedCatalogueSemantics = false, releaseCommandResponses = false, deltaValidation = false } = {}) {
+export async function openStore({ dataDir, world, registry, initialState, migrateState, prepareState, prepareImportState, beforeCommit, beforeMemberNameChange, afterRosterCommit, beforeLockRecovery, now, random, tokenRandomBytes, taskCatalogue, retention, progressQuestPoints, membersStartBanks, xpChoiceCatalogue, readOnly = false, importReader = false, liveSwapStrict = false, expectedCheckpoint, onActivationTiming, rollPoolCache, computeRollPool, completionCodec = process.env.RS3_COMPLETION_CODEC === '1', startupDiagnostics, ownedFormat2 = false, ownedCatalogueSemantics = false, releaseCommandResponses = false, deltaValidation = false } = {}) {
   if (!dataDir) throw new TypeError('dataDir is required.');
   if (importReader && (isMainThread || !readOnly)) throw new TypeError('An import reader must be an isolated read-only worker.');
   if (typeof completionCodec !== 'boolean') throw new TypeError('completionCodec must be boolean.');
@@ -1363,6 +1364,15 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
         const result = await writeState(bytes, { onPostPublishSyncError: 'warn', beforeRename: async () => {
           await committing(operation, state, details);
           await publishDependencies(details.dependencies ?? []);
+          // Revoke before publishing the new name. A failed revocation refuses
+          // the rename; a later publication failure can only over-revoke.
+          const names = memberNameChanges(current, state);
+          // Validation trims outer whitespace. Even a name save that becomes
+          // byte-identical must discard reviews fetched before that save.
+          if (details.nameEditMemberId && !names.some(change => change.memberId === details.nameEditMemberId)) {
+            names.push({ memberId: details.nameEditMemberId, normalized: false });
+          }
+          if (names.length) await beforeMemberNameChange?.(names);
         } });
         try { await staged?.publish(); } catch { warnOptionalPluginData('item review lowering'); }
         return result;
@@ -1390,13 +1400,14 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
       }
     }
   }
-  async function persistState(next, operation, archived, serializedResult = false, baseline, omitUnchanged = false, view, { claimOnly = false, cleanup = false, backupLabel, receipt, noteEdit = false, reuseNoteProjection = false, currency = pluginCurrency, skipSnapshot = false } = {}) {
+  async function persistState(next, operation, archived, serializedResult = false, baseline, omitUnchanged = false, view, { actor, nameEditMemberId, claimOnly = false, cleanup = false, backupLabel, receipt, noteEdit = false, reuseNoteProjection = false, currency = pluginCurrency, skipSnapshot = false } = {}) {
     // Every gameplay publication retains current atomic decisions and folds
     // usable optional input under the same mutex as legacy sidecar writers.
     next = await publicationState(next, operation === 'replace' ? undefined : current);
     if (operation === 'replace') currency = currencyAfterRestore(currency, next);
     const observed = inheritStateMetadata(next, cleanup || progressQuestPoints === undefined ? next : captureProgressSnapshot(next, { questPoints: progressQuestPoints, at: timestamp() }));
     const validated = cleanup ? observed : await compactHistory(observed, archived);
+    authorizeMemberNames(memberNameChanges(current, validated), actor);
     const previousCoordination = operation === 'replace' ? { schemaVersion: 1, invalidatedUndo: {} }
       : coordination.get(next) ?? coordinationOf(current);
     if (claimOnly || coordination.has(next) || coordination.has(current)) coordination.set(validated,
@@ -1406,7 +1417,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     const { ledger: nextReceipts, result: receiptResult } = commitActionReceipt(receipts, receipt, validated);
     const diskDocument = await serializedDiskState(validated, nextReceipts, currency);
     const publication = await publishItemState(validated, diskDocument, operation,
-      { dependencies: pendingPublication.dependencies });
+      { dependencies: pendingPublication.dependencies, nameEditMemberId });
     pendingPublication.published = true;
     const ownershipChanged = JSON.stringify(current.members.map(member => [member.id, member.unlocked]))
       !== JSON.stringify(validated.members.map(member => [member.id, member.unlocked]));
@@ -1434,8 +1445,9 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     reportDurability(publication);
     await syncRosterProjection();
     if (!cleanup && ++maintenanceWrites >= 50 && !frozen && !closing) { maintenanceWrites = 0; void enqueueMaintenance(maintainRetention); }
+    const renamedMemberIds = memberNameChanges(previous, current).map(change => change.memberId);
     for (const listener of listeners) {
-      try { listener({ revision: current.revision, ...(operation === 'replace' ? { restored: true } : {}), ...(ownershipChanged ? { ownershipChanged: true } : {}), ...(noteEdit ? { noteEdit: true } : {}), ...(choicesChanged ? { choicesChanged: true } : {}) }); } catch { /* A subscriber cannot roll back a committed write. */ }
+      try { listener({ revision: current.revision, ...(renamedMemberIds.length ? { renamedMemberIds } : {}), ...(operation === 'replace' ? { restored: true } : {}), ...(ownershipChanged ? { ownershipChanged: true } : {}), ...(noteEdit ? { noteEdit: true } : {}), ...(choicesChanged ? { choicesChanged: true } : {}) }); } catch { /* A subscriber cannot roll back a committed write. */ }
     }
     // Let already-requested task lanes receive the committed snapshot before
     // preparing the response pools.
@@ -1454,6 +1466,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
         if (receipt.replay) { await syncRosterProjection(); return serializedResult ? { ...await preparedCommandSnapshot(undefined, false, view), receipt: receipt.result } : cloneCurrent(); }
       }
       checkRevision(expectedRevision);
+      if (command?.type === 'set-runescape-name') authorizeMemberNames([{ memberId: command.memberId }], attribution);
       const baseline = current;
       const reviewedItems = itemReview && dismissPluginItemEvidence(await exportPluginItemEvidence(directory,
         id => current.members.some(member => member.id === id) ? id : undefined, current.provenance?.pluginItemEvidence),
@@ -1518,7 +1531,8 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
           coordination.set(ready, { ...previous, invalidatedUndo });
         }
       }
-      const result = await persist(ready, 'command', input.archived, serializedResult, baseline, omitUnchanged, view, { claimOnly,
+      const result = await persist(ready, 'command', input.archived, serializedResult, baseline, omitUnchanged, view, { actor: attribution, claimOnly,
+        nameEditMemberId: command.type === 'set-runescape-name' ? command.memberId : undefined,
         receipt, noteEdit: command.type === 'set-note', reuseNoteProjection: command.type === 'set-note' && ready === next,
         currency: currencyAfterCommand(pluginCurrency, command, input.state, ready),
         ...(command.type === 'go-members' ? { backupLabel: 'Before going members' } : {}) });
@@ -2049,7 +2063,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
       delete result.publication;
       return { ...result, ticket };
     },
-    applyTransfer(ticket, expectedRevision) {
+    applyTransfer(ticket, expectedRevision, { actor } = {}) {
       return enqueue(() => withPluginEvidence(directory, async () => {
         const prepared = importTickets.get(ticket);
         importTickets.delete(ticket);
@@ -2060,6 +2074,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
         }
         const start = performance.now();
         const publication = prepared.publication;
+        authorizeMemberNames(memberNameChanges(current, publication.state), actor);
         const dependencies = publication.dependencies.map(dependency => {
           const target = path.resolve(directory, dependency.file);
           if (!target.startsWith(directory + path.sep)) throw new TypeError('Invalid import dependency.');
@@ -2091,8 +2106,9 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
         taskReuseFingerprint.seedStatic(current, publication.fingerprints.tasks);
         reportDurability(published);
         await syncRosterProjection();
+        const renamedMemberIds = memberNameChanges(previous, current).map(change => change.memberId);
         for (const listener of listeners) {
-          try { listener({ revision: current.revision, restored: true, restoredMemberIds: publication.restoredMemberIds, ...(publication.ownershipChanged ? { ownershipChanged: true } : {}), ...(publication.choicesChanged ? { choicesChanged: true } : {}) }); } catch { /* Already committed. */ }
+          try { listener({ revision: current.revision, restored: true, ...(renamedMemberIds.length ? { renamedMemberIds } : {}), restoredMemberIds: publication.restoredMemberIds, ...(publication.ownershipChanged ? { ownershipChanged: true } : {}), ...(publication.choicesChanged ? { choicesChanged: true } : {}) }); } catch { /* Already committed. */ }
         }
         return { state: ownedStorage ? copyState(current) : current, reply: publication.reply, applyMs: performance.now() - start };
       }));
@@ -2102,7 +2118,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
       return enqueue(() => withPluginEvidence(directory, async () => {
         checkRevision(expectedRevision);
         const ready = await replacementState(document, inheritStateMetadata(current, cloneCurrent()), attribution);
-        return persist(ready, 'replace');
+        return persist(ready, 'replace', undefined, false, undefined, false, undefined, { actor: attribution });
       }));
     },
     async previewReplacement(document, { actor } = {}) {
@@ -2110,6 +2126,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
       const base = inheritStateMetadata(current, cloneCurrent());
       return withPluginItemEvidenceWrite(directory, async () => {
         const state = await replacementState(document, base, attribution);
+        authorizeMemberNames(memberNameChanges(base, state), attribution);
         // Restore comparison and worker transport require detached flat JSON.
         return ownedStorage ? { current: copyState(base), state: copyState(state) } : { current: base, state };
       });

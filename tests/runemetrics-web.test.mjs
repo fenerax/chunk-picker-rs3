@@ -18,7 +18,7 @@ const snapshot = revision => ({
   counts: { completedQuests: 13, matchedQuests: 12, unmatchedQuests: 1 },
 });
 
-function harness({ advanced = false, canWrite = true } = {}) {
+function harness({ advanced = false, canWrite = true, sessionMember = 'a' } = {}) {
   class Node {
     constructor(tag, text, cls) { Object.assign(this, { tag, textContent: text ?? '', className: cls ?? '', children: [], events: {}, attributes: {}, value: '', disabled: false }); }
     append(...children) { this.children.push(...children); }
@@ -37,6 +37,7 @@ function harness({ advanced = false, canWrite = true } = {}) {
   const generation = ui.generation;
   const context = {
     preferences: () => ({ advanced }), canWrite: () => canWrite,
+    canRenameMember: id => sessionMember === id,
     el, plain: value => value,
     field: (label, input) => { const node = el('label'); node.append(el('span', label), input); return node; },
     button: (label, action) => { const node = el('button', label); node.events.click = action; return node; },
@@ -69,6 +70,16 @@ test('account editing and fetch are explicit, bound to the selected personal mem
   await h.click('Save RuneScape name');
   assert.deepEqual(h.attempts.commands, [{ command: { type: 'set-runescape-name', memberId: 'a', name: 'RenamedA' }, revision: 7 }]);
   assert.equal(h.ui.refreshed, 1);
+});
+
+test('rename is visible only for the controlling login and explains plugin pairing', () => {
+  assert.match(harness().text(), /requires pairing the game plugin again/);
+  for (const options of [{ sessionMember: 'b' }, { sessionMember: null }, { canWrite: false }]) {
+    const h = harness(options);
+    assert.equal(h.find('input'), undefined);
+    assert.equal(h.find('button', 'Save RuneScape name'), undefined);
+    assert.match(h.text(), /Only the login controlling this character/);
+  }
 });
 
 test('preview shows increases, decreases, unknown prior XP, personal quests and unmatched evidence without applying', async () => {

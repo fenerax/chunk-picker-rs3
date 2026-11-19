@@ -79,6 +79,7 @@ async function send(context, route, { body, key, cookie, stream = false, encodin
     socket: { remoteAddress: '127.0.0.1' }, complete: true,
     headers: { host: '127.0.0.1:8788', 'accept-encoding': encoding,
       ...(cookie ? { cookie } : { authorization: `Bearer ${key ?? context.store.getAccessToken()}` }),
+      ...(cookie && body !== undefined ? { origin: 'http://127.0.0.1:8788' } : {}),
       ...(body === undefined ? {} : { 'content-type': 'application/json', 'content-length': String(bytes.length) }) } });
   const chunks = [], headers = new Map();
   const response = new Writable({ write(chunk, _encoding, done) { chunks.push(Buffer.from(chunk)); done(); } });
@@ -584,7 +585,15 @@ test('G15 provider caches and previews isolate identical member/name bindings an
     calls++;
     return platformResponse(url);
   } } });
-  for (const context of [a, b]) await command(context, { type: 'set-runescape-name', memberId: 'one', name: 'Player x' });
+  for (const context of [a, b]) {
+    const created = await send(context, '/api/invites', { body: { label: 'Synthetic player', memberId: 'one' } });
+    assert.equal(created.status, 201);
+    const joined = await send(context, new URL(created.body.link, 'http://127.0.0.1:8788').pathname);
+    assert.equal(joined.status, 303);
+    const renamed = await send(context, '/api/command', { cookie: String(joined.headers.get('set-cookie')).split(';')[0],
+      body: { command: { type: 'set-runescape-name', memberId: 'one', name: 'Player x' }, expectedRevision: context.store.getInfo().revision } });
+    assert.equal(renamed.status, 200, JSON.stringify(renamed.body));
+  }
   const left = await send(a, '/api/runemetrics/preview', { body: { memberId: 'one' } });
   const right = await send(b, '/api/runemetrics/preview', { body: { memberId: 'one' } });
   assert.equal(left.status, 200); assert.equal(right.status, 200);
