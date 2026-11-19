@@ -330,7 +330,7 @@ resuming provisioning. Restored directories for blocked IDs must be quarantined
 or purged before any store opens. The external ledger is authoritative; never
 discard it to make a restored checkpoint load.
 
-`caps` can override positive-integer limits: `accounts` (1,000), live/deleting
+At MP1, `caps` could override positive-integer limits: `accounts` (1,000), live/deleting
 `pickers` (1,000), `membershipsPerAccount` (1,000), `membersPerPicker` (100),
 `capabilities` (10,000), `capabilitiesPerPicker` (100), `issuedPickerIds`
 (1,000,000) and `retiredAccounts` (1,000,000). Allocation and record writes reject
@@ -338,6 +338,11 @@ capacity overflow; lowering a cap below existing usage refuses startup. Ledger
 capacity must be raised before further allocations/deletions when exhausted;
 never prune issued IDs or tombstones to free capacity. These are storage bounds,
 not measured public-service capacity or substitutes for later runtime quotas.
+Current character-lifecycle defaults are recorded in
+[Groups and accounts](groups-and-accounts.md#population-counting-and-limits). Registry 5 /
+ledger 3 add separate 1,000,000-record ceilings for issued character IDs,
+retired character IDs and retired slot bindings (`retiredSlots`). Pending login
+deletions reserve retired-account capacity using their existing receipt records.
 
 ### MP1 validation and measurements
 
