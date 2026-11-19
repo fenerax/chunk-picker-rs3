@@ -110,12 +110,21 @@ test('a pending upstream fetch leaves health and saves responsive and previews t
   assert.deepEqual((await (await api('/api/state')).json()).state.members,edited.members);
 });
 
-test('a binding changed during fetching invalidates the old account result',async t=>{
+test('rename away and back during fetching invalidates the old account result',async t=>{
   let release,started; const gate=new Promise(resolve=>{release=resolve;}), fetching=new Promise(resolve=>{started=resolve;});
-  const {api}=await fixture(t,{fetchImpl:async url=>{started();await gate;return response(url);}});
+  const {api,origin}=await fixture(t,{fetchImpl:async url=>{started();await gate;return response(url);}});
+  const invite = await (await api('/api/invites', { label: 'Player 1', memberId: 'player1' })).json();
+  const joined = await fetch(invite.link, { redirect: 'manual' });
+  const cookie = joined.headers.get('set-cookie').split(';')[0];
   const before=(await (await api('/api/state')).json()).state;
   const request=api('/api/runemetrics/preview',{memberId:'player1'}); await fetching;
-  await api('/api/command',{expectedRevision:before.revision,command:{type:'set-runescape-name',memberId:'player1',name:'Someone'}});
+  const renamed = await fetch(origin + '/api/command', { method: 'POST', headers: { Cookie: cookie, Origin: origin, 'Content-Type': 'application/json' },
+    body: JSON.stringify({expectedRevision:before.revision,command:{type:'set-runescape-name',memberId:'player1',name:'Someone'}}) });
+  assert.equal(renamed.status, 200);
+  const undone = await fetch(origin + '/api/command', { method: 'POST', headers: { Cookie: cookie, Origin: origin, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ expectedRevision: before.revision + 1, command: { type: 'undo' } }) });
+  assert.equal(undone.status, 200);
+  assert.equal((await undone.json()).state.members[0].runescapeName, before.members[0].runescapeName);
   release(); const result=await request; assert.equal(result.status,409); assert.match((await result.json()).message,/name changed/);
   assert.equal((await (await api('/api/state')).json()).state.members[0].skillProgress,undefined);
 });

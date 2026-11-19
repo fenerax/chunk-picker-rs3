@@ -19,6 +19,7 @@ export function createRuneMetricsControls(context, { memberId, isCurrent, onAppl
   const { el, button, field, list } = context;
   const advanced = () => context.canWrite?.() !== false && context.preferences?.()?.advanced === true;
   const owner = context.state().members.find(member => member.id === memberId);
+  const canRename = () => context.canWrite?.() !== false && context.canRenameMember?.(memberId) === true;
   const revision = context.state().revision;
   const root = el('section', undefined, 'dialog-section form-stack runemetrics-controls'), status = el('p', undefined, 'info-meta'), review = el('div', undefined, 'form-stack');
   root.setAttribute('aria-label', `progress for ${owner.name}`);
@@ -32,7 +33,7 @@ export function createRuneMetricsControls(context, { memberId, isCurrent, onAppl
   const discard = () => { serial++; controller?.abort(); controller = undefined; preview = undefined; review.replaceChildren(); setBusy(false); setStatus('Preview cancelled.'); };
   const savedAccount = () => context.state().members.find(member => member.id === memberId)?.runescapeName ?? '';
   const saveName = button('Save RuneScape name', async () => {
-    if (!current() || busy) return;
+    if (!current() || busy || !canRename()) return;
     const name = account.value.trim();
     if (!name) { setStatus('Enter this player’s RuneScape account name.', true); return; }
     const request = ++serial; preview = undefined; review.replaceChildren(); setBusy(true);
@@ -116,11 +117,16 @@ export function createRuneMetricsControls(context, { memberId, isCurrent, onAppl
   const help = el('p', 'Sync your levels and completed quests from the game plugin or the web, review the changes, then apply them as personal progress.', 'field-help');
   help.id = `runemetrics-help-${memberId}`; account.setAttribute('aria-describedby', help.id);
   const accountField = field('RuneScape account name', account); accountField.className = 'form-field';
-  const actions = el('div', undefined, 'form-actions'); actions.append(saveName, fetchPreview);
+  const actions = el('div', undefined, 'form-actions');
+  if (canRename()) actions.append(saveName);
+  actions.append(fetchPreview);
   root.setAttribute('aria-label', 'Progress sync');
   // The dialog title or the Activity Info section already names it.
   root.append(
     el('p', `${owner.name} · Last applied web snapshot: ${time(owner.runeMetricsSync?.fetchedAt)}${owner.runeMetricsSync?.runescapeName ? ` · ${owner.runeMetricsSync.runescapeName}` : ''}`, 'info-meta'),
-    help, accountField, actions, status, review);
+    help, ...(canRename() ? [accountField,
+      el('p', 'Changing your RuneScape name requires pairing the game plugin again. Case and equivalent space/underscore formatting keep existing keys. Fetch a new progress preview after any name edit.', 'field-help')]
+      : [el('p', `RuneScape account name: ${owner.runescapeName || 'Not set'}. Only the login controlling this character can change it.`, 'info-meta')]),
+    actions, status, review);
   return root;
 }
