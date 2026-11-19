@@ -524,6 +524,8 @@ test('flag-off capture and dependency guards never parse whole storage-1 state o
   const picker = 'p_' + '1'.repeat(32), registry = { withRecoveryCheckpoint: work => work(registryRecoveryDocument({ schemaVersion: 1, accounts: [], capabilities: [],
     pickers: [{ id: picker, kind: 'legacy-shared', ownerAccountId: null, lifecycle: 'active', provisioning: 'ready', memberIds: ['member-1', 'member-2'], createdAt: now() }] })) };
   const multiPicker = { registryDir: path.join(f.root, 'registry'), pickerRoot: path.join(f.root, 'pickers'), tombstoneDir: path.join(f.root, 'ledger') };
+  await mkdir(multiPicker.tombstoneDir);
+  await writeFile(path.join(multiPicker.tombstoneDir, 'ledger.json'), encode({ schemaVersion: 1, issuedPickerIds: [picker], pickers: [], accounts: [] }));
   const serviceId = '00000000-0000-4000-8000-000000000002';
   await captureServiceCheckpoint({ settings: { ...f.settings, multiPicker }, registry, id: serviceId, spaceCheck: async () => {} });
   await verifyServiceBackup(snapshotPath(f.dataDir, serviceId));
@@ -555,7 +557,7 @@ test('off-site success requires verification of the remotely restored owned clos
   corrupt = true; await assert.rejects(offhostBackup(args)); assert.equal(pinged, 1);
   assert.equal((await json(path.join(f.settings.controlDir, 'offhost-status.json'))).result, 'failed');
 });
-test('flag-off format-1 raw, service and stopped artifacts are byte-identical to origin/main', async t => {
+test('flag-off raw and stopped artifacts match origin/main; service payloads survive the manifest upgrade', async t => {
   const f = await setup(t), reference = path.join(f.root, 'reference'); await mkdir(reference);
   const archive = path.join(f.root, 'reference.tar');
   execFileSync('git', ['archive', '--format=tar', '--output', archive, 'origin/main', 'app', 'scripts']);
@@ -596,11 +598,22 @@ test('flag-off format-1 raw, service and stopped artifacts are byte-identical to
   await compare(before.target, after.target);
   const pick = 'p_' + '1'.repeat(32), document = { schemaVersion: 1, accounts: [], capabilities: [],
     pickers: [{ id: pick, kind: 'legacy-shared', ownerAccountId: null, lifecycle: 'active', provisioning: 'ready', memberIds: ['member-1', 'member-2'], createdAt: now() }] };
-  const registry = { withRecoveryCheckpoint: work => work(structuredClone(document)) };
+  const registry = { withRecoveryCheckpoint: work => work(registryRecoveryDocument(structuredClone(document))) };
   const multi = index => ({ registryDir: path.join(f.root, 'registry-' + index), pickerRoot: path.join(f.root, 'pickers-' + index), tombstoneDir: path.join(f.root, 'ledger-' + index) });
   const serviceId = '00000000-0000-4000-8000-000000000002';
+  await mkdir(multi(0).tombstoneDir);
+  await writeFile(path.join(multi(0).tombstoneDir, 'ledger.json'), encode({ schemaVersion: 1, issuedPickerIds: [pick], pickers: [], accounts: [] }));
   await service.captureServiceCheckpoint({ settings: { dataDir: roots[0], multiPicker: multi(0) }, registry, id: serviceId, spaceCheck: async () => {} });
+  await mkdir(multi(1).tombstoneDir);
+  await writeFile(path.join(multi(1).tombstoneDir, 'ledger.json'), encode({ schemaVersion: 1, issuedPickerIds: [pick], pickers: [], accounts: [] }));
   await captureServiceCheckpoint({ settings: { dataDir: roots[1], multiPicker: multi(1) }, registry, id: serviceId, spaceCheck: async () => {} });
-  await compare(snapshotPath(roots[0], serviceId), snapshotPath(roots[1], serviceId));
+  const oldService = snapshotPath(roots[0], serviceId), newService = snapshotPath(roots[1], serviceId);
+  // Service v2 intentionally adds the ledger and capture metadata. The raw
+  // single-store products above and all existing service payload bytes match.
+  for (const row of (await inventory(oldService)).filter(row => !row.directory && !['manifest.json', 'complete.json'].includes(row.path))) {
+    assert.deepEqual(await readFile(path.join(newService, row.path)), await readFile(path.join(oldService, row.path)));
+  }
+  const oldManifest = await json(path.join(oldService, 'manifest.json')), newManifest = await verifyServiceBackup(newService);
+  assert.deepEqual(newManifest.pickers, oldManifest.pickers); assert.deepEqual(newManifest.inputs, oldManifest.inputs);
   for (const root of roots) t.after(() => rm(path.dirname(snapshotPath(root, id)), { recursive: true, force: true }));
 });

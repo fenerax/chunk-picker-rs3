@@ -52,6 +52,9 @@ static-field extraction cannot conceal a new path. Unknown paths and files fail.
 Every declared path, file family, member field and feature must be exercised.
 The manifest's `checkpoint` file roots must equal `service-checkpoint.mjs`'s
 existing `gameplayRoots`.
+Service checkpoints also retain the existing `dataset-evidence.json` sidecar,
+which proves evidence-only dataset transitions after recovery. Its declaration
+is exercised through the operator's real retention writer using synthetic pins.
 Production retains its strict allowlist; deriving it here would change the
 runtime dependency and release packaging boundary.
 

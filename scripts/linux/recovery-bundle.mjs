@@ -4,7 +4,7 @@ import { createReadStream } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { packRelative } from '../../app/packs.mjs';
 import { assertSameRelease } from './runtime.mjs';
-import { encode, exists, inventory, noLinks, outside, sha } from './files.mjs';
+import { encode, exists, inventory, json, noLinks, outside, sha } from './files.mjs';
 import { stagingBudget } from './staging.mjs';
 
 export const recoveryUnits = Object.freeze(['chunk-picker.service', 'chunk-picker-backup.service', 'chunk-picker-backup.timer',
@@ -87,5 +87,25 @@ export async function recoveryBundle({ settings, release, output, budgetOptions,
   const body = { format: 'picker-rebuild-v1', selected, tools, pins, files };
   const bytes = encode({ ...body, sha256: sha(encode(body)) }); await budget(Buffer.byteLength(bytes));
   await writeFile(path.join(output, 'rebuild-manifest.json'), bytes, { flag: 'wx', mode: 0o600 });
+  return body;
+}
+
+export async function verifyRecoveryBundle(root, pointerSha256) {
+  await noLinks(root);
+  const { sha256, ...body } = await json(path.join(root, 'rebuild-manifest.json'));
+  if (body.format !== 'picker-rebuild-v1' || sha(encode(body)) !== sha256
+    || encode(body.files) !== encode((await inventory(root)).filter(row => row.path !== 'rebuild-manifest.json')))
+    throw Error('Rebuild manifest verification failed.');
+  const rows = new Map(body.files.map(row => [row.path, row]));
+  if (pointerSha256 && rows.get('current.json')?.sha256 !== pointerSha256) throw Error('Rebuild release pointer differs from service capture.');
+  for (const pin of body.pins) {
+    packRelative(pin.file);
+    if (rows.get(pin.file)?.sha256 !== pin.sha256) throw Error('Rebuild input pin missing.');
+    if (pin.payload) for (const row of (await json(path.join(root, pin.file))).files) {
+      packRelative(row.path);
+      const actual = rows.get(path.posix.join(path.posix.dirname(pin.file), row.path));
+      if (actual?.sha256 !== row.sha256 || row.bytes !== undefined && actual.bytes !== row.bytes) throw Error('Rebuild dataset closure missing.');
+    }
+  }
   return body;
 }

@@ -7,7 +7,7 @@ import { lockRegistry } from '../../app/storage/registry-lock.mjs';
 import { assertReleased, atomic, directory, encode, exists, headroom, inventory, json, noLinks } from './files.mjs';
 import { assertSameRelease, readRelease } from './runtime.mjs';
 import { captureServiceCheckpoint, pickerPath, publishServiceBackup, validateServicePaths } from './service-checkpoint.mjs';
-import { listServicePickers, releaseServiceQuarantine, restoreServiceStopped } from './service-recovery.mjs';
+import { listServicePickers, releaseServiceQuarantine, restoreServiceStopped, reconcileServiceRecoveryTombstones } from './service-recovery.mjs';
 import { recordStatus } from './ops-status.mjs';
 import { captureOnline } from './online.mjs';
 import { serviceOperation } from './service-lock.mjs';
@@ -17,8 +17,9 @@ import { retainReleaseDatasetEvidence, serviceEvidenceBinding } from './dataset-
 
 // Hands restored service files back to the service user. The tombstone
 // ledger is repaired explicitly: an operator that died after MP5 replaced it
-// leaves it root-owned, and a resumed reconcile would preserve that owner.
-// The rest of tombstoneDir keeps its owners.
+// leaves it root-owned. Clean-host recovery also creates the ledger root as the
+// operator, so its service-writable leaf must be handed back too. Other files
+// in tombstoneDir keep their owners.
 export async function repairServiceOwnership({ settings, uid, gid, change = chown, step = async label => {} }) {
   const repair = async file => { await step('ownership.change'); await change(file, uid, gid); };
   for (const root of [settings.dataDir, settings.multiPicker.registryDir, settings.multiPicker.pickerRoot]) {
@@ -28,6 +29,7 @@ export async function repairServiceOwnership({ settings, uid, gid, change = chow
   }
   if (await exists(settings.dataDir + '.dataset.json')) await repair(settings.dataDir + '.dataset.json');
   const ledger = path.join(settings.multiPicker.tombstoneDir, 'ledger.json');
+  if (await exists(settings.multiPicker.tombstoneDir)) { await noLinks(settings.multiPicker.tombstoneDir); await repair(settings.multiPicker.tombstoneDir); }
   if (await exists(ledger)) { await noLinks(ledger); await repair(ledger); }
 }
 
@@ -77,10 +79,13 @@ export async function serviceBackup({ settings, release, request, stopped = fals
     const id = randomUUID(), source = snapshotPath(settings.dataDir, id);
     const file = path.join(settings.multiPicker.registryDir, 'registry.json'); await noLinks(file);
     const awaitedDocument = await json(file);
+    // A stopped registry/ledger pair may be damaged after host failure. Let its
+    // owner validate/reconcile disposable metadata before certifying a capture.
+    const planned = await reconcileServiceRecoveryTombstones({ settings, checkpoint: registryRecoveryDocument(awaitedDocument) });
     await captureServiceCheckpoint({ settings, id, inputs: release.config.multiPicker.recoveryInputs ?? {
       ...release.config.packs, ...(release.config.selection ? { selection: release.config.selection } : {}),
       ...(release.config.profile ? { profile: release.config.profile } : {}), ...(release.config.addons ? { addons: release.config.addons } : {}) },
-    registry: { withRecoveryCheckpoint: work => work(registryRecoveryDocument(awaitedDocument)) } });
+    registry: { withRecoveryCheckpoint: work => work(registryRecoveryDocument(planned.checkpoint)) } });
     snapshot = { serviceDir: source, cleanup: () => rm(source, { recursive: true, force: true }) };
   }
   try {
@@ -89,6 +94,8 @@ export async function serviceBackup({ settings, release, request, stopped = fals
   } finally { await snapshot.cleanup(); }
 }
 export async function runServiceOperator({ settings, command, argument, evidence, release, controller, request, healthRecovery, deployStopped, serviceIdentity }) {
+  const initializeLedger = command === 'restore-clean';
+  if (initializeLedger) command = 'restore';
   validateServicePaths(settings); sameService(settings, release);
   // Refuse every unreviewed/tampered receipt before service queries, operation
   // evidence or maintenance publication, just as the single-picker operator does.
@@ -153,7 +160,7 @@ export async function runServiceOperator({ settings, command, argument, evidence
       finally { if (argument === '--stopped' && wasActive) { await stopped(); await controller.start(); } }
     } else if (command === 'restore') {
       await stopped();
-      result = await restoreServiceStopped({ settings, backup: argument, release, assertStopped: stopped });
+      result = await restoreServiceStopped({ settings, backup: argument, release, assertStopped: stopped, initializeLedger });
     } else if (command === 'quarantine-release') {
       result = await releaseServiceQuarantine({ settings, id: argument, release, assertStopped: stopped });
     } else {

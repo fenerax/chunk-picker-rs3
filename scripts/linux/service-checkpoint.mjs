@@ -8,10 +8,11 @@ import { snapshotPath, snapshotRoot, withDirectoryBarriers } from '../../app/sto
 import { checkStoreInitialization } from '../../app/storage/initialization.mjs';
 import { atomic, copyTree, directory, encode, exists, headroom, inventory, json, noLinks, outside, sha } from './files.mjs';
 import { recoverySources, withRecoveryLeases, captureOwnedClosure, verifyOwnedClosure } from './owned-recovery.mjs';
+import { readServiceLedger, verifyServiceLedger } from './service-ledger.mjs';
 
-export const serviceFormat = 'picker-service-recovery-v1';
+export const serviceFormat = 'picker-service-recovery-v2';
 export const pickerId = id => /^p_[0-9a-f]{32}$/.test(id);
-const gameplayRoots = new Set(['state.json', 'static', 'history', 'backups', 'plugin-achievements.json', ...pluginItemFiles]);
+const gameplayRoots = new Set(['state.json', 'static', 'history', 'backups', 'dataset-evidence.json', 'plugin-achievements.json', ...pluginItemFiles]);
 export function pickerPath(settings, picker) {
   if (!pickerId(picker.id) || !['default', 'legacy-shared'].includes(picker.kind)) throw new Error('Invalid picker manifest.');
   return picker.kind === 'legacy-shared' ? settings.dataDir : path.join(settings.multiPicker.pickerRoot, picker.id);
@@ -133,13 +134,14 @@ async function captureServiceCheckpointInner({ settings, registry, checkpoint, i
     const started = performance.now();
     // No file copying, hashing, syncing or pack reads under global admission.
     const roster = async document => {
+      const snapshotAt = new Date().toISOString();
       const pickers = [];
       for (const p of document.pickers.filter(p => p.lifecycle === 'active')) {
         const source = pickerPath(settings, p);
         pickers.push({ id: p.id, kind: p.kind, initialized: await exists(path.join(source, 'state.json')),
           binding: await checkpointBinding(source), absent: false });
       }
-      return { document, pickers };
+      return { document, pickers, snapshotAt };
     };
     const initial = checkpoint ? await checkpoint.capture(roster) : await registry.withRecoveryCheckpoint(roster);
     const globalBarrierMs = checkpoint ? checkpoint.timings().globalBarrierMs : performance.now() - started;
@@ -211,8 +213,14 @@ async function captureServiceCheckpointInner({ settings, registry, checkpoint, i
 
     // The first roster is authoritative for inclusion. The final registry read
     // only removes scopes that disappeared; it never adds a newly created ID.
-    const present = await registry.withRecoveryCheckpoint(current => current.pickers.filter(p => p.lifecycle === 'active').map(p => p.id));
-    const active = new Set(present);
+    // All ledger writes belong to the same registry queue. Read its durable
+    // bytes at the final checkpoint: this ledger cannot predate the initial
+    // registry, and includes deletions accepted while gameplay was copied.
+    const final = await registry.withRecoveryCheckpoint(async current => ({
+      present: current.pickers.filter(p => p.lifecycle === 'active').map(p => p.id),
+      ledger: await readServiceLedger(path.join(settings.multiPicker.tombstoneDir, 'ledger.json')),
+    }));
+    const active = new Set(final.present);
     for (const picker of manifestPickers) {
       if (!active.has(picker.id)) {
         if (picker.kind === 'legacy-shared') throw new Error('Legacy picker became unavailable during backup.');
@@ -232,8 +240,10 @@ async function captureServiceCheckpointInner({ settings, registry, checkpoint, i
       }
     }
     await mutate('capture.registry', () => writeFile(path.join(target, 'registry.json'), encode(document), { flag: 'wx', mode: 0o600 }));
+    await spaceCheck(spool, final.ledger.bytes.length, minFreeBytes);
+    await mutate('capture.ledger', () => writeFile(path.join(target, 'ledger.json'), final.ledger.bytes, { flag: 'wx', mode: 0o600 }));
     const retained = manifestPickers.filter(p => !p.absent && p.initialized);
-    const closed = owned && await captureOwnedClosure(target, retained.map(p => 'pickers/' + p.id),
+    if (owned) await captureOwnedClosure(target, retained.map(p => 'pickers/' + p.id),
       retained.map(p => sources[manifestPickers.indexOf(p)]), { step, validate: validateOwnedCapture });
     if (!owned) await verifyOwnedClosure(target, retained.map(p => 'pickers/' + p.id));
     await syncRecoveryTree(target);
@@ -243,7 +253,7 @@ async function captureServiceCheckpointInner({ settings, registry, checkpoint, i
       absentPickerCount: manifestPickers.filter(p => p.absent).length, pickerBarriers,
       waitedRequests: timing.waitedRequests, maxRequestWaitMs: timing.maxRequestWaitMs, totalRequestWaitMs: timing.totalRequestWaitMs };
     await mutate('capture.manifest', () => atomic(path.join(target, 'manifest.json'), encode({ format: serviceFormat, pickers: manifestPickers, inputs: pins, files,
-      ...(closed ? { snapshotAt: new Date().toISOString() } : {}) })));
+      snapshotAt: initial.snapshotAt, ledger: final.ledger.pin })));
     await mutate('capture.complete', () => {
       if (owned) result.heldMs = ownedBarrierNow() - ownedBarrierStarted;
       return atomic(path.join(target, 'complete.json'), encode(result));
@@ -261,7 +271,11 @@ export async function verifyServiceBackup(backup) {
   await noLinks(backup);
   const manifest = await json(path.join(backup, 'manifest.json'));
   const actual = (await inventory(backup)).filter(row => !['manifest.json', 'complete.json'].includes(row.path));
-  if (manifest.format !== serviceFormat || encode(actual) !== encode(manifest.files) || !Array.isArray(manifest.pickers) || !Array.isArray(manifest.inputs)) throw new Error('Service recovery manifest verification failed.');
+  if (![serviceFormat, 'picker-service-recovery-v1'].includes(manifest.format) || encode(actual) !== encode(manifest.files) || !Array.isArray(manifest.pickers) || !Array.isArray(manifest.inputs)) throw new Error('Service recovery manifest verification failed.');
+  if (manifest.format === serviceFormat) {
+    await verifyServiceLedger(backup, manifest.ledger);
+    if (!Number.isFinite(Date.parse(manifest.snapshotAt))) throw Error('Service capture time missing.');
+  }
   const document = await json(path.join(backup, 'registry.json'));
   const { registryRecoveryDocument } = await import('../../app/storage/registry.mjs');
   if (encode(document) !== encode(registryRecoveryDocument(document))) throw new Error('Service recovery contains sign-in or capability records.');
@@ -305,6 +319,7 @@ export async function verifyServiceBackup(backup) {
   const catalogueFiles = new Set(closure ? ['owned-closure.json', 'catalogue',
     ...Object.values(closure.manifest.bases).map(pin => `catalogue/catalogue-${pin.sha256}.json.gz`)] : []);
   for (const row of actual) {
+    if (manifest.format === serviceFormat && row.path === 'ledger.json') continue;
     if (catalogueFiles.has(row.path)) continue;
     if (row.path === 'past-maps' && pastPaths.size || pastPaths.has(row.path)) continue;
     if (row.path === 'registry.json' || row.path === 'pickers' || row.path === 'inputs') continue;
@@ -325,7 +340,7 @@ export async function publishServiceBackup({ source, settings, release, assertRe
   const stage = target + '.pending';
   try {
     await copyTree(source, stage); await verifyServiceBackup(stage); await assertRelease(release);
-    if (await exists(path.join(stage, 'owned-closure.json'))) {
+    if (manifest.format === serviceFormat || await exists(path.join(stage, 'owned-closure.json'))) {
       await atomic(path.join(stage, 'manifest.json'), encode({ ...manifest, releasePointerSha256: sha(release.pointerBytes) }));
       await verifyServiceBackup(stage);
     }

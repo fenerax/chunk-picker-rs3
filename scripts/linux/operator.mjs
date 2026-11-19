@@ -351,7 +351,7 @@ async function runOperatorImpl(settings, command, argument, evidence, mode) {
 if (isMain(import.meta.url)) {
   try { const result = await runOperator(...process.argv.slice(2)); if (!result?.skipped) process.stdout.write(['list', 'inspect', 'quarantine-release', 'relink-code'].includes(process.argv[2]) ? encode(result) : 'Operator command completed.\n'); }
   catch (error) {
-    if (error.code === 'LEGACY_RESTORE_INCOMPATIBLE') process.stderr.write(error.message + '\n');
+    if (['LEGACY_RESTORE_INCOMPATIBLE', 'SERVICE_RECOVERY_LEDGER', 'OPERATOR_ACTION_REQUIRED'].includes(error.code)) process.stderr.write(error.message + '\n');
     else if (error.code === 'OPERATOR_LOCK_LONG_HELD') process.stderr.write('Operator lock held for over 30 minutes; inspect privately.\n');
     else {
       const reason = error.code === 'EEXIST' ? ' Lock busy.'

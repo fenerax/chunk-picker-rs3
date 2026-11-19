@@ -1008,7 +1008,7 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
   };
   // A schema-1 checkpoint can only reconcile existing deletion decisions. It
   // must not expose login, character, identity or provisioning operations.
-  return recoveryOnly ? Object.fromEntries(['withRecoveryCheckpoint', 'reconcileTombstones', 'isAccountDeleted',
+  return recoveryOnly ? Object.fromEntries(['withRecoveryCheckpoint', 'reconcileTombstones', 'retiredMemberIds', 'isAccountDeleted',
     'deletionRecords', 'deletionDirectory', 'advanceDeletion', 'completePickerDeletion', 'close'].map(name => [name, api[name]])) : api;
 }
 

@@ -87,7 +87,7 @@ export async function backupStopped({ dataDir, backupDir, scratchRoot, release, 
 export async function verifyBackup(backup) {
   await noLinks(backup);
   const manifest = await json(path.join(backup, 'manifest.json'));
-  if (manifest.format === 'picker-service-recovery-v1' && await exists(path.join(backup, 'owned-closure.json'))) {
+  if (['picker-service-recovery-v1', 'picker-service-recovery-v2'].includes(manifest.format)) {
     const { verifyServiceBackup } = await import('./service-checkpoint.mjs');
     return verifyServiceBackup(backup);
   }

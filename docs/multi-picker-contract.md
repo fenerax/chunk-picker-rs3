@@ -1,5 +1,64 @@
 # Multi-picker isolation contract
 
+## Service off-site recovery update
+
+Service manifest v2 in `scripts/linux/service-checkpoint.mjs` supersedes the MP8
+statements below that service backups exclude the external ledger or lack
+off-host support. Save and registry schemas are unchanged; v1 manifests remain
+readable against an existing ledger.
+
+Ordinary multi-picker service captures now contain sanitized registry membership,
+every included picker root/binding, History/backups/plugin evidence, retained Past
+maps and departure/handover records, selected shared input payloads, and an opaque
+versioned `ledger.json`. Capture reads that ledger under the registry queue at the
+final roster check. Ledger-first mutation ordering proves the ledger cannot
+predate the initial registry checkpoint. The manifest binds its version/digest
+and capture time; publication adds the selected release-pointer digest.
+Identities, usable sessions, invitations, plugin/overlay keys and reclaim codes
+remain excluded. Existing `dataset-evidence.json` travels with each picker.
+
+The off-host uploader selects service v2 points in multi-picker mode, preserves
+the existing encrypted restic/retention/receipt behavior and verifies a full
+cache-free remote restore, including both service and rebuild payload closures.
+It cannot fall back to an old single-store point when service capture is missing.
+The option-absent single-store path is unchanged.
+
+`restore` keeps the live ledger. Before opening any restored store, v2 recovery
+requires conservative structural inclusion of the embedded document in the live
+ledger; additions are accepted, changed fields or versions refuse for private
+review. Native registry reconciliation owns semantic validation and tombstone
+application. Backup code does not validate a particular ledger schema or merge
+records. `restore-clean` may exclusively install a missing embedded ledger only
+under stopped ownership, empty service roots and a prepared journal identifying
+the same backup/release/targets. It never overwrites a live ledger. Missing v1
+ledgers, absent-picker rows without authoritative tombstones and uncertain target
+payloads refuse. Partial restores retain the existing resumable journal and
+quarantine conventions. Newer destination tombstones still exclude scopes on
+every retry.
+
+Both reconciliation phases hold the authoritative ledger's lifetime lock and
+seed an opaque disposable ledger copy for native purge bookkeeping. Idempotent
+cleanup changes that copy, leaving authoritative bytes unchanged so the same
+capture can resume after its own partial purge. A new locked read includes any
+later independent deletion decisions. Startup may later advance live cleanup
+progress. This requires no ledger-schema or recovery-journal format changes.
+
+An off-site point covers deletion decisions through its ledger capture time.
+Decisions made later need a newer delivered capture or separately retained ledger;
+they cannot be reconstructed from older artifacts. Operators select the newest
+verified point and preserve every newer surviving ledger. Account reclaim always
+requires private identity verification and fresh credentials.
+
+`scripts/linux/service-rehearsal.mjs` consumes only a downloaded sibling
+`snapshot/` and `rebuild/`, restores the runtime, inputs and service into a new
+isolated tree, starts/closes it, and writes a private timed receipt. It retains
+History counts, Past maps, picker/member IDs, dataset closure, ledger pin,
+credential policy and failures. Gameplay time and synthetic local reclaim time
+are separate. The [operator procedure](linux-operator.md#clean-host-service-recovery-and-timed-rehearsal)
+requires download/host/provider/human timing and fresh-key observations separately;
+synthetic tests do not complete the private launch gate. The single-store
+rehearsal keeps its service guard. Owned catalogue rehearsal remains explicit.
+
 This is the contract for the next implementation phases. Phase 0 measures the
 existing single-picker server; it adds no account provisioning or tenant routing.
 Source references below were verified at core commit `6836123`.
@@ -2192,9 +2251,9 @@ The roster fixes which IDs can enter the backup. Gameplay has a separate
 consistent cut for each picker, rather than one simultaneous cross-picker cut.
 At final reconciliation, newly created IDs stay excluded and IDs no longer
 active are recorded `absent` in the manifest; their staged files are removed.
-Restore projects those absent scopes out of the checkpoint and never initializes
-replacement games for them. This manifest projection reads no tombstone ledger;
-MP5 remains responsible for authoritative tombstone decisions during recovery.
+Restore keeps their internally consistent metadata until MP5 applies the
+authoritative tombstones, including character placements. An absent scope without
+a matching tombstone refuses recovery; it never initializes a replacement game.
 
 Behind the option, `/api/operator/service-snapshot` requires the real private
 listener policy and a master Bearer credential. Public listeners, forwarding
@@ -2203,7 +2262,7 @@ contains only operation ID, hold duration and picker count. The private spool
 is under the existing snapshot namespace and `online.mjs` takes ownership and
 copies it to operator scratch before publication. There is no stopped fallback.
 
-The new `picker-service-recovery-v1` format carries a sanitized registry/account
+The initial `picker-service-recovery-v1` format carries a sanitized registry/account
 checkpoint, picker IDs and kinds, each dataset binding, initialized status,
 gameplay data, and verified selected pack manifests **and their declared payloads**.
 It includes pinned selection/profile/add-on manifests. It copies only reviewed
@@ -2213,12 +2272,13 @@ sidecars, invitations, sessions, plugin keys, access tokens, overlay links,
 feedback and usage. Unknown sidecars are excluded by default. Registry account
 IDs and explicit memberships survive; authentication must be established anew
 through the MP15 private operator claim-code command. No credentials are imported from a service backup.
-The live tombstone ledger is never included or replaced.
+Service v2 adds a consistent ledger copy and existing dataset-evidence sidecars,
+as described above. Normal restore never replaces the authoritative live ledger.
 
 The existing single-directory `picker-recovery-v1` backup still includes the
 entire raw store, including credential-bearing sidecars and the access token.
 That pre-existing behavior and its tests are unchanged. Such raw recoveries must
-remain private; this task adds no transfer or off-host operation.
+remain private. Service v2 now also uses the existing encrypted off-host path.
 
 Capture streams and synchronizes files under each picker's barrier, then hashes
 and publishes the service manifest after all picker barriers have released.
@@ -2264,9 +2324,10 @@ is journaled and reused on resume. No startup or session code change is needed.
 
 **MP5 integration call site:** `reconcileServiceRecoveryTombstones` in
 `service-recovery.mjs` now uses MP5's registry reconciliation and exported purge
-function. It opens a disposable sanitized checkpoint registry against the target's
-live external ledger. It never copies a ledger from a backup, creates a missing
-live ledger, or infers tombstones from checkpoint lifecycle rows. Planning precedes
+function. It opens a disposable sanitized checkpoint registry and ledger from a
+locked read of the target's live ledger. The adapter never replaces a ledger or infers tombstones
+from lifecycle rows. The v2 update above adds explicit clean-host initialization
+before this adapter. Planning precedes
 even the legacy probe; its returned `apply` operation runs MP5 cleanup only after
 legacy compatibility and destination checks succeed. Both restore and quarantine
 release use this adapter. The MP5 integration test is enabled; see MP8b below.
@@ -2356,10 +2417,10 @@ measure production service-restore memory or establish a many-picker capacity.
 | Route gate sampled peak RSS, MiB | 3,265.47 [3,227.79–3,299.61] | 3,252.09 [3,227.88–3,255.55] |
 | Backup/restore gate sampled peak RSS, MiB | 2,943.58 [2,911.02–3,055.84] | 2,367.80 [2,327.54–3,117.77] |
 
-The initial measurements above predate the follow-up below. MP5 remains a
-pending integration hook. Legacy refusal and short global admission are now
-implemented as described above. Same-dataset service deployment is supported, while pack
-changes and a full service rehearsal remain explicit recovery/integration work.
+The initial measurements above predate MP8b and the service-v2 follow-ups. MP5,
+legacy refusal and short global admission are now integrated. Same-dataset service
+deployment and the isolated service rehearsal above are supported; pack changes
+still require the documented compatibility and recovery workflow.
 The live single-duo option remains absent by default.
 
 ### MP8 follow-up: legacy refusal and short global checkpoints
@@ -2474,14 +2535,15 @@ retains both `checkpoint.open(id, () => openContext(id))` and the lifecycle rech
 `reconcileTombstones` from `app/storage/tombstones.mjs`. Registry copies contain
 only the sanitized checkpoint. Planning uses disposable picker directories, so
 MP1 provisioning cannot touch live games before legacy compatibility passes. Both
-planning and application open the **target's existing ledger in place**, under
-MP1's writer lock and validation; an absent or invalid ledger refuses recovery.
+planning and application lock and read the **target's existing ledger in place**,
+then use disposable copies for native validation/bookkeeping. The v2 update above permits explicit journaled
+initialization of a missing ledger before this adapter; invalid ledgers refuse.
 The adapter preserves the live ledger and existing issuer sidecars' original
 UID/GID across atomic writes, including failure paths, so a root-run operator
 does not strand the service behind root-owned mode-0600 files. Reserved-directory
 provisioning completes only in planning scratch; application cannot provision
 unrelated live directories while refusing quarantine release.
-No backup ledger is read or installed. MP5 determines blocked picker IDs and
+Normal restore never installs over a ledger. MP5 determines blocked picker IDs and
 retired accounts; the returned checkpoint removes retired account grants and
 all provider identities and capabilities. A legacy tombstone refuses recovery.
 
@@ -2505,7 +2567,9 @@ refuses an excluded scope before probing or installing anything. Retained privat
 quarantine payloads remain subject to operator retention and cannot override a
 ledger decision. Keep the service stopped throughout both operations.
 
-`scripts/linux/rehearse.mjs` still refuses multi-picker configuration. Its interface
+The single-source interface of `scripts/linux/rehearse.mjs` still refuses
+multi-picker configuration. Use its `--service-source` mode, backed by the v2
+`service-rehearsal.mjs` helper above. The single-source interface
 accepts one source store and copies only that store and binding; it does not copy
 and repin the registry, all owned directories and external ledger. Lifting that
 refusal would risk opening or purging source service roots. The refusal now names
@@ -2650,6 +2714,7 @@ successful retry covers death immediately after the last mutation.
 | `capture.absent-store` | A newly absent picker copy has been removed. | F: Move the snapshot aside after checking source stores; then rerun. | C |
 | `capture.absent-binding` | Its copied binding has been removed. | F: Move the snapshot aside after checking source stores; then rerun. | C |
 | `capture.registry` | Sanitized registry copy exists. | F: Move the snapshot aside after checking source stores; then rerun. | C |
+| `capture.ledger` | Final queue-consistent opaque ledger copy exists. | F: Move the snapshot aside after checking source stores; then rerun. | C |
 | `capture.manifest` | Verified manifest exists, completion receipt absent. | F: Move the snapshot aside after checking source stores; then rerun. | C |
 | `capture.complete` | Verified snapshot and completion receipt exist. | R | C |
 | `capture.failed-cleanup` | Failed capture spool removed; live sources intact. | R | C |
@@ -2667,7 +2732,8 @@ scratch contains sanitized metadata and disposable directories, never gameplay.
 | `reconcile.scratch` | Disposable reconciliation directory exists. | R | S, Q |
 | `reconcile.directories` | Scratch registry/picker directories or live picker parent exist. | R | S, Q |
 | `reconcile.checkpoint` | Sanitized scratch checkpoint exists. | R | S, Q |
-| `reconcile.registry` | MP5 registry API reconciles scratch metadata against the live ledger. | R | S, Q |
+| `reconcile.ledger` | Opaque scratch ledger copied while the authoritative ledger is locked. | R | S, Q |
+| `reconcile.registry` | MP5 reconciles scratch metadata against that locked ledger copy. | R | S, Q |
 | `reconcile.purge` | MP5 purge API has applied its idempotent exclusions. | R | S, Q |
 | `reconcile.ownership` | Original ledger/issuer ownership restored where needed. | R | S, Q |
 | `reconcile.cleanup` | Disposable reconciliation scratch removed. | R | S, Q |
@@ -2681,7 +2747,9 @@ scratch contains sanitized metadata and disposable directories, never gameplay.
 | `restore.legacy-reset` | Disposable unjournaled legacy probe stage removed. | R | S |
 | `restore.legacy-copy` | Legacy probe store or binding copied. | R | S |
 | `restore.reconcile` | MP5 applied authoritative exclusions and purge. | R | S |
-| `restore.prepared` | Prepared journal records verified legacy preflight. | R | S |
+| `restore.prepared` | Prepared journal binds backup/release/targets. Clean-host initialization records it before creating the ledger; ordinary restore records it after preflight. | R | S |
+| `restore.ledger-directory` | Empty clean-host ledger root exists. | R | S |
+| `restore.ledger` | Captured ledger created exclusively; a partial write requires review. | R | S |
 | `restore.stage-reset` | Disposable pending owned stage removed. | R | S |
 | `restore.stage-directory` | Pending owned stage directory exists. | R | S |
 | `restore.stage-copy` | Owned probe store or binding copied. | R | S |

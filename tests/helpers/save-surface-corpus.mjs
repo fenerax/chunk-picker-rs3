@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { mkdir, mkdtemp, readFile, readdir, rm, writeFile, utimes } from 'node:fs/promises';
 import path from 'node:path';
+import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { Readable } from 'node:stream';
 import { gunzipSync } from 'node:zlib';
@@ -24,7 +25,10 @@ import { createWarmStore, warmHash } from '../../app/tasks/warm-store.mjs';
 import { migrateGameplay } from '../../app/tasks/migration.mjs';
 import { preserveGameIdentity } from '../../app/game-profile.mjs';
 import { checkStart } from '../../scripts/linux/start-check.mjs';
-import { inventory } from '../../scripts/linux/files.mjs';
+import { inventory, encode, sha } from '../../scripts/linux/files.mjs';
+import { retainReleaseDatasetEvidence } from '../../scripts/linux/dataset-evidence.mjs';
+import { DATASET_CONTRACT } from '../../app/datasets.mjs';
+import { syntheticDataset } from './dataset-evidence.mjs';
 
 export const root = fileURLToPath(new URL('../../', import.meta.url));
 export const controlRoot = path.join(root, '.local', 'save-surface-control-tests');
@@ -123,6 +127,20 @@ export async function buildSaveCorpus(t) {
     await store.command(payload, store.getInfo().revision, options); await capture(feature);
   };
   await capture('initialize-static');
+  const evidencePins = await mkdtemp(path.join(tmpdir(), 'save-evidence-pins-'));
+  t.after(() => rm(evidencePins, { recursive: true }));
+  const evidenceDataset = syntheticDataset(), pins = {};
+  for (const [name, document] of Object.entries({
+    data: { requires: DATASET_CONTRACT, overlayOrder: evidenceDataset.overlayOrder, files: evidenceDataset.files,
+      datasetDigest: evidenceDataset.digest, capabilities: evidenceDataset.capabilities },
+    rulesText: { files: [] }, profile: { catalogue: {} },
+  })) {
+    const bytes = encode(document), file = path.join(evidencePins, name + '.json');
+    await writeFile(file, bytes); pins[name] = { path: file, sha256: sha(bytes) };
+  }
+  const evidenceRelease = { config: { packs: { data: pins.data, rulesText: pins.rulesText }, profile: pins.profile } };
+  await retainReleaseDatasetEvidence(dataDir, evidenceRelease, evidenceRelease);
+  await capture('dataset-evidence');
   await store.setPluginTestingMode(roster[0].id, true, store.getInfo().revision);
   await capture('plugin-testing-mode', true);
   await command({ type: 'set-rule', ruleId: 'access.shared', value: false }, 'rules');
