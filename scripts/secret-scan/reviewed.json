@@ -456,6 +456,12 @@
       "reason": "Synthetic tailnet-range, loopback, documentation and ULA addresses for front-door tests. None matched any real tailnet address on 2026-10-21."
     },
     {
+      "path": "tests/character-deletion-review.test.mjs",
+      "category": "account-map-binding",
+      "sha256": "60f873085dab35e81a900396c2c81162fe507d64ed36e9e2ab059e9e39ef7695",
+      "reason": "Reviewed exact line: the ternary selects account or character deletion action labels, not an account/map value. Test identities and IDs are generated synthetic fixtures. No private fingerprint exemption."
+    },
+    {
       "path": "tests/fixtures/original-sync/capture.json",
       "category": "network-identifier",
       "sha256": "6b630e482a6c4706fd31a19d57665a3ae3355d23c2f5111ea9b33ed331145923",
