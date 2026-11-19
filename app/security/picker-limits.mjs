@@ -197,12 +197,13 @@ export function createPickerLimits(options = {}, { now = Date.now, onKeyCount = 
     registration(client) { charge(rows('registration', { accountId: client }, config.registrationsPerAccount, 0, config.registrationsGlobal), 1, config.limitWindowMs, 'Too many sign-in attempts. Wait before starting sign-in again.'); },
     provisioningRegistry(value) {
       return new Proxy(value, { get(target, name) {
-        if (!['firstLogin', 'ensureDefaultPicker', 'addCharacter'].includes(name)) return target[name];
+        if (!['firstLogin', 'ensureDefaultPicker', 'addCharacter', 'beginDeparture'].includes(name)) return target[name];
         return async (...args) => {
           const account = name === 'firstLogin' ? target.findIdentity(...args) : target.getAccount(args[0]);
           const picker = account?.defaultPickerId && target.getPicker(account.defaultPickerId);
           if (name === 'firstLogin' && !account) charge(rows('new-account', { accountId: hash(JSON.stringify(args)) }, config.registrationsPerAccount, 0, config.registrationsGlobal), 1, config.limitWindowMs, 'Too many account registrations. Wait before trying sign-in again.');
-          if (name === 'addCharacter' || !picker && !account?.initialProvisioned || picker && picker.provisioning !== 'ready') charge(rows('provision', { accountId: account?.id ?? hash(JSON.stringify(args)) }, config.provisioningPerAccount, 0, config.provisioningGlobal), 1, config.limitWindowMs, 'Too many picker creation attempts. Wait and retry sign-in.');
+          const allocating = name === 'beginDeparture' ? !target.getDeparture(args[3]?.requestId) : name === 'addCharacter' || !picker && !account?.initialProvisioned || picker && picker.provisioning !== 'ready';
+          if (allocating) charge(rows('provision', { accountId: account?.id ?? hash(JSON.stringify(args)) }, config.provisioningPerAccount, 0, config.provisioningGlobal), 1, config.limitWindowMs, 'Too many picker creation attempts. Wait before retrying.');
           return target[name](...args);
         };
       } });

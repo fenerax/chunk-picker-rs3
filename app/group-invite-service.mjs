@@ -13,8 +13,19 @@ export function createGroupInviteService({ registry, acquire, release, point = a
     if (!c || p.lifecycle !== 'active') fail('The destination group is unavailable.');
     return c.placement.memberId;
   }
-  async function finish(i, context) {
+  async function finish(i, context, source) {
     if (i.transaction) {
+      if (i.transaction.pastMapId) {
+        const freeze = async source => {
+          source.fenceRevokedSessions?.();
+          if (!registry.listPastMaps(i.acceptingAccountId).some(m => m.id === i.id)) await registry.capturePastMap({ id: i.id, accountId: i.acceptingAccountId,
+            characterId: i.acceptingCharacterId, pickerId: i.transaction.source.pickerId, memberId: i.transaction.source.memberId, reason: 'rejoined', createdAt: i.terminalAt }, await source.store.backup());
+          await source.revokeDepartedMember(i.transaction.source.memberId);
+          await point('rejoin-credentials', i.pickerId);
+        };
+        if (source) await freeze(source);
+        else await using(i.transaction.source.pickerId, c => c.withGroupAdmission(() => freeze(c)));
+      }
       await context.store.installInvitedMember({ ...i.transaction, templateMemberId: template(i.pickerId) });
       await point('invite-roster', i.pickerId);
       i = await registry.finishGroupJoin(i.id);
@@ -30,9 +41,10 @@ export function createGroupInviteService({ registry, acquire, release, point = a
         const m = state.members.find(m => m.id === template(invite.pickerId));
         const characters = [];
         for (const c of registry.listCharacters(accountId)) {
+          const rejoining = registry.rejoinEligible(accountId, c.id);
           const eligible = registry.groupJoinEligible(accountId, c.id) && c.placement.pickerId !== invite.pickerId
-            && await using(c.placement.pickerId, source => source.untouchedOnboarding());
-          characters.push({ id: c.id, runescapeName: c.runescapeName, eligible, reason: eligible ? null : MOVE_UNAVAILABLE });
+            && (rejoining || await using(c.placement.pickerId, source => source.untouchedOnboarding()));
+          characters.push({ id: c.id, runescapeName: c.runescapeName, eligible, rejoining, reason: eligible ? null : MOVE_UNAVAILABLE });
         }
         return { invite, characters, review: { revision: state.revision, unlocked: [...m.unlocked], blacklisted: [...m.blacklisted], rules: state.rules,
           taskRules: m.taskRules ?? {}, startingChunk: m.preferences?.startingChunk ?? null,
@@ -44,12 +56,13 @@ export function createGroupInviteService({ registry, acquire, release, point = a
     accept(secret, accountId, input, revision) { return serialized(async () => {
       const preview = registry.previewGroupInvite(secret);
       const replay = preview.status === 'accepted';
+      if (replay && !preview.joining && registry.getCharacter(preview.acceptingCharacterId)?.placement?.pickerId !== preview.pickerId) fail('This invitation was previously accepted. Rejoining requires a fresh owner invitation.');
       if (!replay && preview.status !== 'pending') await registry.beginGroupJoin(secret, accountId, input); // release expired/revoked reservation even on a stale review
       return using(preview.pickerId, destination => destination.withGroupAdmission(async store => {
         if (!replay && store.getInfo().revision !== revision) fail('The destination map changed. Review it again before joining.');
-        const commit = async () => {
+        const commit = async source => {
           const i = await registry.beginGroupJoin(secret, accountId, input);
-          const result = await finish(i, destination);
+          const result = await finish(i, destination, source);
           return { ...result, message: replay ? 'Already joined' : 'Joined group' };
         };
         if (input.characterId && !replay) {
@@ -57,8 +70,8 @@ export function createGroupInviteService({ registry, acquire, release, point = a
           const c = registry.getCharacter(input.characterId);
           if (c.placement.pickerId === preview.pickerId) fail('Choose a character outside this group.');
           return using(c.placement.pickerId, source => source.withGroupAdmission(() => {
-            if (!source.untouchedOnboarding()) fail(MOVE_UNAVAILABLE);
-            return commit();
+            if (!registry.rejoinEligible(accountId, input.characterId) && !source.untouchedOnboarding()) fail(MOVE_UNAVAILABLE);
+            return commit(source);
           }));
         }
         return commit();

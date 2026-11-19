@@ -487,7 +487,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
             }
             if (openDiagnostics) openDiagnostics.timingMs.registryDatasetVerifyMs = performance.now() - verifyStarted;
             const initial = createGroupState(picker.memberIds.map(id => {
-              const character = picker.seats.map(s => pickerRegistry.getCharacter(s.characterId)).find(c => c.placement.memberId === id);
+              const character = pickerRegistry.getCharacter(picker.seats.find(s => s.memberId === id)?.characterId);
               return { id, name: character?.runescapeName ?? 'Unnamed character', ...(character?.runescapeName ? { runescapeName: character.runescapeName } : {}) };
             }), ruleRegistry);
             initial.provenance = { dataset: { id: dataset.datasetId, contractVersion: dataset.datasetContractVersion, digest: dataset.digest } };
@@ -496,12 +496,12 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
               openDiagnostics,
               initialState: initial, now, random, beforeCommit: Object.assign(async change => {
                 await beforeCommit?.(change);
-                if (change.operation === 'roster') await pickerRegistry.groupInvitePoint('invite-roster-prepared', pickerId);
+                if (change.operation === 'roster' || change.operation === 'departure') await pickerRegistry.groupInvitePoint(change.operation === 'departure' ? 'departure-roster-prepared' : 'invite-roster-prepared', pickerId);
                 if (change.operation === 'replace') await pickerRegistry.reserveTransferMembers(pickerId, change.state.members.map(m => m.id));
-              }, { operations: beforeCommit ? undefined : Object.freeze(['replace', 'roster']) }), retention, runeMetrics, progressSources, originalSync,
+              }, { operations: beforeCommit ? undefined : Object.freeze(['replace', 'roster', 'departure']) }), retention, runeMetrics, progressSources, originalSync,
               prepareState: prepareOwnedPickerState(pickerDataset, pickerRegistry, pickerId),
               idleMemoryOptions, predictionPrewarm, schedulingClock, publicOrigin,
-              pickerRouting: { writeBlocked: () => pickerRegistry.getPicker(pickerId)?.lifecycle !== 'active' || pickerRegistry.pickerAdmissionPending(pickerId), syncCharacterNames: members => pickerRegistry.updateCharacterNames(pickerId, members), requiredMemberIds: () => pickerRegistry.listAccounts().flatMap(a => a.memberships.filter(m => m.pickerId === pickerId && m.role !== 'viewer').map(m => m.memberId)), sessionView: ownerSessionView, authenticate: pickerRouter.authenticate, indexKey: pickerRouter.indexKey, removeKey: pickerRouter.removeKey,
+              pickerRouting: { groupOperationPoint: name => pickerRegistry.groupInvitePoint(name, pickerId), writeBlocked: () => pickerRegistry.getPicker(pickerId)?.lifecycle !== 'active' || pickerRegistry.pickerAdmissionPending(pickerId), syncCharacterNames: members => pickerRegistry.updateCharacterNames(pickerId, members), requiredMemberIds: () => pickerRegistry.listAccounts().flatMap(a => a.memberships.filter(m => m.pickerId === pickerId && m.role !== 'viewer').map(m => m.memberId)), sessionView: ownerSessionView, authenticate: pickerRouter.authenticate, indexKey: pickerRouter.indexKey, removeKey: pickerRouter.removeKey,
                 authenticateKey: (request, memberId) => pickerRouter.authenticateKey(request, pickerId, memberId) },
               transport: { savingConnections: transport.savingConnections, requestClose: transport.requestClose } });
             const actual = opened.store.getCalculationSnapshot().members.map(member => member.id);
@@ -509,9 +509,10 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
             await opened.prepare(); opened.startBackground(); openDiagnostics?.finish('completed'); return opened;
           } catch (error) { openDiagnostics?.finish('failed', error.code ?? error.name); await opened?.close(); throw error; }
         } });
+      await pickerRouter.departures.recover();
       await pickerRouter.groupInvites.recover();
     }
-  } catch (error) { await deepProfiles.close(); await context?.close(); await pickerRegistry?.close(); await taskWorker?.close(); await timings.close(); throw error; }
+  } catch (error) { await deepProfiles.close(); await pickerRouter?.close(); await context?.close(); await pickerRegistry?.close(); await taskWorker?.close(); await timings.close(); throw error; }
   // Preserve the original synchronous dispatcher when routing is disabled.
   function contextFor(request) { return context; }
   async function serviceOperator(request, response, listener) {

@@ -748,7 +748,9 @@ function validateStateCopy(copy, registry, cache) {
   record(copy.rules, 'rules');
   registryOrDefault(registry).resolve(copy.rules);
   if (copy.ruleReviews !== undefined) validateRuleReviews(copy.ruleReviews, registryOrDefault(registry));
-  const rosterIds = new Set((copy.members ?? []).map(member => member.id));
+  const departedIds = new Set((copy.history ?? []).filter(e => e.type === 'member-departed').map(e => e.command?.memberId));
+  for (const id of departedIds) propertyKey(id, 'departed member');
+  const rosterIds = new Set([...(copy.members ?? []).map(member => member.id), ...departedIds]);
   // Task shape depends on assignments, hence the roster key. Rules and all
   // per-state references/History are still checked for every snapshot below.
   const rosterKey = cache ? JSON.stringify([...rosterIds].sort()) : undefined;
@@ -851,7 +853,7 @@ function validateStateCopy(copy, registry, cache) {
   }
   // Validate bounded undo snapshots independently, without recursive history.
   const historicalTasks = new Map(copy.tasks.map(task => [task.id, task]));
-  const memberIds = new Set(copy.members.map(member => member.id));
+  const memberIds = new Set([...copy.members.map(member => member.id), ...departedIds]);
   const historyByRevision = new Map(copy.history.map(event => [event.revision, event]));
   for (const event of copy.history) {
     if (event.command?.type === 'add-task') {
@@ -932,7 +934,7 @@ function validateStateCopy(copy, registry, cache) {
       const snapshot = { schemaVersion: SCHEMA_VERSION, revision: 0, history: [], rules: event.undo.rules ?? {}, members: snapshotMembers,
         tasks: referencedTasks.map(({ memberIds: assignment, ...task }) => task) };
       validateState(snapshot, registry);
-      for (const member of snapshot.members) if (!copy.members.some(current => current.id === member.id)) fail('History undo references absent member');
+      for (const member of snapshot.members) if (!memberIds.has(member.id)) fail('History undo references absent member');
     }
     if (event.undoneRevision !== undefined) {
       if (!Number.isSafeInteger(event.undoneRevision) || event.undoneRevision <= event.revision || !event.undo) fail('History undo revision is invalid');
@@ -954,6 +956,7 @@ function validateStateCopy(copy, registry, cache) {
     let replayPositions = new Map(copy.tasks.map((task, index) => [task.id, index]));
     for (let index = copy.history.length - 1; index >= 0; index--) {
       const event = copy.history[index];
+      if (event.type === 'member-departed') break; // old inverses belong to the historical roster
       if (!event.undo || event.undoneRevision !== undefined || event.type === 'undo') continue;
       if (event.undo.members) for (const member of event.undo.members) replay.members[replay.members.findIndex(current => current.id === member.id)] = jsonClone(member);
       if (event.undo.memberChanges) for (const change of event.undo.memberChanges) {
@@ -1391,6 +1394,7 @@ function undoTarget(state, undoRevision) {
     ? state.history.findLast(event => event.undo && event.undoneRevision === undefined && event.type !== 'undo')
     : state.history.find(event => event.revision === undoRevision);
   if (!target) fail(undoRevision === undefined ? 'No reversible command remains to undo' : 'Undo revision is not in the active history');
+  if (state.history.some(e => e.type === 'member-departed' && e.revision >= target.revision)) fail('This change belongs to a past roster. Membership changes cannot be undone.');
   if (target.undoneRevision !== undefined) fail('This command has already been undone');
   if (!target.undo || target.type === 'undo') fail('This history entry is not reversible');
   return target;

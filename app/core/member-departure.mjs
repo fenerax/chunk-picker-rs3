@@ -1,0 +1,21 @@
+import { isResidentState, cloneResidentState } from './resident-copy.mjs';
+// A roster epoch uses existing schema-1 members/History fields. The full frozen
+// preimage is retained as a Past map before this transition can be published.
+export function memberDeparture(state, memberId, departureId, at) {
+  if (state.history.some(e => e.type === 'member-departed' && e.command?.departureId === departureId)) return state;
+  if (!state.members.some(m => m.id === memberId) || state.members.length <= 1) throw new Error('Departure needs an existing non-final member.');
+  const next = isResidentState(state) ? cloneResidentState(state) : structuredClone(state); next.revision++;
+  const old = next.members.find(m => m.id === memberId);
+  next.members = next.members.filter(m => m.id !== memberId);
+  // Definition rows stay saved with their original assignments; a departed ID
+  // has no live member and therefore supplies no current tasks or completion.
+  if (next.taskClaims) for (const [id, claim] of Object.entries(next.taskClaims)) if (claim.memberId === memberId) delete next.taskClaims[id];
+  if (next.finishLine) for (const row of next.finishLine.customItems) row.completedBy = row.completedBy.filter(id => id !== memberId);
+  if (next.groupGoals) for (const goal of next.groupGoals) if (goal.completion === 'players') {
+    goal.completedBy = goal.completedBy.filter(id => id !== memberId); goal.done = next.members.every(m => goal.completedBy.includes(m.id));
+  }
+  delete next.progressSnapshots; // the original daily series remains in Past maps
+  next.history.push({ id: `revision-${next.revision}`, revision: next.revision, type: 'member-departed', at,
+    actor: { kind: 'invite', inviteId: departureId, memberId, label: old.name }, command: { type: 'member-departed', memberId, departureId } });
+  return next;
+}

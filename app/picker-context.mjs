@@ -544,7 +544,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
   }
   function endInactiveClients() {
     for (const [client, { request, security }] of clientCredentials) {
-      if (invites.authenticate(request, security)) continue;
+      try { if (invites.authenticate(request, security)) continue; } catch { /* A fenced placement also invalidates its existing stream. */ }
       clients.delete(client); clientCredentials.delete(client); client.end();
     }
   }
@@ -2060,7 +2060,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
       else if (['/rules-panel.mjs', '/rules-model.mjs', '/rules-review.mjs', '/rules-review-model.mjs', '/rules-review-preview.mjs', '/rule-explanations.mjs', '/rules-review.css', '/kept-rules.mjs', '/sandbox.mjs', '/sandbox.css', '/sandbox-rules.mjs', '/duo-coordination.mjs', '/roster-labels.mjs'].includes(route)) file = await containedFile(webRoot, route.slice(1));
       else if (['/completed-view.mjs', '/completed-model.mjs', '/completed-range.mjs', '/completed-range-preference.mjs', '/completed-view.css'].includes(route)) file = await containedFile(webRoot, route.slice(1));
       else if (['/helper.mjs', '/helper.css', '/helper-model.mjs', '/helper-training.mjs', '/helper-goals.mjs', '/helper-drops.mjs', '/helper-charts.mjs', '/helper-utilities.mjs', '/helper-progress.mjs', '/helper-progress-model.mjs'].includes(route)) file = await containedFile(webRoot, route.slice(1));
-      else if (['/amount-input.mjs', '/group-invites.mjs', '/group-handover.mjs'].includes(route)) file = await containedFile(webRoot, route.slice(1));
+      else if (['/amount-input.mjs', '/group-invites.mjs', '/group-handover.mjs', '/group-departure.mjs'].includes(route)) file = await containedFile(webRoot, route.slice(1));
       else if (['/core/interior-maps.mjs', '/core/archaeology.mjs'].includes(route)) file = await containedFile(path.join(ROOT, 'app', 'core'), route.slice('/core/'.length));
       else if (['/core/experience.mjs', '/core/combat-level.mjs', '/core/f2p-skill-caps.mjs', '/core/finish-line.mjs', '/core/group-goals.mjs', '/core/group-goal-types.mjs', '/core/tick-active-tasks.mjs'].includes(route)) file = await containedFile(path.join(ROOT, 'app', 'core'), route.slice('/core/'.length));
       else if (['/copy-lists.mjs', '/copy-list-control.mjs', '/copy-list-model.mjs', '/copy-lists.css'].includes(route)) file = await containedFile(webRoot, route.slice(1));
@@ -2160,6 +2160,20 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
       });
     },
     withGroupAdmission(work) { return serializeMutation(() => work(store), { groupAdmission: true }); },
+    async revokeDepartedMember(memberId) {
+      endInactiveClients();
+      await gamePlugin.revokeMember(memberId);
+      await pickerRouting?.groupOperationPoint?.('departure-keys');
+      await overlays.revokeMember(memberId);
+      await pickerRouting?.groupOperationPoint?.('departure-overlays');
+      await invites.revokeMember(memberId);
+      await pickerRouting?.groupOperationPoint?.('departure-sessions');
+      stateResponseBuilds.clear(); responseCache.clear(); sandboxPools.clear(); rankingPools.clear(); clearSavedTaskResults(); calculationSnapshot = undefined;
+      runeMetricsPreviews.clear(); originalSyncPreviews.clear();
+      transferReviews.clear();
+      taskWorker?.cancelPrewarm?.();
+      endInactiveClients();
+    },
     groupRuleDefinitions: () => ruleRegistry.definitions,
     untouchedOnboarding() {
       const state = store.getCalculationSnapshot().readState;

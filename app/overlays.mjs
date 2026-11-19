@@ -277,6 +277,15 @@ export async function openOverlays({ dataDir, store, world, webRoot, publicOrigi
       return true;
     },
     fenceDeletion() { closed = true; for (const client of clients) stop(client); },
+    revokeMember(player) {
+      const pending = queue.then(async () => {
+        const next = structuredClone(current);
+        const ids = new Set(); for (const record of next.links) if (record.player === player) { record.revoked = true; ids.add(record.id); }
+        for (const client of clients) if (ids.has(client.id)) stop(client);
+        const publication = await atomicWrite(file, next, { onPostPublishSyncError: 'throw' }); current = next;
+        payloads.clear(); rollResults.clear(); rollLookups.clear(); warnDurability(publication, 'overlays');
+      }); queue = pending.catch(() => {}); return pending;
+    },
     revokeDeletion() {
       closed = true;
       for (const client of clients) stop(client);

@@ -108,7 +108,10 @@ async function checkpointBinding(source) {
   return json(file);
 }
 const captures = new WeakSet();
-export async function captureServiceCheckpoint({ settings, registry, checkpoint, id, inputs = {}, minFreeBytes = settings.minFreeBytes ?? 67108864,
+export async function captureServiceCheckpoint(options) {
+  return options.registry.withLifecycleCapture ? options.registry.withLifecycleCapture(() => captureServiceCheckpointInner(options)) : captureServiceCheckpointInner(options);
+}
+async function captureServiceCheckpointInner({ settings, registry, checkpoint, id, inputs = {}, minFreeBytes = settings.minFreeBytes ?? 67108864,
   onPhase = async () => {}, spaceCheck = headroom, step = async label => {}, ownedFormat2 = false, ownedBarrierNow = () => performance.now(), validateOwnedCapture }) {
   validateServicePaths(settings);
   const target = snapshotPath(settings.dataDir, id);
@@ -218,6 +221,16 @@ export async function captureServiceCheckpoint({ settings, registry, checkpoint,
         await mutate('capture.absent-binding', () => rm(path.join(target, 'pickers', picker.id + '.dataset.json'), { force: true }));
       } else if (errors.has(picker.id)) throw errors.get(picker.id);
     }
+    if (document.pastMaps?.length) {
+      await mutate('capture.past-maps', () => directory(path.join(target, 'past-maps')));
+      for (const m of document.pastMaps) {
+        const source = path.join(settings.multiPicker.registryDir, 'past-maps', m.id + '.json');
+        await noLinks(source); const bytes = await readFile(source);
+        if (sha(bytes) !== m.digest) throw new Error('Past map integrity check failed during capture.');
+        await headroom(target, bytes.length, minFreeBytes);
+        await mutate('capture.past-map', () => writeFile(path.join(target, 'past-maps', m.id + '.json'), bytes, { flag: 'wx', mode: 0o600 }));
+      }
+    }
     await mutate('capture.registry', () => writeFile(path.join(target, 'registry.json'), encode(document), { flag: 'wx', mode: 0o600 }));
     const retained = manifestPickers.filter(p => !p.absent && p.initialized);
     const closed = owned && await captureOwnedClosure(target, retained.map(p => 'pickers/' + p.id),
@@ -252,6 +265,8 @@ export async function verifyServiceBackup(backup) {
   const document = await json(path.join(backup, 'registry.json'));
   const { registryRecoveryDocument } = await import('../../app/storage/registry.mjs');
   if (encode(document) !== encode(registryRecoveryDocument(document))) throw new Error('Service recovery contains sign-in or capability records.');
+  const pastPaths = new Set((document.pastMaps ?? []).map(m => 'past-maps/' + m.id + '.json'));
+  for (const m of document.pastMaps ?? []) if (sha(await readFile(path.join(backup, 'past-maps', m.id + '.json'))) !== m.digest) throw new Error('Past map recovery digest mismatch.');
   const ids = new Set();
   const inputNames = new Set(), inputPaths = new Set();
   for (const pin of manifest.inputs) {
@@ -291,6 +306,7 @@ export async function verifyServiceBackup(backup) {
     ...Object.values(closure.manifest.bases).map(pin => `catalogue/catalogue-${pin.sha256}.json.gz`)] : []);
   for (const row of actual) {
     if (catalogueFiles.has(row.path)) continue;
+    if (row.path === 'past-maps' && pastPaths.size || pastPaths.has(row.path)) continue;
     if (row.path === 'registry.json' || row.path === 'pickers' || row.path === 'inputs') continue;
     const parts = row.path.split('/');
     if (inputPaths.has(row.path)) continue;

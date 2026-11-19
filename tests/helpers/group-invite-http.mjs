@@ -27,5 +27,5 @@ export async function groupHttpFixture(t, { crashPoint, beforeCommit } = {}) {
  async function login(subject,cookie=''){const begun=await send('/auth/discord',cookie);assert.equal(begun.status,303,begun.text);const auth=new URL(begun.headers.location),code=String(++n);grants.set(code,{subject,challenge:auth.searchParams.get('code_challenge')});cookie=cookies(begun,cookie);const result=await send(`/auth/discord/callback?state=${auth.searchParams.get('state')}&code=${code}`,cookie);assert.equal(result.status,303,result.text);return {cookie:cookies(result,cookie),response:result};}
  const document=()=>readFile(path.join(multiPicker.registryDir,'registry.json'),'utf8').then(JSON.parse);
  t.after(async()=>{await app.close();await rm(root,{recursive:true});for(const[k,v]of old){if(v===undefined)delete process.env[k];else process.env[k]=v;}});
- return {send,cookies,login,document,root,multiPicker,restart:async()=>{await app.close();await start();},app:()=>app};
+ return {send,cookies,login,document,root,multiPicker,restart:async(work)=>{await app.close();await work?.();await start();},app:()=>app};
 }

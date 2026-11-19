@@ -6,6 +6,7 @@ import { createAccountsPanel } from '../app/web/accounts-panel.mjs';
 import { createCharacterForm } from '../app/web/character-menu.mjs';
 import { renderAcceptance, ownerInviteControls } from '../app/web/group-invites.mjs';
 import { handoverControls } from '../app/web/group-handover.mjs';
+import { departureControls } from '../app/web/group-departure.mjs';
 
 class Node {
   constructor(tag, text = '', className = '') { this.tag = tag; this.textContent = text ?? ''; this.className = className; this.children = []; this.attributes = {}; this.listeners = {}; this.hidden = false; this.disabled = false; this.classList = { add: name => { this.className += ` ${name}`; } }; }
@@ -20,6 +21,29 @@ const el = (...args) => new Node(...args);
 const button = (text, click) => Object.assign(el('button', text), { click });
 const walk = node => [node, ...node.children.flatMap(walk)];
 const text = node => walk(node).map(item => item.textContent).join(' ');
+
+test('departure review never allocates for a solo and clearly offers Join another group', async () => {
+  const sent = [], root = departureControls({ el, characterId: 'solo', fetch: async (url, options) => { sent.push(options); return { ok: true, json: async () => ({ solo: true }) }; } });
+  await walk(root).find(n => n.textContent === 'Refresh departure review').listeners.click();
+  assert.match(text(root), /Join another group/); assert.equal(sent.some(o => o.method === 'POST'), false);
+});
+
+test('departure confirmation scopes the chosen member and preserves its request after an uncertain response', async () => {
+  const sent = [], moves = []; let offline = true;
+  const root = departureControls({ el, characterId: 'member', randomId: () => 'same-request', beforeSwitch: async () => {}, scopeHeaders: { 'X-Character-Id': 'member', 'X-Picker-Id': 'source' }, location: { assign: url => moves.push(url) },
+    fetch: async (url, options) => {
+      sent.push(options); if (options.body) { if (offline) { offline = false; throw new Error('Offline'); } return { ok: true, json: async () => ({ character: { href: '/characters/member' } }) }; }
+      return { ok: true, json: async () => ({ ownerCharacterId: 'owner', revision: 7, roster: [{ id: 'owner', owner: true }, { id: 'member', owner: false }], backups: { message: 'Configured retention disclosure' } }) };
+    } });
+  await walk(root).find(n => n.textContent === 'Refresh departure review').listeners.click();
+  assert.match(text(root), /read-only and exportable/); assert.match(text(root), /Configured retention disclosure/);
+  const select = walk(root).find(n => n.tag === 'select'); select.value = 'member';
+  const confirm = walk(root).find(n => n.textContent === 'Confirm leave'); await confirm.listeners.click(); assert.equal(sent.some(o => o.body), false);
+  walk(root).find(n => n.type === 'checkbox').checked = true;
+  await confirm.listeners.click(); await confirm.listeners.click();
+  const posted = sent.filter(o => o.body); assert.equal(posted.length, 2); assert.equal(posted[0].body, posted[1].body);
+  assert.equal(posted[0].headers['X-Picker-Id'], 'source'); assert.deepEqual(moves, ['/characters/member']);
+});
 
 test('handover explains same-login designation and preserves request ID through an uncertain response', async () => {
   const sent = [], changed = []; let fail = true;

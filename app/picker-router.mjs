@@ -10,10 +10,12 @@ import { routedBody, rememberRoutedBody, httpError, json, bodyJSON } from './pic
 import { characterMenuPage } from './character-menu.mjs';
 import { createGroupInviteService } from './group-invite-service.mjs';
 import { createGroupHandoverHandler } from './group-handover-http.mjs';
+import { createGroupDepartureService } from './group-departure-service.mjs';
+import { createGroupDepartureHandler } from './group-departure-http.mjs';
 import { checkBodyWith } from './security/json.mjs';
 import { createPickerDeletion } from './picker-router-deletion.mjs';
 import { requestContext, checkRequestOrigin } from './security/request.mjs';
-import { reconcileTombstones } from './storage/tombstones.mjs';
+import { reconcileTombstones, backupDeletionDisclosure } from './storage/tombstones.mjs';
 import { storeWriteBlocked } from './storage/snapshot.mjs';
 
 const digest = key => createHash('sha256').update(key).digest('hex');
@@ -69,6 +71,9 @@ export function createPickerRouter({ registry, legacy, openContext, publicOrigin
     point: (name, pickerId) => registry.groupInvitePoint(name, pickerId) });
   const handover = createGroupHandoverHandler({ registry, authenticate: (request, security) => legacy.authenticate(request, security), limits: pickerLimits,
     async using(id, work) { const entry = await acquire(id, pickerLimits?.scope({ accountId: registry.getPicker(id)?.ownerAccountId }, id)); try { return await work(entry.context); } finally { entry.active--; idle(entry); } } });
+  const departures = createGroupDepartureService({ registry: pickerLimits?.provisioningRegistry(registry) ?? registry, point: (name, id) => registry.groupInvitePoint(name, id),
+    async using(id, work) { const entry = await acquire(id, pickerLimits?.scope({ accountId: registry.getPicker(id)?.ownerAccountId }, id)); try { return await work(entry.context); } finally { entry.active--; idle(entry); } } });
+  const departureHTTP = createGroupDepartureHandler({ registry, service: departures, authenticate: (request, security) => legacy.authenticate(request, security), backupDisclosure: backupDeletionDisclosure(backupRetentionMs), available: () => maxOpenContexts >= 3 });
   async function evict(entry) {
     clearTimeout(entry.timer);
     entry.closing = true;
@@ -250,6 +255,7 @@ export function createPickerRouter({ registry, legacy, openContext, publicOrigin
   }
   return {
     groupInvites,
+    departures,
     checkpoint,
     getResidencyLimits: () => ({ maxOpenContexts, idleCloseMs,
       coldStartsPerAccount: pickerLimits?.config.coldStartsPerAccount, coldStartsGlobal: pickerLimits?.config.coldStartsGlobal,
@@ -280,7 +286,7 @@ export function createPickerRouter({ registry, legacy, openContext, publicOrigin
       const capability = key && registry.resolveCapability('plugin-key', digest(key));
       const picker = capability && registry.getPicker(capability.pickerId);
       const membership = capability && registry.getAccount(capability.accountId)?.memberships.find(m => m.pickerId === pickerId && m.memberId === memberId && m.role !== 'viewer');
-      if (!capability || capability.pickerId !== pickerId || capability.memberId !== memberId || !membership
+      if (!capability || registry.pickerAdmissionPending(pickerId) || capability.pickerId !== pickerId || capability.memberId !== memberId || !membership
         || picker.lifecycle !== 'active' || picker.provisioning !== 'ready') throw httpError(401, 'A game plugin key is required.');
     },
     async indexKey(identity, key, memberId) {
@@ -307,6 +313,7 @@ export function createPickerRouter({ registry, legacy, openContext, publicOrigin
         const security = listener.ingressRole === 'public' ? requestContext(request, options) : requestContextFor(request, options);
         bindBody = pickerLimits?.body(request);
         const target = new URL(request.url, 'http://localhost');
+        if (target.pathname === '/api/group-departure' || ['/past-maps', '/api/past-maps', '/past-maps.mjs', '/past-maps.css'].includes(target.pathname) || target.pathname.startsWith('/past-maps/') || target.pathname.startsWith('/api/past-maps/')) { await departureHTTP(request, response, security, bindBody); return; }
         if (target.pathname === '/api/group-handover') { await handover(request, response, security, bindBody); return; }
         if (target.pathname === '/api/group-invites') {
           const identity = legacy.authenticate(request, security);
@@ -399,7 +406,7 @@ export function createPickerRouter({ registry, legacy, openContext, publicOrigin
       if (closing) return closing;
       closed = true;
       for (const entry of entries.values()) clearTimeout(entry.timer);
-      closing = Promise.all([admission?.close(), deletion.drain(), groupInvites.close()]).then(() => serialize(async () => { await Promise.all([...entries.values()].map(evict)); }));
+      closing = Promise.all([admission?.close(), deletion.drain(), groupInvites.close(), departures.close()]).then(() => serialize(async () => { await Promise.all([...entries.values()].map(evict)); }));
       return closing;
     },
   };

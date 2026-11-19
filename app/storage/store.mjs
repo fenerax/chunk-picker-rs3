@@ -1,4 +1,5 @@
 import { isMainThread } from 'node:worker_threads';
+import { memberDeparture } from '../core/member-departure.mjs';
 import { createDeltaCommandValidator } from '../core/delta-validation.mjs';
 import { pluginTestingMode, withPluginTestingMode } from '../core/plugin-testing.mjs';
 import { runImportJob, registryMetadata } from '../import-jobs.mjs';
@@ -932,7 +933,8 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
         }
       }
     }
-    const latestUndoable = state.history.findLastIndex(event => event.undo && event.undoneRevision === undefined && event.type !== 'undo');
+    const rosterRevision = state.history.findLast(event => event.type === 'member-departed')?.revision ?? 0;
+    const latestUndoable = state.history.findLastIndex(event => event.revision > rosterRevision && event.undo && event.undoneRevision === undefined && event.type !== 'undo');
     if (latestUndoable >= 0) cutoff = Math.min(cutoff, latestUndoable);
     // Retained undo markers and their targets form one validated suffix.
     for (let index = state.history.length - 1; index >= cutoff; index--) {
@@ -940,7 +942,11 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
       if (event.type === 'undo') cutoff = Math.min(cutoff, indices.get(event.command.undoRevision) ?? cutoff);
     }
     if (!cutoff) return state;
-    const removed = state.history.slice(0, cutoff);
+    // Keep the small historical identity declarations, without pinning every
+    // gameplay event since the first departure in the active suffix.
+    const boundaries = state.history.slice(0, cutoff).filter(event => event.type === 'member-departed');
+    const removed = state.history.slice(0, cutoff).filter(event => event.type !== 'member-departed');
+    if (!removed.length) return state;
     const updates = removed.filter(event => !archived || JSON.stringify(archived.get(event.revision)) !== JSON.stringify(event));
     const references = [...(state.provenance?.historyArchive ?? current?.provenance?.historyArchive ?? [])];
     if (updates.length) {
@@ -949,7 +955,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
       await writeDependency(path.join(historyDir, id), bytes);
       references.push({ id });
     }
-    const trimmed = { ...state, history: state.history.slice(cutoff), provenance: { ...state.provenance, historyArchive: references } };
+    const trimmed = { ...state, history: [...boundaries, ...state.history.slice(cutoff)], provenance: { ...state.provenance, historyArchive: references } };
     // The private input is already validated. The cutoff preserves pending-roll
     // and undo-marker dependencies; the only other change is authored durable
     // archive references. Keep untouched trees shared instead of cloning and
@@ -1843,6 +1849,13 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
       }, { backupRead: true });
     },
     getAccessToken: () => token,
+    departMember({ memberId, id, createdAt }) {
+      return enqueue(async () => {
+        const next = memberDeparture(current, memberId, id, createdAt);
+        if (next === current) return;
+        await persist(await prepared(inheritStateMetadata(current, next), 'departure'), 'departure', undefined, false, current, false, undefined, { skipSnapshot: true });
+      });
+    },
     installInvitedMember({ memberId, runescapeName, templateMemberId }) {
       return enqueue(async () => {
         if (current.members.some(m => m.id === memberId)) return; // durable retry

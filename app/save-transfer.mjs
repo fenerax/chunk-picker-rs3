@@ -176,6 +176,7 @@ export function createTransferReviews({ now = Date.now } = {}) {
   const digest = body => body.transferHash ?? transferDigest({ backup: body.backup, backupId: body.backupId,
     document: body.document, members: body.members, memberId: body.memberId, sourceMemberId: body.sourceMemberId, rosterMapping: body.rosterMapping });
   return {
+    clear() { reviews.clear(); },
     preview(body, identity, revision) {
       for (const [id, review] of reviews) if (review.until <= now()) reviews.delete(id);
       if (reviews.size >= 8) reviews.delete(reviews.keys().next().value);

@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { generateToken } from '../security/tokens.mjs';
 import { newCharacterId, characterName, normalizedCharacterName } from './registry-characters.mjs';
+import { departureSoloEligible, pastMapSlots } from './group-departures.mjs';
 
 const DAY = 86400000;
 const hash = secret => createHash('sha256').update(secret).digest('hex');
@@ -46,7 +47,8 @@ export function validateGroupInvites(doc) {
     if (i.status === 'accepted' && (!uuid(i.acceptingAccountId) || !/^c_[0-9a-f]{32}$/.test(i.acceptingCharacterId))) bad();
     if (i.transaction) {
       const t = i.transaction;
-      if (i.status !== 'accepted' || Object.keys(t).some(k => !['source', 'memberId', 'runescapeName', 'newCharacter'].includes(k))
+      if (i.status !== 'accepted' || Object.keys(t).some(k => !['source', 'memberId', 'runescapeName', 'newCharacter', ...(doc.schemaVersion === 4 ? ['pastMapId'] : [])].includes(k))
+        || t.pastMapId !== undefined && (t.newCharacter || t.pastMapId !== i.id)
         || !/^m_[0-9a-f]{32}$/.test(t.memberId) || typeof t.newCharacter !== 'boolean'
         || (t.newCharacter ? t.source !== null : !t.source || typeof t.source.pickerId !== 'string' || t.source.memberId !== 'owner')
         || characterName(t.runescapeName) !== t.runescapeName) bad();
@@ -103,7 +105,7 @@ export function createGroupInvites({ read, save, version, issueCharacter, now, c
     resumeVersion: version,
     list(accountId, pickerId) { const doc = read(); owner(doc, accountId, pickerId); return (doc.groupInvites ?? []).filter(i => i.pickerId === pickerId).map(i => metadata(doc, i)); },
     preview(secret) { const doc = read(), i = bySecret(doc, secret); return metadata(doc, i); },
-    eligible(accountId, characterId) { return stage2SourceEligible(read(), accountId, characterId); },
+    eligible(accountId, characterId) { return stage2SourceEligible(read(), accountId, characterId) || departureSoloEligible(read(), accountId, characterId); },
     transactions() { return structuredClone((read().groupInvites ?? []).filter(i => i.transaction)); },
     async create(accountId, pickerId, replaceId) {
       owner(read(), accountId, pickerId);
@@ -118,7 +120,8 @@ export function createGroupInvites({ read, save, version, issueCharacter, now, c
       if (p.seats.length + p.reservations.length >= 5) fail('This group has no vacant player seats.');
       const live = doc.groupInvites.filter(i => state(doc, i) === 'pending');
       if (doc.groupInvites.length >= 20000 || live.length >= 10000 || live.filter(i => i.issuerAccountId === accountId).length >= 40) fail('The invitation limit has been reached. Wait for old invitations to expire.');
-      const secret = 'gin_' + generateToken(), id = randomUUID(), reservationId = randomUUID(), createdAt = stamp(), expiresAt = new Date(Date.parse(createdAt) + 7 * DAY).toISOString();
+      const secret = 'gin_' + generateToken(); let id; do { id = randomUUID(); } while (doc.groupInvites.some(i => i.id === id) || (doc.departures ?? []).some(d => d.id === id) || (doc.pastMaps ?? []).some(m => m.id === id));
+      const reservationId = randomUUID(), createdAt = stamp(), expiresAt = new Date(Date.parse(createdAt) + 7 * DAY).toISOString();
       p.reservations.push({ id: reservationId, inviteId: id, expiresAt });
       const i = { id, secretHash: hash(secret), issuerAccountId: accountId, issuerCharacterId: p.ownerCharacterId, pickerId, reservationId,
         createdAt, expiresAt, status: 'pending', terminalAt: null, acceptingAccountId: null, acceptingCharacterId: null, transaction: null };
@@ -140,12 +143,14 @@ export function createGroupInvites({ read, save, version, issueCharacter, now, c
       }
       const status = state(doc, i);
       if (status !== 'pending') { if (i.status === 'pending') { terminal(doc, i, status); await save(doc); } fail(`This player invite is ${status}.`); }
+      if ((doc.departures ?? []).some(d => !d.completedAt && [d.source.pickerId, d.destination.pickerId].includes(i.pickerId))) fail('A departure is completing. Retry this invitation after recovery.');
       const account = doc.accounts.find(a => a.id === accountId);
       if (!account?.initialProvisioned || account.pendingCreation) fail('Finish first sign-in or character creation before joining.');
       const own = doc.characters.filter(c => c.accountId === accountId && c.lifecycle === 'active');
       let c;
       if (characterId) {
-        if (!stage2SourceEligible(doc, accountId, characterId)) fail(MOVE_UNAVAILABLE);
+        if (!stage2SourceEligible(doc, accountId, characterId) && !departureSoloEligible(doc, accountId, characterId)) fail(MOVE_UNAVAILABLE);
+        if (departureSoloEligible(doc, accountId, characterId) && pastMapSlots(doc) >= 20000) fail('The retained map record limit has been reached. Your solo remains available.');
         c = own.find(c => c.id === characterId);
       } else {
         runescapeName = characterName(runescapeName);
@@ -162,6 +167,7 @@ export function createGroupInvites({ read, save, version, issueCharacter, now, c
       if (!characterId) { await issueCharacter(c.id); await point('invite-ids', p.id); }
       i.status = 'accepted'; i.terminalAt = stamp(); i.acceptingAccountId = accountId; i.acceptingCharacterId = c.id;
       i.transaction = { source: characterId ? c.placement : null, newCharacter: !characterId, memberId: 'm_' + randomUUID().replaceAll('-', ''), runescapeName: c.runescapeName };
+      if (characterId && departureSoloEligible(doc, accountId, characterId)) i.transaction.pastMapId = i.id;
       p.memberIds.push(i.transaction.memberId);
       // Reservation is held until placement is ready; accepted transactions are
       // also counted against capacity. It still has no playable map or character.
@@ -182,6 +188,7 @@ export function createGroupInvites({ read, save, version, issueCharacter, now, c
         for (const other of doc.groupInvites) if (other.pickerId === source.id && other.status === 'pending') terminal(doc, other, 'revoked');
         a.memberships = a.memberships.filter(m => m.pickerId !== source.id);
         if (a.defaultPickerId === source.id) a.defaultPickerId = null;
+        doc.capabilities = doc.capabilities.filter(k => k.pickerId !== source.id || k.memberId !== t.source.memberId);
       }
       c.placement = { pickerId: p.id, memberId: t.memberId };
       p.reservations = p.reservations.filter(r => r.inviteId !== i.id); p.seats.push({ memberId: t.memberId, characterId: c.id });
