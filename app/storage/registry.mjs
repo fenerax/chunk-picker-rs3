@@ -7,6 +7,7 @@ import { REGISTRY_ACCOUNT, registryIdentity, registryMembers, registryObject as 
 import { createRegistryCaps } from './registry-caps.mjs';
 import { CHARACTER_ID, newCharacterId, bindCharacter, validateCharacters, migrateCharacterDocuments, characterName, normalizedCharacterName, characterError } from './registry-characters.mjs';
 import { createGroupInvites, validateGroupInvites } from './group-invites.mjs';
+import { createGroupHandovers, validateHandovers } from './group-handovers.mjs';
 
 const PICKER = /^p_[0-9a-f]{32}$/;
 const HASH = /^[0-9a-f]{64}$/;
@@ -43,9 +44,9 @@ function validateLedger(ledger) {
 }
 
 function validate(document, selection) {
-  if (document?.schemaVersion > 3) throw new Error('Unsupported newer registry version. Use a compatible release.');
+  if (document?.schemaVersion > 4) throw new Error('Unsupported newer registry version. Use a compatible release.');
   const v2 = document?.schemaVersion >= 2;
-  if (!object(document, ['schemaVersion', 'accounts', 'pickers', 'capabilities', 'relinkCodes', 'relinkRetirements', ...(v2 ? ['characters'] : []), ...(document?.schemaVersion === 3 ? ['groupInvites'] : [])]) || ![1, 2, 3].includes(document.schemaVersion) || !Array.isArray(document.accounts) || !Array.isArray(document.pickers) || !Array.isArray(document.capabilities)) bad();
+  if (!object(document, ['schemaVersion', 'accounts', 'pickers', 'capabilities', 'relinkCodes', 'relinkRetirements', ...(v2 ? ['characters'] : []), ...(document?.schemaVersion >= 3 ? ['groupInvites'] : []), ...(document?.schemaVersion === 4 ? ['handovers'] : [])]) || ![1, 2, 3, 4].includes(document.schemaVersion) || !Array.isArray(document.accounts) || !Array.isArray(document.pickers) || !Array.isArray(document.capabilities)) bad();
   if (document.relinkCodes !== undefined && (!selection || selection.relinkCodes)) {
     if (!Array.isArray(document.relinkCodes)) bad();
     const seen = new Set();
@@ -61,7 +62,7 @@ function validate(document, selection) {
   const pickerFor = id => pickers.get(id) ?? selection?.picker(id);
   let legacy = 0;
   for (const picker of pickerRows) {
-    if (!object(picker, ['id', 'kind', 'ownerAccountId', 'lifecycle', 'provisioning', 'memberIds', 'createdAt', ...(v2 ? ['seats', 'reservations', 'ownerCharacterId'] : [])]) || !PICKER.test(picker.id) || pickers.has(picker.id) || !['default', 'legacy-shared'].includes(picker.kind) || !['active', 'deleting', 'deleted', ...(document.schemaVersion === 3 ? ['retired'] : [])].includes(picker.lifecycle) || !['reserved', 'ready'].includes(picker.provisioning) || !date(picker.createdAt)) bad();
+    if (!object(picker, ['id', 'kind', 'ownerAccountId', 'lifecycle', 'provisioning', 'memberIds', 'createdAt', ...(v2 ? ['seats', 'reservations', 'ownerCharacterId'] : [])]) || !PICKER.test(picker.id) || pickers.has(picker.id) || !['default', 'legacy-shared'].includes(picker.kind) || !['active', 'deleting', 'deleted', ...(document.schemaVersion >= 3 ? ['retired'] : [])].includes(picker.lifecycle) || !['reserved', 'ready'].includes(picker.provisioning) || !date(picker.createdAt)) bad();
     registryMembers(picker.memberIds);
     if (picker.kind === 'legacy-shared') { if (++legacy > 1 || picker.ownerAccountId !== null || picker.provisioning !== 'ready' || picker.memberIds.length !== 2) bad(); }
     else if (!REGISTRY_ACCOUNT.test(picker.ownerAccountId)) bad();
@@ -217,6 +218,7 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
       account: id => accountIndex.get(id), picker: id => pickerIndex.get(id), identity: key => providerIndex.get(key) });
     if (changes.characters) validateCharacters(next, caps);
     validateGroupInvites(next);
+    validateHandovers(next);
     const commitCounts = enforceCaps(next, ledger, changes);
     try {
       await writeRegistryJson(file, next); current = next; commitCounts();
@@ -406,7 +408,7 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
   const groupInvites = createGroupInvites({ read: () => current, now, caps, point,
     save: next => save(next, { accounts: next.accounts, pickers: next.pickers, characters: true }),
     async version() {
-      if (current.schemaVersion === 3) return;
+      if (current.schemaVersion >= 3) return;
       const { open, link, unlink } = await import('node:fs/promises');
       // One-file migration: retain the original bytes before atomic publication.
       const target = path.join(registryDir, 'registry.pre-invites-v2.json');
@@ -429,6 +431,9 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
     },
     async issueCharacter(id) { const next = copy(ledger); next.issuedCharacterIds.push(id); await saveLedger(next); },
   });
+  const handovers = createGroupHandovers({ read: () => current, now, point, registryDir,
+    versionInvites: () => groupInvites.resumeVersion(),
+    save: next => save(next, { accounts: next.accounts, pickers: next.pickers, characters: true }) });
   function visibleAccount(id) {
     if (retiredAccounts.has(id)) return null;
     const account = copy(accountIndex.get(id));
@@ -446,7 +451,7 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
     const account = visibleAccount(accountId);
     // A joined login can have no owned default after onboarding retirement.
     // Reclaim still restores its own character collection, never group ownership.
-    if (current.schemaVersion === 3 && account && !account.identities.length && current.characters.some(c => c.accountId === account.id && c.lifecycle === 'active'
+    if (current.schemaVersion >= 3 && account && !account.identities.length && current.characters.some(c => c.accountId === account.id && c.lifecycle === 'active'
       && current.pickers.some(p => p.id === c.placement.pickerId && p.kind === 'default' && p.lifecycle === 'active' && p.provisioning === 'ready' && !blockedPicker(p.id))
       && account.memberships.some(m => m.pickerId === c.placement.pickerId && m.memberId === c.placement.memberId && m.role !== 'viewer'))) return account;
     const picker = account && current.pickers.find(p => p.id === account.defaultPickerId);
@@ -496,8 +501,8 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
       [current, ledger] = await migrateCharacterDocuments(current, { document: ledger, file: ledgerFile }, { registryDir, pickerRoot, legacyDir, point, validateTarget });
     }
     validateLedger(ledger);
-    if (!deferred && current !== undefined && (![2, 3].includes(current.schemaVersion) || ledger.schemaVersion !== 2)) {
-      if (current.schemaVersion > 3) validate(current);
+    if (!deferred && current !== undefined && (![2, 3, 4].includes(current.schemaVersion) || ledger.schemaVersion !== 2)) {
+      if (current.schemaVersion > 4) validate(current);
       throw new Error('Registry and ledger versions do not match. Restore the matching pair or character migration intent.');
     }
     if (current === undefined && (ledger.issuedPickerIds.length || ledger.pickers.length || ledger.accounts.length || ledger.issuedCharacterIds.length)) {
@@ -509,6 +514,7 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
     current = reconcile(current, ledger); validate(current);
     if (current.schemaVersion >= 2) validateCharacters(current, caps);
     validateGroupInvites(current);
+    validateHandovers(current);
     if (current.characters?.some(c => !ledger.issuedCharacterIds.includes(c.id))
       || current.groupInvites?.some(i => i.transaction?.newCharacter && !ledger.issuedCharacterIds.includes(i.acceptingCharacterId))) bad();
     capCounts = createRegistryCaps(current, caps, onCapCheck); capCounts.checkInitial(ledger); rebuildIndexes(); rebuildLedgerIndexes();
@@ -519,6 +525,12 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
       try { await lstat(path.join(registryDir, 'registry.pre-invites-v2.json')); backedUp = true; }
       catch (failure) { if (failure.code !== 'ENOENT') throw failure; }
       if (backedUp) await groupInvites.resumeVersion();
+    }
+    if (!recoveryOnly && current.schemaVersion === 3) {
+      let backedUp = false;
+      try { await lstat(path.join(registryDir, 'registry.pre-handovers-v3.json')); backedUp = true; }
+      catch (failure) { if (failure.code !== 'ENOENT') throw failure; }
+      if (backedUp) await handovers.version();
     }
     await finishRelinkRetirements();
     // Reconcile before recovery can create a directory or expose any index.
@@ -532,11 +544,20 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
     throw failure;
   }
   const api = {
+    listGroupHandovers(accountId, characterId, pickerId) { usable(); return handovers.list(accountId, characterId, pickerId); },
+    proposeGroupHandover(accountId, characterId, pickerId, input) { return enqueue(() => handovers.propose(accountId, characterId, pickerId, input)); },
+    resolveGroupHandover(accountId, characterId, pickerId, id, action) { return enqueue(() => handovers.resolve(accountId, characterId, pickerId, id, action)); },
     groupInvitePoint(name, pickerId) { return point(name, pickerId); },
-    createGroupInvite(accountId, pickerId, replaceId) { return enqueue(() => groupInvites.create(accountId, pickerId, replaceId)); },
+    createGroupInvite(accountId, pickerId, replaceId, characterId) { return enqueue(() => {
+      if (characterId && pickerIndex.get(pickerId)?.ownerCharacterId !== characterId) throw error(403, 'Select the current designated owner to manage invitations.');
+      return groupInvites.create(accountId, pickerId, replaceId);
+    }); },
     listGroupInvites(accountId, pickerId) { usable(); return groupInvites.list(accountId, pickerId); },
     previewGroupInvite(secret) { usable(); return groupInvites.preview(secret); },
-    revokeGroupInvite(accountId, pickerId, id) { return enqueue(() => groupInvites.revoke(accountId, pickerId, id)); },
+    revokeGroupInvite(accountId, pickerId, id, characterId) { return enqueue(() => {
+      if (characterId && pickerIndex.get(pickerId)?.ownerCharacterId !== characterId) throw error(403, 'Select the current designated owner to manage invitations.');
+      return groupInvites.revoke(accountId, pickerId, id);
+    }); },
     beginGroupJoin(secret, accountId, input) { return enqueue(() => groupInvites.begin(secret, accountId, input)); },
     finishGroupJoin(id) { return enqueue(() => groupInvites.finish(id)); },
     groupJoinTransactions() { usable(); return groupInvites.transactions(); },
@@ -809,10 +830,12 @@ export function registryRecoveryDocument(document, caps = { characters: Number.M
   // bindings here; the configured writer enforces capacity when installing it.
   if (document.schemaVersion >= 2) validateCharacters(document, caps);
   validateGroupInvites(document);
+  validateHandovers(document);
   if (document.groupInvites?.some(i => i.transaction)) throw error(409, 'Group admission is pending. Resume it before taking a checkpoint.');
   if (document.relinkRetirements?.length) throw error(409, 'Account retirement is pending. Restart the service before taking a checkpoint.');
   return { schemaVersion: document.schemaVersion,
     accounts: document.accounts.map(account => ({ ...copy(account), identities: [] })),
-    pickers: copy(document.pickers).map(p => document.schemaVersion === 3 ? { ...p, reservations: [] } : p), capabilities: [], ...(document.schemaVersion >= 2 ? { characters: copy(document.characters) } : {}),
-    ...(document.schemaVersion === 3 ? { groupInvites: document.groupInvites.map(i => ({ ...copy(i), secretHash: null, ...(i.status === 'pending' ? { status: 'revoked', terminalAt: i.createdAt } : {}) })) } : {}) };
+    pickers: copy(document.pickers).map(p => document.schemaVersion >= 3 ? { ...p, reservations: [] } : p), capabilities: [], ...(document.schemaVersion >= 2 ? { characters: copy(document.characters) } : {}),
+    ...(document.schemaVersion >= 3 ? { groupInvites: document.groupInvites.map(i => ({ ...copy(i), secretHash: null, ...(i.status === 'pending' ? { status: 'revoked', terminalAt: i.createdAt } : {}) })) } : {}),
+    ...(document.schemaVersion === 4 ? { handovers: document.handovers.map(h => ({ ...copy(h), ...(h.status === 'pending' ? { status: 'cancelled', resolvedAt: h.createdAt } : {}) })) } : {}) };
 }

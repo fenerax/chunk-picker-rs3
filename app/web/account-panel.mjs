@@ -1,5 +1,6 @@
 import { characterLabel, characterDetails, createCharacterForm } from './character-menu.mjs';
 import { ownerInviteControls } from './group-invites.mjs';
+import { handoverControls } from './group-handover.mjs';
 const providerNames = { discord: 'Discord', google: 'Google' };
 const providersFor = account => [...new Set([...(account?.providers ?? []), ...(account?.identities ?? []).map(identity => identity.provider), account?.provider].filter(provider => Object.hasOwn(providerNames, provider)))];
 
@@ -55,6 +56,8 @@ export function createAccountPanel({ el, openDialog, menuButton, topMenu, fetch 
         if (isOwner()) for (const [label, action] of Object.entries(ownerActions)) actions.append(actionButton(label, action));
         if (isOwner()) actions.append(actionButton('Invite players', () => openDialog('Player invitations', ownerInviteControls({ el, fetch,
           scopeHeaders: { 'X-Picker-Id': session.pickerId, 'X-Character-Id': session.characterId } }))));
+        if (session.characterId && session.ownerControls?.shared === false) actions.append(actionButton('Group ownership', () => openDialog('Group ownership', handoverControls({ el, fetch, characterId: session.characterId,
+          scopeHeaders: { 'X-Picker-Id': session.pickerId, 'X-Character-Id': session.characterId }, onChanged: async () => { await beforeSwitch(); location.reload(); } }))));
         if (session.ownerControls) {
           for (const target of [...(isOwner() ? ['picker'] : []), 'account']) {
             const control = actionButton(`Delete ${target}`, () => deletionDialog(target));

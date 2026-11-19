@@ -5,6 +5,7 @@ import { createAccountPanel } from '../app/web/account-panel.mjs';
 import { createAccountsPanel } from '../app/web/accounts-panel.mjs';
 import { createCharacterForm } from '../app/web/character-menu.mjs';
 import { renderAcceptance, ownerInviteControls } from '../app/web/group-invites.mjs';
+import { handoverControls } from '../app/web/group-handover.mjs';
 
 class Node {
   constructor(tag, text = '', className = '') { this.tag = tag; this.textContent = text ?? ''; this.className = className; this.children = []; this.attributes = {}; this.listeners = {}; this.hidden = false; this.disabled = false; this.classList = { add: name => { this.className += ` ${name}`; } }; }
@@ -19,6 +20,36 @@ const el = (...args) => new Node(...args);
 const button = (text, click) => Object.assign(el('button', text), { click });
 const walk = node => [node, ...node.children.flatMap(walk)];
 const text = node => walk(node).map(item => item.textContent).join(' ');
+
+test('handover explains same-login designation and preserves request ID through an uncertain response', async () => {
+  const sent = [], changed = []; let fail = true;
+  const root = handoverControls({ el, characterId: 'owner', randomId: () => 'same-request', scopeHeaders: { 'X-Character-Id': 'owner' }, onChanged: async () => changed.push(true),
+    fetch: async (url, options) => {
+      sent.push(options);
+      if (options.body) { if (fail) { fail = false; throw new Error('Offline'); } return { ok: true, json: async () => ({ status: 'accepted' }) }; }
+      return { ok: true, json: async () => ({ ownerCharacterId: 'owner', candidates: [{ id: 'other', runescapeName: 'Sample', sameLogin: true }], handovers: [] }) };
+    } });
+  await walk(root).find(n => n.textContent === 'Refresh ownership').listeners.click();
+  const select = walk(root).find(n => n.tag === 'select'); select.value = 'other'; select.listeners.change();
+  assert.match(text(root), /designates your other character immediately/);
+  const confirm = walk(root).find(n => n.textContent === 'Confirm successor');
+  await confirm.listeners.click(); await confirm.listeners.click();
+  const posts = sent.filter(o => o.body); assert.equal(posts.length, 2); assert.equal(posts[0].body, posts[1].body);
+  assert.equal(posts[0].headers['X-Character-Id'], 'owner'); assert.deepEqual(changed, [true]);
+});
+
+test('only the addressed character sees accept/decline; proposer sees cancellation', async () => {
+  for (const characterId of ['owner', 'target', 'other']) {
+    const sent = [], root = handoverControls({ el, characterId, onChanged() {}, fetch: async (url, options) => {
+      if (options.body) sent.push(JSON.parse(options.body));
+      return { ok: true, json: async () => options.body ? { status: 'accepted' } : { ownerCharacterId: 'owner', candidates: [], handovers: [{ id: 'offer', fromCharacterId: 'owner', toCharacterId: 'target', status: 'pending' }] } };
+    } });
+    await walk(root).find(n => n.textContent === 'Refresh ownership').listeners.click();
+    const labels = walk(root).filter(n => n.tag === 'button').map(n => n.textContent);
+    assert.equal(labels.includes('Accept ownership'), characterId === 'target'); assert.equal(labels.includes('Decline ownership'), characterId === 'target'); assert.equal(labels.includes('Cancel handover'), characterId === 'owner');
+    if (characterId === 'target') { await walk(root).find(n => n.textContent === 'Accept ownership').listeners.click(); assert.deepEqual(sent[0], { action: 'accept', id: 'offer', confirmed: true }); }
+  }
+});
 
 test('group invitation review offers New character, disables progressed maps and requires confirmation', async () => {
   const root = el('div'), error = el('p'), sent = [], destinations = [];
