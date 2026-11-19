@@ -62,8 +62,9 @@ async function atomicWrite(file, document) {
 }
 
 /** Shares the gameplay directory lock, but never writes gameplay or its backups. */
-export async function openUsageStore({ dataDir, actors, now = Date.now, readOnly = false } = {}) {
-  const file = path.join(dataDir, 'usage.json'), known = new Set([...actors, 'viewer', 'unlinked']);
+export async function openUsageStore({ dataDir, actors, historicalActors = actors, now = Date.now, readOnly = false } = {}) {
+  const actorIds = source => typeof source === 'function' ? source() : source;
+  const file = path.join(dataDir, 'usage.json'), known = new Set([...actorIds(historicalActors), 'viewer', 'unlinked']);
   let current = { schemaVersion: 1, counts: [] }, queue = Promise.resolve(), closed = false;
   const retained = rows => {
     const day = today(now);
@@ -85,7 +86,7 @@ export async function openUsageStore({ dataDir, actors, now = Date.now, readOnly
   return {
     add(input, actor) {
       if (readOnly) return Promise.reject(failure(503, 'Usage storage is read only.'));
-      const rows = validateUsagePayload(input, { actors, actor, now });
+      const rows = validateUsagePayload(input, { actors: actorIds(actors), actor, now });
       return enqueue(async () => {
         const merged = new Map(retained(current.counts).map(row => [rowKey(row), { ...row }]));
         // Recheck retention inside the queue in case a request straddles midnight.

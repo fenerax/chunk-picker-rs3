@@ -36,6 +36,7 @@ import { openSignIn } from './signin.mjs';
 import { openFeedbackStore } from './storage/feedback.mjs';
 import { openUsageRoute } from './usage-route.mjs';
 import { openUsageStore } from './storage/usage.mjs';
+import { departedMemberIds } from './core/member-departure.mjs';
 import { openOverlays } from './overlays.mjs';
 import { openGamePlugin } from './game-plugin.mjs';
 import { readBackupStatus } from './storage/backup-status.mjs';
@@ -234,9 +235,13 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
     signInFlow = await openSignIn({ publicOrigin, mode: signIn, accounts, invites, provider: signInProvider, guestModeEnabled,
       unauthenticated: key => limits.unauthenticated(key), checkRequestOrigin, serializeMutation, webRoot, pickerRegistry: pickerLimits && pickerRouting?.registry ? pickerLimits.provisioningRegistry(pickerRouting.registry) : pickerRouting?.registry, syncLegacy: pickerRouting?.syncLegacy, reclaimIdentity: pickerRouting?.reclaimIdentity, groupInvites: pickerRouting?.groupInvites });
     feedback = await openFeedbackStore({ dataDir });
-    const usageMembers = store.getCalculationSnapshot().members;
+    const usageMembers = () => store.getCalculationSnapshot().members;
     usageStorage = await openUsageStore({ dataDir, readOnly: liveSwap?.standby === true,
-      actors: usageMembers.map(member => member.id), now: usageClock });
+      actors: () => usageMembers().map(member => member.id), now: usageClock,
+      // Allocation history is outside restorable gameplay and never reuses IDs.
+      // Historical telemetry stays readable without authorizing former actors.
+      historicalActors: () => [...new Set([...usageMembers().map(m => m.id),
+        ...(pickerRouting?.historicalMemberIds?.() ?? pickerRouting?.registry?.getPicker(pickerId)?.memberIds ?? departedMemberIds(store.getReadState()))])] });
     usage = await openUsageRoute({ members: usageMembers, storage: usageStorage, admission: usageAdmission,
       authenticate: (request, security) => invites.authenticate(request, security), bodyJSON, json });
     overlays = await openOverlays({ dataDir, store, world: indexedWorld, webRoot, publicOrigin,
@@ -407,6 +412,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
       : taskWorker.getClientHealth?.() ?? { status: 'ready', ready: true, restartRequired: false };
   }
   function broadcastWorker() {
+    if (pickerRouting?.authenticate) endInactiveClients();
     for (const [client, credentials] of clientCredentials) {
       const { request, security } = credentials;
       const identity = invites.authenticate(request, security);
@@ -544,7 +550,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
   }
   function endInactiveClients() {
     for (const [client, { request, security }] of clientCredentials) {
-      if (invites.authenticate(request, security)) continue;
+      try { if (invites.authenticate(request, security)) continue; } catch { /* A fenced placement also invalidates its existing stream. */ }
       clients.delete(client); clientCredentials.delete(client); client.end();
     }
   }
@@ -992,6 +998,17 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
       // A concurrent revoke can finish while persisting the usage timestamp.
       identity = invites.authenticate(request, security);
       if (!identity) throw httpError(401, 'Access required.');
+      const currentScope = () => {
+        if (!pickerRouting?.authenticate) return;
+        const latest = invites.authenticate(request, security);
+        if (!latest) throw httpError(401, 'Access required.');
+        if (['accountId', 'characterId', 'pickerId', 'memberId'].some(key => latest[key] !== identity[key])) throw httpError(403, 'Character placement changed. Open your character menu.');
+      };
+      // Reads can outlive authorization during calculation, compression or an
+      // upstream fetch. Even work that ignores cancellation must not publish
+      // private success bytes into the previous character placement.
+      const writeHead = response.writeHead;
+      response.writeHead = function (status, ...args) { if (status < 400 || status === 409) currentScope(); return writeHead.call(this, status, ...args); };
       // Aggregate usage is the sole viewer POST exception; gameplay stays read only.
       const usageWrite = route === '/api/usage' && request.method === 'POST';
       if (identity.readOnly && !['GET', 'HEAD'].includes(request.method) && !usageWrite) throw httpError(403, 'This link is view only.');
@@ -1761,6 +1778,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
               const owner = store.getState().members.find(member => member.id === body.memberId);
               if (!owner) throw httpError(400, 'Choose a known player for progress sync.');
               let snapshot = await progressClient.snapshot(owner);
+              currentScope();
               const current = store.getState(), latest = current.members.find(member => member.id === owner.id);
               if (!latest || latest.runescapeName !== owner.runescapeName) throw Object.assign(httpError(409, 'The RuneScape name changed while fetching. Review a new sync.'), { code: 'REVISION_CONFLICT', state: current });
               // A plugin report arriving during a web fetch wins too.
@@ -1777,6 +1795,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
               if (Object.keys(body).length) throw httpError(400, 'Original-picker preview takes no fields; saved source map IDs identify the players.');
               const snapshot = await originalSyncClient.snapshot();
               const syncState = store.getInfo().retention.historyArchives ? (await store.backup()).state : store.getState();
+              currentScope();
               const proposal = originalSyncIntegration.previewOriginalSync(syncState, snapshot.document, snapshot.warnings, {
                 taskMap: parsedTaskMap, taskMapHistory: identityHistory,
                 catalogue: taskWorker?.catalogue ?? [], dynamicCatalogue: taskWorker?.dynamicCatalogue ?? [],
@@ -2060,7 +2079,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
       else if (['/rules-panel.mjs', '/rules-model.mjs', '/rules-review.mjs', '/rules-review-model.mjs', '/rules-review-preview.mjs', '/rule-explanations.mjs', '/rules-review.css', '/kept-rules.mjs', '/sandbox.mjs', '/sandbox.css', '/sandbox-rules.mjs', '/duo-coordination.mjs', '/roster-labels.mjs'].includes(route)) file = await containedFile(webRoot, route.slice(1));
       else if (['/completed-view.mjs', '/completed-model.mjs', '/completed-range.mjs', '/completed-range-preference.mjs', '/completed-view.css'].includes(route)) file = await containedFile(webRoot, route.slice(1));
       else if (['/helper.mjs', '/helper.css', '/helper-model.mjs', '/helper-training.mjs', '/helper-goals.mjs', '/helper-drops.mjs', '/helper-charts.mjs', '/helper-utilities.mjs', '/helper-progress.mjs', '/helper-progress-model.mjs'].includes(route)) file = await containedFile(webRoot, route.slice(1));
-      else if (['/amount-input.mjs', '/group-invites.mjs', '/group-handover.mjs'].includes(route)) file = await containedFile(webRoot, route.slice(1));
+      else if (['/amount-input.mjs', '/group-invites.mjs', '/group-handover.mjs', '/group-departure.mjs'].includes(route)) file = await containedFile(webRoot, route.slice(1));
       else if (['/core/interior-maps.mjs', '/core/archaeology.mjs'].includes(route)) file = await containedFile(path.join(ROOT, 'app', 'core'), route.slice('/core/'.length));
       else if (['/core/experience.mjs', '/core/combat-level.mjs', '/core/f2p-skill-caps.mjs', '/core/finish-line.mjs', '/core/group-goals.mjs', '/core/group-goal-types.mjs', '/core/tick-active-tasks.mjs'].includes(route)) file = await containedFile(path.join(ROOT, 'app', 'core'), route.slice('/core/'.length));
       else if (['/copy-lists.mjs', '/copy-list-control.mjs', '/copy-list-model.mjs', '/copy-lists.css'].includes(route)) file = await containedFile(webRoot, route.slice(1));
@@ -2074,7 +2093,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
       else if (['/style.css', '/map-pin-groups.css', '/main.mjs', '/command-state.mjs', '/map.mjs', '/map-tools.mjs', '/map-pins.mjs', '/map-info.mjs', '/map-terrain.mjs', '/map-pin-renderer.mjs', '/chunk-planning.mjs', '/death-chunks.mjs', '/death-settings.mjs', '/info-panels.mjs', '/settings-panel.mjs', '/runemetrics.mjs', '/original-sync.mjs', '/invites.mjs', '/favicon.svg'].includes(route)) file = await containedFile(webRoot, route.slice(1));
       else if (['/style.css', '/map-pin-groups.css', '/main.mjs', '/command-state.mjs', '/map.mjs', '/map-tools.mjs', '/map-pins.mjs', '/map-terrain.mjs', '/map-pin-renderer.mjs', '/chunk-planning.mjs', '/death-chunks.mjs', '/death-settings.mjs', '/info-panels.mjs', '/settings-panel.mjs', '/runemetrics.mjs', '/original-sync.mjs', '/icons.mjs', '/interior-view.mjs', '/chunk-sections.mjs', '/sticker-picker.mjs', '/history-text.mjs', '/feedback.mjs', '/updates.mjs', '/task-icon-painter.mjs', '/favicon.svg'].includes(route)) file = await containedFile(webRoot, route.slice(1));
       else if (['/core/territory.mjs', '/core/state.mjs', '/core/rule-reviews.mjs', '/core/rules.mjs', '/core/cache-surface.mjs', '/core/transport-access.mjs', '/core/map-boundaries.mjs', '/core/tasks.mjs', '/core/planning.mjs', '/core/preferences.mjs', '/core/death-settings.mjs', '/core/progress.mjs', '/core/player-controls.mjs', '/core/game-progress.mjs', '/core/plugin-item-evidence.mjs', '/core/optional-plugin-data.mjs', '/core/map-markers.mjs', '/core/task-alternatives.mjs'].includes(route)) file = await containedFile(path.join(ROOT, 'app', 'core'), route.slice('/core/'.length));
-      else if (route === '/core/resident-copy.mjs') file = await containedFile(path.join(ROOT, 'app', 'core'), 'resident-copy.mjs');
+      else if (['/core/resident-copy.mjs', '/core/member-departure.mjs'].includes(route)) file = await containedFile(path.join(ROOT, 'app', 'core'), route.slice('/core/'.length));
       else if (['/tasks/migration.mjs', '/tasks/rates.mjs', '/tasks/identity.mjs', '/tasks/identity-dictionary.mjs'].includes(route)) file = await containedFile(path.join(ROOT, 'app', 'tasks'), route.slice('/tasks/'.length));
       else if (['/task-icons.mjs', '/tasks/task-icons.mjs'].includes(route)) file = await containedFile(path.join(ROOT, 'app', 'tasks'), 'task-icons.mjs');
       else if (route === '/data/skill-guide-rules.mjs') file = await containedFile(path.join(ROOT, 'app', 'data'), 'skill-guide-rules.mjs');
@@ -2160,6 +2179,20 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
       });
     },
     withGroupAdmission(work) { return serializeMutation(() => work(store), { groupAdmission: true }); },
+    async revokeDepartedMember(memberId) {
+      endInactiveClients();
+      await gamePlugin.revokeMember(memberId);
+      await pickerRouting?.groupOperationPoint?.('departure-keys');
+      await overlays.revokeMember(memberId);
+      await pickerRouting?.groupOperationPoint?.('departure-overlays');
+      await invites.revokeMember(memberId);
+      await pickerRouting?.groupOperationPoint?.('departure-sessions');
+      stateResponseBuilds.clear(); responseCache.clear(); sandboxPools.clear(); rankingPools.clear(); clearSavedTaskResults(); calculationSnapshot = undefined;
+      runeMetricsPreviews.clear(); originalSyncPreviews.clear();
+      transferReviews.clear();
+      taskWorker?.cancelPrewarm?.();
+      endInactiveClients();
+    },
     groupRuleDefinitions: () => ruleRegistry.definitions,
     untouchedOnboarding() {
       const state = store.getCalculationSnapshot().readState;

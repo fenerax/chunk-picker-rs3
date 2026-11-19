@@ -44,6 +44,7 @@ export function createGroupHandovers({ read, save, versionInvites, registryDir, 
     return p;
   }
   function ready(doc, pickerId) {
+    if ((doc.departures ?? []).some(d => !d.completedAt && [d.source.pickerId, d.destination.pickerId].includes(pickerId))) fail('A departure is completing. Retry handover after recovery.');
     if ((doc.groupInvites ?? []).some(i => i.transaction && (i.pickerId === pickerId || i.transaction.source?.pickerId === pickerId))) fail('Group admission is completing. Retry handover after it finishes.');
   }
   function transfer(doc, p, h) {
@@ -75,7 +76,7 @@ export function createGroupHandovers({ read, save, versionInvites, registryDir, 
       catch (e) { if (e.code !== 'EEXIST') throw e; if (!(await readFile(target)).equals(bytes)) throw new Error('Handover migration preimage differs from registry. Review recovery before upgrading.'); }
     } finally { await handle?.close(); await unlink(temporary).catch(() => {}); }
     await syncDirectory(registryDir); await point('handover-backed-up');
-    const doc = structuredClone(read()); doc.schemaVersion = 4; doc.handovers = [];
+    const doc = structuredClone(read()); doc.schemaVersion = 4; doc.handovers = []; doc.departures = []; doc.pastMaps = [];
     await save(doc); await point('handover-versioned');
   }
   return {

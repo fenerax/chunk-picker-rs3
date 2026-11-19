@@ -5,8 +5,9 @@ import { openStore } from '../../app/storage/store.mjs';
 import { createGroupState } from '../../app/core/state.mjs';
 import { createRuleRegistry } from '../../app/core/rules.mjs';
 import { createGroupInviteService } from '../../app/group-invite-service.mjs';
+import { createGroupDepartureService } from '../../app/group-departure-service.mjs';
 
-export async function inviteFixture(root, { crashPoint, now = () => Date.parse('2026-01-01T00:00:00Z'), caps } = {}) {
+export async function inviteFixture(root, { crashPoint, now = () => Date.parse('2026-01-01T00:00:00Z'), caps, retention, prepareState } = {}) {
   const options = { registryDir: path.join(root, 'registry'), pickerRoot: path.join(root, 'pickers'), tombstoneDir: path.join(root, 'ledger'), legacyDir: path.join(root, 'legacy') };
   await mkdir(options.legacyDir, { recursive: true });
   const registry = await openRegistry({ ...options, crashPoint, now, caps });
@@ -18,16 +19,18 @@ export async function inviteFixture(root, { crashPoint, now = () => Date.parse('
     if (!contexts.has(id)) {
       const p = registry.getPicker(id);
       const initialState = createGroupState(p.memberIds.map(id => ({ id, name: 'Unnamed character' })), gameplayRules);
-      const store = await openStore({ dataDir: registry.pickerDirectory(id), initialState, registry: gameplayRules, now,
-        beforeCommit: change => change.operation === 'roster' ? crashPoint?.('invite-roster-prepared', { pickerId: id }) : undefined });
+      const store = await openStore({ dataDir: registry.pickerDirectory(id), initialState, registry: gameplayRules, now, retention, prepareState,
+        beforeCommit: change => ['roster', 'departure'].includes(change.operation) ? crashPoint?.(change.operation === 'departure' ? 'departure-roster-prepared' : 'invite-roster-prepared', { pickerId: id }) : undefined });
       let queue = Promise.resolve();
       contexts.set(id, { store, groupRuleDefinitions: () => gameplayRules.definitions, withGroupAdmission(work) { const result = queue.then(() => work(store)); queue = result.catch(() => {}); return result; },
+        async revokeDepartedMember() { for (const seam of ['departure-keys', 'departure-overlays', 'departure-sessions']) await crashPoint?.(seam, { pickerId: id }); },
         untouchedOnboarding() { const s = store.getCalculationSnapshot().readState; return store.getInfo().revision === 0 && s.members.length === 1 && s.members[0].id === 'owner' && !s.history.length; } });
     }
     return contexts.get(id);
   };
   const service = createGroupInviteService({ registry, acquire: async id => ({ context: await open(id) }), release() {}, point: async (name, pickerId) => crashPoint?.(name, { pickerId }) });
-  return { registry, service, options, open,
+  const departures = createGroupDepartureService({ registry, using: async (id, work) => work(await open(id)), point: async (name, pickerId) => crashPoint?.(name, { pickerId }) });
+  return { registry, service, departures, options, open,
     async join(invite, account, input = {}) { const review = await service.review(invite.secret, account.id); return service.accept(invite.secret, account.id, input, review.review?.revision); },
-    async close() { await service.close(); for (const c of contexts.values()) await c.store.close(); await registry.close(); } };
+    async close() { await service.close(); await departures.close(); for (const c of contexts.values()) await c.store.close(); await registry.close(); } };
 }

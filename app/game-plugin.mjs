@@ -892,6 +892,12 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
       if (hasActiveKey(memberId)) retainedTasks.set(memberId, bytes); else { retainedTasks.delete(memberId); taskRows.delete(memberId); activeLocations.delete(memberId); }
     },
     revokeDeletion() { return keys.revokeDeletion(); },
+    async revokeMember(player) {
+      const rows = await keys.revokeMember(player);
+      for (const row of rows) pickerLimits?.revokeKey(row.tokenHash);
+      clearTestingCaches(player, true); positions.delete(player); diagnostics.delete(player); retainedTasks.delete(player); taskRows.delete(player); activeLocations.delete(player); pendingTestingReports.delete(player);
+      itemHandled.delete(player); sequences.delete(player); testingModes.delete(player); notify();
+    },
     async prepareSnapshot() { await handledFlush; await flushHandled(true); await keys.flush(); },
     close() {
       if (closePromise) return closePromise;

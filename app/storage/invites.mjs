@@ -74,13 +74,13 @@ export async function openInviteStore({ dataDir, masterToken, masterLabel, now =
   catch (failure) { if (failure.code !== 'ENOENT') throw new Error('Invalid invite store.'); current = { schemaVersion: 1, invites: [], sessions: [] }; }
   let queue = Promise.resolve(), closed = false;
   const uses = new Map();
-  function mutate(operation) {
+  function mutate(operation, strict = false) {
     if (closed) return Promise.reject(new Error('Invite store is closed.'));
     const pending = queue.then(() => withStoreWrite(dataDir, async () => {
       const next = structuredClone(current);
       next.sessions = next.sessions.filter(session => Date.parse(session.expiresAt) > now());
       const result = operation(next);
-      const publication = await atomicWrite(file, next, { onPostPublishSyncError: 'warn' }); current = next;
+      const publication = await atomicWrite(file, next, { onPostPublishSyncError: strict ? 'throw' : 'warn' }); current = next;
       warnDurability(publication, 'invites');
       return result;
     }));
@@ -99,7 +99,7 @@ export async function openInviteStore({ dataDir, masterToken, masterLabel, now =
       const account = pickerRegistry?.getAccount(session.accountId);
       if (!account?.identities.some(item => item.provider === session.provider)) return null;
       const url = new URL(request?.url ?? '/', 'http://localhost');
-      const accountOnly = ['/characters', '/api/characters'].includes(url.pathname) || url.pathname.startsWith('/auth/');
+      const accountOnly = ['/characters', '/api/characters', '/past-maps', '/api/past-maps', '/api/group-departure'].includes(url.pathname) || url.pathname.startsWith('/auth/') || url.pathname.startsWith('/past-maps/') || url.pathname.startsWith('/api/past-maps/');
       if (accountOnly) return { kind: 'account', accountId: account.id, provider: session.provider, accountScope: true, label: 'Account', admin: false, readOnly: true, memberId: null, capabilities: { canWrite: false } };
       const values = url.searchParams.getAll('character');
       if (request?.headers['x-character-id'] !== undefined) values.push(request.headers['x-character-id']);
@@ -232,6 +232,10 @@ export async function openInviteStore({ dataDir, masterToken, masterLabel, now =
       next.sessions = next.sessions.filter(session => !all && !(pickerId && session.pickerId === pickerId) && !(accountId && session.accountId === accountId) && !revoked.has(session.inviteId));
     }); },
     revokeAccountSessions(accountId) { return mutate(next => { next.sessions = next.sessions.filter(session => session.accountId !== accountId); }); },
+    revokeMember(memberId) { return mutate(next => {
+      const ids = new Set(); for (const i of next.invites) if (i.memberId === memberId) { i.revoked = true; ids.add(i.id); }
+      next.sessions = next.sessions.filter(s => !ids.has(s.inviteId));
+    }, true); },
     async touch(identity) {
       if (!['invite', 'account'].includes(identity?.kind)) return Promise.resolve();
       if (identity.kind === 'account' && !identity.accountScope && !identity.pickerId && accountPrincipal(identity)) await accounts.touch(identity.accountId, identity.provider);

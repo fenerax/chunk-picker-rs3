@@ -8,6 +8,7 @@ import { createRegistryCaps } from './registry-caps.mjs';
 import { CHARACTER_ID, newCharacterId, bindCharacter, validateCharacters, migrateCharacterDocuments, characterName, normalizedCharacterName, characterError } from './registry-characters.mjs';
 import { createGroupInvites, validateGroupInvites } from './group-invites.mjs';
 import { createGroupHandovers, validateHandovers } from './group-handovers.mjs';
+import { createGroupDepartures, validateDepartures, departureSoloEligible } from './group-departures.mjs';
 
 const PICKER = /^p_[0-9a-f]{32}$/;
 const HASH = /^[0-9a-f]{64}$/;
@@ -46,7 +47,7 @@ function validateLedger(ledger) {
 function validate(document, selection) {
   if (document?.schemaVersion > 4) throw new Error('Unsupported newer registry version. Use a compatible release.');
   const v2 = document?.schemaVersion >= 2;
-  if (!object(document, ['schemaVersion', 'accounts', 'pickers', 'capabilities', 'relinkCodes', 'relinkRetirements', ...(v2 ? ['characters'] : []), ...(document?.schemaVersion >= 3 ? ['groupInvites'] : []), ...(document?.schemaVersion === 4 ? ['handovers'] : [])]) || ![1, 2, 3, 4].includes(document.schemaVersion) || !Array.isArray(document.accounts) || !Array.isArray(document.pickers) || !Array.isArray(document.capabilities)) bad();
+  if (!object(document, ['schemaVersion', 'accounts', 'pickers', 'capabilities', 'relinkCodes', 'relinkRetirements', ...(v2 ? ['characters'] : []), ...(document?.schemaVersion >= 3 ? ['groupInvites'] : []), ...(document?.schemaVersion === 4 ? ['handovers', 'departures', 'pastMaps'] : [])]) || ![1, 2, 3, 4].includes(document.schemaVersion) || !Array.isArray(document.accounts) || !Array.isArray(document.pickers) || !Array.isArray(document.capabilities)) bad();
   if (document.relinkCodes !== undefined && (!selection || selection.relinkCodes)) {
     if (!Array.isArray(document.relinkCodes)) bad();
     const seen = new Set();
@@ -179,6 +180,7 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
   }
   const releases = [];
   let current, ledger, queue = Promise.resolve(), closed = false, failed = false, closing;
+  let lifecycleCapture = false;
   let providerIndex, capabilityIndex, accountIndex, pickerIndex, memberAccounts, tombstoneIndex, retiredAccounts, issuedIds, capCounts, characterIndex;
   const file = path.join(registryDir, 'registry.json'), ledgerFile = path.join(tombstoneDir, 'ledger.json');
   const timestamp = () => new Date(now()).toISOString();
@@ -219,6 +221,7 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
     if (changes.characters) validateCharacters(next, caps);
     validateGroupInvites(next);
     validateHandovers(next);
+    validateDepartures(next);
     const commitCounts = enforceCaps(next, ledger, changes);
     try {
       await writeRegistryJson(file, next); current = next; commitCounts();
@@ -288,11 +291,11 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
     return account;
   }
   function checkPickerAllocation() {
-    const count = capCounts.activePickers;
+    const count = capCounts.activePickers + (current.departures ?? []).filter(d => !d.completedAt).length;
     if (count >= caps.pickers) throw error(409, 'The picker limit has been reached. Existing maps are unchanged. Ask the operator about available capacity.');
     // Admission only: a lowered beta cap must not block reads, recovery or deletion.
     if (betaPickerCap !== undefined && count >= betaPickerCap) throw error(409, 'The beta is full. New groups are paused; existing maps are unchanged. Ask the operator about the next opening.');
-    if (ledger.issuedPickerIds.length >= caps.issuedPickerIds) throw error(409, 'The picker ID limit has been reached. Ask the operator for help; existing IDs cannot be reused.');
+    if (ledger.issuedPickerIds.length + (current.departures ?? []).filter(d => !d.completedAt && !issuedIds.has(d.destination.pickerId)).length >= caps.issuedPickerIds) throw error(409, 'The picker ID limit has been reached. Ask the operator for help; existing IDs cannot be reused.');
   }
   async function allocate(reserve = true) {
     checkPickerAllocation();
@@ -300,7 +303,7 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
       const bits = pickerRandomBytes(16);
       if (!Buffer.isBuffer(bits) || bits.length !== 16) throw new TypeError('Expected 128 random bits.');
       const id = 'p_' + bits.toString('hex');
-      if (issuedIds.has(id)) continue;
+      if (issuedIds.has(id) || (current.departures ?? []).some(d => !d.completedAt && d.destination.pickerId === id)) continue;
       // Neither an unregistered directory nor an orphan binding can be adopted.
       let occupied = false;
       for (const target of [path.join(pickerRoot, id), path.join(pickerRoot, id) + '.dataset.json']) {
@@ -406,7 +409,7 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
   }
   const blockedPicker = id => tombstoneIndex.get(id);
   const groupInvites = createGroupInvites({ read: () => current, now, caps, point,
-    save: next => save(next, { accounts: next.accounts, pickers: next.pickers, characters: true }),
+    save: next => save(next, { accounts: next.accounts, pickers: next.pickers, characters: true, removedCapabilities: current.capabilities.filter(k => !next.capabilities.some(n => n.kind === k.kind && n.hash === k.hash)) }),
     async version() {
       if (current.schemaVersion >= 3) return;
       const { open, link, unlink } = await import('node:fs/promises');
@@ -434,6 +437,10 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
   const handovers = createGroupHandovers({ read: () => current, now, point, registryDir,
     versionInvites: () => groupInvites.resumeVersion(),
     save: next => save(next, { accounts: next.accounts, pickers: next.pickers, characters: true }) });
+  const departures = createGroupDepartures({ read: () => current, now, point, caps, allocate, pickerRoot, registryDir,
+    version: () => handovers.version(),
+    async saveLedgerId(id) { if (!issuedIds.has(id)) { const next = copy(ledger); next.issuedPickerIds.push(id); await saveLedger(next); } },
+    save: (next, removedCapabilities = []) => save(next, { accounts: next.accounts, pickers: next.pickers, characters: true, removedCapabilities }) });
   function visibleAccount(id) {
     if (retiredAccounts.has(id)) return null;
     const account = copy(accountIndex.get(id));
@@ -515,6 +522,7 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
     if (current.schemaVersion >= 2) validateCharacters(current, caps);
     validateGroupInvites(current);
     validateHandovers(current);
+    validateDepartures(current);
     if (current.characters?.some(c => !ledger.issuedCharacterIds.includes(c.id))
       || current.groupInvites?.some(i => i.transaction?.newCharacter && !ledger.issuedCharacterIds.includes(i.acceptingCharacterId))) bad();
     capCounts = createRegistryCaps(current, caps, onCapCheck); capCounts.checkInitial(ledger); rebuildIndexes(); rebuildLedgerIndexes();
@@ -544,6 +552,17 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
     throw failure;
   }
   const api = {
+    beginDeparture(accountId, characterId, pickerId, input) { return enqueue(() => { if (lifecycleCapture) throw error(409, 'A service backup is in progress. Retry departure after it finishes.'); return departures.begin(accountId, characterId, pickerId, input); }); },
+    prepareDeparture(id) { return enqueue(() => departures.prepare(id)); },
+    finishDeparture(id) { return enqueue(() => departures.finish(id)); },
+    departureTransactions() { usable(); return departures.pending(); },
+    getDeparture(id) { usable(); return departures.get(id); },
+    departingMemberIds(pickerId) { return (current.departures ?? []).filter(d => !d.completedAt && d.source.pickerId === pickerId).map(d => d.source.memberId); },
+    retiredMemberIds(pickerId) { return (current.departures ?? []).filter(d => d.completedAt && d.source.pickerId === pickerId).map(d => d.source.memberId); },
+    capturePastMap(meta, document) { return enqueue(() => departures.capture(meta, document)); },
+    listPastMaps(accountId) { usable(); return departures.list(accountId); },
+    readPastMap(accountId, id) { usable(); return departures.readMap(accountId, id); },
+    rejoinEligible(accountId, characterId) { usable(); return departureSoloEligible(current, accountId, characterId); },
     listGroupHandovers(accountId, characterId, pickerId) { usable(); return handovers.list(accountId, characterId, pickerId); },
     proposeGroupHandover(accountId, characterId, pickerId, input) { return enqueue(() => handovers.propose(accountId, characterId, pickerId, input)); },
     resolveGroupHandover(accountId, characterId, pickerId, id, action) { return enqueue(() => handovers.resolve(accountId, characterId, pickerId, id, action)); },
@@ -558,18 +577,24 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
       if (characterId && pickerIndex.get(pickerId)?.ownerCharacterId !== characterId) throw error(403, 'Select the current designated owner to manage invitations.');
       return groupInvites.revoke(accountId, pickerId, id);
     }); },
-    beginGroupJoin(secret, accountId, input) { return enqueue(() => groupInvites.begin(secret, accountId, input)); },
+    beginGroupJoin(secret, accountId, input) { return enqueue(() => { if (lifecycleCapture) throw error(409, 'A service backup is in progress. Retry joining after it finishes.'); return groupInvites.begin(secret, accountId, input); }); },
     finishGroupJoin(id) { return enqueue(() => groupInvites.finish(id)); },
     groupJoinTransactions() { usable(); return groupInvites.transactions(); },
+    groupJoinConflict(id) { usable(); return groupInvites.conflict(id); },
+    cancelConflictingGroupJoin(id) { return enqueue(() => groupInvites.cancelConflict(id)); },
     groupJoinEligible(accountId, characterId) { usable(); return groupInvites.eligible(accountId, characterId); },
     cleanGroupInvites() { return enqueue(() => groupInvites.clean()); },
-    pickerJoining(id) { return (current.groupInvites ?? []).some(i => i.transaction?.source?.pickerId === id); },
-    pickerAdmissionPending(id) { return (current.groupInvites ?? []).some(i => i.transaction && (i.pickerId === id || i.transaction.source?.pickerId === id)); },
+    pickerJoining(id) { return (current.groupInvites ?? []).some(i => i.transaction?.source?.pickerId === id) || (current.departures ?? []).some(d => !d.completedAt && [d.source.pickerId, d.destination.pickerId].includes(id)); },
+    pickerAdmissionPending(id) { return (current.groupInvites ?? []).some(i => i.transaction && (i.pickerId === id || i.transaction.source?.pickerId === id)) || (current.departures ?? []).some(d => !d.completedAt && [d.source.pickerId, d.destination.pickerId].includes(id)); },
     // Diagnostic read, never used by request admission. Tests compare a rescan.
     capCounts() { usable(); return capCounts.snapshot(); },
     // Queue-held read-only checkpoint. No provider subjects or capabilities may
     // leave the server; explicit account IDs and memberships survive recovery.
     withRecoveryCheckpoint(work) { return enqueue(() => work(registryRecoveryDocument(current, caps))); },
+    async withLifecycleCapture(work) {
+      usable(); if (lifecycleCapture) throw error(503, 'A service backup is already running.'); lifecycleCapture = true;
+      try { return await work(); } finally { lifecycleCapture = false; }
+    },
     getAccount(id) { usable(); return visibleAccount(id); },
     listAccounts() { usable(); return [...accountIndex.keys()].map(visibleAccount).filter(Boolean); },
     getCharacter(id) { usable(); return copy(characterIndex.get(id)); },
@@ -579,7 +604,7 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
         const picker = visiblePicker(pickerIndex.get(c.placement.pickerId));
         const membership = visibleAccount(accountId)?.memberships.find(m => m.pickerId === picker?.id && m.memberId === c.placement.memberId);
         return { ...copy(c), role: membership?.role ?? null, groupLabel: picker?.kind === 'legacy-shared' ? 'Shared game' : picker?.seats.length > 1 ? 'Group game' : 'Solo game', playerCount: picker?.seats.length ?? 0,
-          available: Boolean(membership && picker?.lifecycle === 'active' && picker.provisioning === 'ready'), href: `/characters/${c.id}` };
+          available: Boolean(membership && picker?.lifecycle === 'active' && picker.provisioning === 'ready' && !api.pickerAdmissionPending(picker.id)), transitionPending: Boolean(picker && api.pickerAdmissionPending(picker.id)), href: `/characters/${c.id}` };
       });
     },
     selectCharacter(accountId, requested, pickerId) {
@@ -603,7 +628,8 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
     // workflow ships. Publish after gameplay, retry before replies and on open.
     updateCharacterNames(pickerId, members) { return enqueue(async () => {
       if (pickerId === 'legacy') pickerId = current.pickers.find(p => p.kind === 'legacy-shared')?.id;
-      const updates = current.characters.filter(c => c.lifecycle === 'active' && c.placement.pickerId === pickerId)
+      const updates = current.characters.filter(c => c.lifecycle === 'active' && c.placement.pickerId === pickerId
+        && !(current.departures ?? []).some(d => !d.completedAt && d.characterId === c.id && d.source.pickerId === pickerId))
         .map(c => {
           const member = members.find(m => m.id === c.placement.memberId);
           if (!member) throw characterError('Saved roster does not match the character placement. Review the mapping before continuing.');
@@ -617,11 +643,12 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
     }); },
     accountsForMember(pickerId, memberId) { usable(); return [...(memberAccounts.get(JSON.stringify([pickerId, memberId])) ?? [])].filter(id => !retiredAccounts.has(id)); },
     findIdentity(provider, subject) { usable(); registryIdentity(provider, subject); return visibleAccount(providerIndex.get(identityKey(provider, subject))); },
-    getPicker(id) { usable(); return visiblePicker(pickerIndex.get(id)); },
+    getPicker(id) { usable(); return visiblePicker(pickerIndex.get(id)) ?? copy(departures.destination(id)); },
     listPickers() { usable(); return current.pickers.map(visiblePicker); },
     pickerDirectory(id) {
       usable(); if (typeof id !== 'string' || !PICKER.test(id)) throw error(400, 'Invalid picker ID.');
-      const picker = requirePicker(current, id);
+      const picker = current.pickers.find(p => p.id === id) ?? departures.destination(id);
+      if (!picker) throw error(404, 'Picker not found.');
       if (picker.kind === 'legacy-shared') { if (!legacyDir) throw new Error('Legacy directory is not configured.'); return legacyDir; }
       return path.join(pickerRoot, id);
     },
@@ -679,6 +706,7 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
       const next = copy(current), picker = activePicker(next, pickerId);
       if (picker.kind !== 'default') throw error(403, 'Only owned pickers can reserve imported member slots.');
       const required = next.accounts.flatMap(a => a.memberships.filter(m => m.pickerId === pickerId && m.role !== 'viewer').map(m => m.memberId));
+      if (api.retiredMemberIds(pickerId).some(id => memberIds.includes(id))) throw error(422, 'Historical slots cannot be restored into the active roster. Keep the current character mapping.');
       if (required.some(id => !memberIds.includes(id))) throw error(422, 'Roster mapping must keep every assigned participant.');
       picker.memberIds = [...new Set([...picker.memberIds, ...memberIds])];
       await save(next, { pickers: [picker] }); return picker;
@@ -831,11 +859,13 @@ export function registryRecoveryDocument(document, caps = { characters: Number.M
   if (document.schemaVersion >= 2) validateCharacters(document, caps);
   validateGroupInvites(document);
   validateHandovers(document);
+  validateDepartures(document);
+  if (document.departures?.some(d => !d.completedAt)) throw error(409, 'Departure is pending. Resume it before taking a checkpoint.');
   if (document.groupInvites?.some(i => i.transaction)) throw error(409, 'Group admission is pending. Resume it before taking a checkpoint.');
   if (document.relinkRetirements?.length) throw error(409, 'Account retirement is pending. Restart the service before taking a checkpoint.');
   return { schemaVersion: document.schemaVersion,
     accounts: document.accounts.map(account => ({ ...copy(account), identities: [] })),
     pickers: copy(document.pickers).map(p => document.schemaVersion >= 3 ? { ...p, reservations: [] } : p), capabilities: [], ...(document.schemaVersion >= 2 ? { characters: copy(document.characters) } : {}),
     ...(document.schemaVersion >= 3 ? { groupInvites: document.groupInvites.map(i => ({ ...copy(i), secretHash: null, ...(i.status === 'pending' ? { status: 'revoked', terminalAt: i.createdAt } : {}) })) } : {}),
-    ...(document.schemaVersion === 4 ? { handovers: document.handovers.map(h => ({ ...copy(h), ...(h.status === 'pending' ? { status: 'cancelled', resolvedAt: h.createdAt } : {}) })) } : {}) };
+    ...(document.schemaVersion === 4 ? { handovers: document.handovers.map(h => ({ ...copy(h), ...(h.status === 'pending' ? { status: 'cancelled', resolvedAt: h.createdAt } : {}) })), departures: copy(document.departures), pastMaps: copy(document.pastMaps) } : {}) };
 }

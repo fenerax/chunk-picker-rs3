@@ -41,6 +41,21 @@ test('usage sidecar merges queued increments atomically and survives reopening',
   assert.deepEqual(await readdir(dataDir), ['usage.json']);
 });
 
+test('historical usage rows remain readable while admission follows the live roster', async t => {
+  const dataDir = await mkdtemp(path.join(os.tmpdir(), 'rs3-usage-roster-'));
+  await writeFile(path.join(dataDir, 'usage.json'), JSON.stringify({ schemaVersion: 1, counts: [row({ actor: 'departed' })] }));
+  let live = ['actor1'];
+  const storage = await openUsageStore({ dataDir, actors: () => live, historicalActors: ['actor1', 'departed'], now });
+  t.after(async () => { await storage.close(); await rm(dataDir, { recursive: true }); });
+  assert.equal((await storage.read()).counts[0].actor, 'departed');
+  assert.throws(() => storage.add({ counts: [row({ actor: 'departed' })] }, 'departed'), { status: 400 });
+  live = ['actor1', 'newcomer'];
+  await storage.add({ counts: [row({ actor: 'newcomer' })] }, 'newcomer');
+  live = ['newcomer'];
+  assert.throws(() => storage.add({ counts: [row()] }, 'actor1'), { status: 400 });
+  assert.equal((await storage.read()).counts.find(r => r.actor === 'newcomer').count, 1);
+});
+
 test('usage prunes 180 UTC days on load, write and read without retaining event records', async t => {
   const dataDir = await mkdtemp(path.join(os.tmpdir(), 'rs3-usage-retention-'));
   let current = at;

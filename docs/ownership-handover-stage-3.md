@@ -1,11 +1,13 @@
-# Ownership handover: first part of stage 3
+# Group lifecycle: first and second parts of stage 3
 
-Part of #301 (stage 3). This is the independently usable handover prerequisite
-for the lifecycle in [Groups and accounts](groups-and-accounts.md). Registry
-representation approval is recorded in #301 (2026-11-16). This part does not
-implement leave, established-character moves, rejoin, Past maps, member removal
-or character deletion. Their readiness rows stay open. Gameplay save schema 1,
-the issued-ID ledger version 2 and authentication sidecar formats are unchanged.
+Part of #301 (stage 3). The second part depends on draft #330's handover and
+adds leave, owner removal, fresh-invite rejoin and frozen Past maps, following
+[Groups and accounts](groups-and-accounts.md). General moves of established
+characters, character deletion and final-character/group lifecycle are deferred.
+Registry 4 is unreleased; the owner authorized extending that version rather
+than introducing version 5. Deployment and the owner's final durable-format
+decision remain separate gates. Gameplay save schema 1, issued-ID ledger 2 and
+authentication sidecar formats retain their versions.
 
 ## Player journey and authority
 
@@ -41,7 +43,7 @@ completes, preserving the reviewed admission template.
 
 ## Disk representation and crash recovery
 
-The first valid handover lazily upgrades registry **3 → 4**. Installations on
+The first valid handover or departure lazily upgrades registry **3 → 4**. Installations on
 version 1/2 first use their existing migration paths. Before publication, sync
 an exact `registry.pre-handovers-v3.json` preimage, without replacing any
 retained preimage. As in stage 2, that published preimage is also the upgrade
@@ -49,7 +51,15 @@ intent: restart completes it before ordinary repair or new writes. A conflicting
 preimage refuses migration for recovery review. Stage-2 and earlier readers
 clearly refuse registry 4 as a newer version.
 
-Registry 4 adds a top-level `handovers` array. Each row stores:
+This is one coherent v3→v4 upgrade: it initializes `handovers`, `departures`
+and `pastMaps` together. The preimage filename and migration publication seams
+retain #330's names. Restart completes a published preimage before accepting
+ordinary writes. A handover-only development v4 file from #330 is not a
+released format and is deliberately refused by this extended reader; preserve
+any such synthetic development fixture before rebuilding it. Do not deploy
+the parent reader against extended-v4 data or copy its preimage over live data.
+
+Each `handovers` row stores:
 
 - A client-generated UUID `id` used as the idempotency key, plus `pickerId`.
 - `fromAccountId`, `fromCharacterId`, `toAccountId`, `toCharacterId`.
@@ -85,14 +95,91 @@ unaccepted ownership offers. Completed role changes and retry receipts survive.
 
 ## Rollback position
 
-Do not lower the version or restore the preimage by itself after handover.
-An older registry would revive former owner authority and pending invitations.
+Do not lower the version or restore the preimage by itself after any lifecycle
+operation. An older registry would revive former owner authority, departed
+memberships and pending invitations, or lose a character's current placement.
 Keep a complete current checkpoint, current registry and ledger, authentication
 sidecars and every gameplay directory. Prefer forward repair. A rollback needs
 a reviewed matching population/authority restore with incompatible sessions and
 old admission links revoked. Keep newer issued IDs, tombstones, placements and
-handover receipts authoritative in recovery material. This part does not change
+handover/departure receipts and every referenced immutable `past-maps/<UUID>.json`
+file authoritative in recovery material, with matching gameplay directories.
+Keep exact-slot credential revocations authoritative as well. The preimage is
+an upgrade input, not a standalone rollback. This part does not change
 any retention period or authorize a deployment.
+
+## Leave, removal and rejoin publication
+
+Account → Leave or remove member reviews the consequences, configured backup
+retention and current roster revision before explicit confirmation. A solo
+offers Join another group and allocates nothing. The designated owner must
+complete Group ownership handover first, then leave as a player. The owner can
+remove a non-owner; that login receives its own empty solo and Past maps entry.
+The owner cannot read that private retained entry. The legacy two-slot shared
+picker refuses ordinary departure and preserves its existing compatibility.
+
+`departures` retains client UUID receipt IDs, controlling and acting account/
+character IDs, source/destination picker and member slots, `left`/`removed`,
+`createdAt` and nullable `completedAt`. `pastMaps` retains UUID, controlling
+account/character, source picker/member, `left`/`removed`/`rejoined`, timestamp
+and SHA-256 digest. Both arrays have a 20,000-row defensive ceiling and no
+automatic deletion. Pending captures count against the map ceiling. Past maps
+consume disk, not active-character quota. Existing member allowlists retain
+old IDs; returning characters always get a fresh slot. Five occupied plus
+reserved seats remains the maximum. Quota/validation refusal before intent
+leaves the original placement usable; incomplete intent stays fenced/pending.
+
+Departure publication, under the source's durable mutation queue:
+
+1. Recheck character, designated owner authority for removal, exact placement,
+   review revision, quotas and unfinished admissions. Reserve a fresh solo ID
+   in a durable intent. The existing picker-creation rate budget applies to
+   new attempts; receipt retries and startup recovery do not charge it again.
+2. Add that ID to ledger 2; create/sync its directory and initialize an empty
+   schema-1 solo. The intent counts against pending allocation limits and
+   fences both placements. Existing accepted source writes finish first.
+3. Write/sync an immutable portable schema-1 backup into registry-relative
+   `past-maps/<receipt UUID>.json`, then publish metadata and its digest. Retry
+   reuses a published snapshot file, even if metadata publication was interrupted.
+4. Publish the source's active roster transition. Preserve task definitions
+   and History with their historical member IDs; remove current contributions,
+   departing claims and checks. Append a non-reversible `member-departed`
+   History event using existing event/command/actor fields. Daily progress
+   snapshots begin a new roster epoch; the complete prior series stays in the
+   Past map and retained backup. History compaction keeps the small identity
+   declarations while archiving unrelated events. Undo cannot cross the roster
+   boundary or change registry authority. Restores refuse retired slot IDs.
+5. Revoke exact old-slot plugin keys, overlays, then invite sessions, each as
+   a durable sidecar publication. Close affected streams and clear transient
+   previews, transfer reviews and cached calculations. Late operations must
+   reauthorize scope/revision; browser success responses recheck the current
+   account/character/picker/member tuple before publishing headers. Slow upstream
+   previews recheck before retaining a review, so revoked scopes cannot repopulate
+   cleared transient work. Account-wide login remains valid for other
+   characters; the former document scope fails. No secret follows the character.
+6. Atomically publish the new solo, character placement, exact membership and
+   capability removal, freed source seat, default preference and completed
+   receipt. Cancel pending handover offers involving the departed character.
+   Only then report success. Concurrent attempts have one placement winner;
+   same-request retry returns the original receipt. Restart completes intents.
+
+Rejoining requires a fresh owner invitation. A solo created by a completed
+departure is eligible even after making solo progress. The invitation intent
+adds optional `transaction.pastMapId` (equal to its invitation UUID). It freezes
+that solo into another Past map, revokes its exact credentials and installs a
+fresh destination member using the existing stage-2 map/rules template, never
+copying saved progress. Registry publication retires the solo and moves the
+character once. The old consumed invitation cannot admit it again after a later
+departure. Unrelated established solos/groups remain explicitly ineligible.
+
+Past maps are account-authorized, read-only pages at `/past-maps`, with saved
+chunk maps, notes, progress/settings, definitions, History and a complete JSON
+download. Files are digest-checked on every read. No mutable gameplay store is
+opened to display one. Service checkpoints include every referenced Past file
+and verify its digest; stopped restore installs/verifies those files before
+registry publication. Recovery's existing `picker-service-recovery-v1` inventory now
+allows these referenced files. Capture prevents new placement intents throughout
+the store-copy window and refuses already-pending departures/admissions.
 
 ## Verification boundary
 
@@ -109,28 +196,140 @@ relevant operating systems plus complete CI before landing. Account-panel
 tests exercise the controls and uncertain-response request reuse.
 
 This is synthetic/agent verification, not the outside-user beta acceptance gate.
-The full invite/switch/leave/rejoin journey remains blocked on the unimplemented
-move and Past maps lifecycle, including snapshot retention/export, credential
-revocation, historical contributions, owner removal and character tombstones.
+The complete human acceptance gate remains open. General established-character
+moves, character/slot tombstones and final-character/group deletion remain
+unimplemented. The automated and browser evidence below uses synthetic data.
 
-Local focused checks used Node 24.20.0, each entry's complete `testRunPolicy`
-environment, one worker, BelowNormal priority and the shared-PC lock in leases
-under ten minutes. Latest results across thirteen distinct files: **262 passed,
-one failed**, no skips/cancellations. The new storage/HTTP cases passed 30/30 and
-3/3; account-panel passed 16/16. Character registry, owner invites (storage/HTTP),
-registry, server, browser-module graph, invitation/session storage, account
-reclaim and gallery checks passed. Picker routing passed 49 cases and failed
-`a slow backup upload is received outside residency; another picker is served
-meanwhile`: line 870 received HTTP 503 instead of 200 on another picker's cold
-state request. The assertion did not retain the response body, so the precise
-503 source remains unresolved. That test was not retried or changed; this is
-not an all-green result and does not establish whether the failure predates
-this branch. Full hosted CI and stability receipts remain required.
+Local focused checks use Node 24.20.0, each entry's complete `testRunPolicy`
+environment, one worker, BelowNormal priority and shared-PC leases under ten
+minutes. At `d569757`, the second part's new files covered 57 storage cases,
+11 HTTP cases, 13 gameplay cases, three browser cases and one capture/restore
+case. Storage process exits cover
+all thirteen leave/removal publication seams and ten rejoin seams. HTTP
+interruption/restart cases verify actual key/overlay/invite-session files,
+and a gated upstream fetch verifies late preview refusal. Capture/restore
+tests interrupt each new Past-file stage and the following registry publication.
+These are deliberate fault injections, not timing retries. Adjacent handover,
+invitation, registry, state, History, save-transfer, overlay, plugin, server,
+browser-module, viewer-browser and gallery regressions are also checked.
+The native chown-to-another-UID case in `linux-service-crash.test.mjs` is skipped
+on this platform; the other service recovery sweeps pass. Full hosted CI and
+50-first-attempt stability receipts are still required before landing.
 
-An isolated synthetic server with fake OAuth and an incognito T3 preview browser
-exercised cancellation, cross-login offer/acceptance, invitation revocation,
-same-login designation and former-owner invitation refusal (403). The dialog
-was inspected at desktop 1920×1080 and phone 390×844; the phone document had
-390-pixel scroll width and a 375-pixel dialog. No runtime errors appeared in
-the inspected snapshots. Both server and tab were closed. No live save or
-personal account was used; leave/rejoin/Past maps browser journeys remain open.
+The original implementation receipt at `d195228` across 29 affected entry files
+was **486 passed, zero
+failed, one platform skip**, with no cancellations or todos. Earlier development
+failures were corrected before these receipts; this is not the hosted stability
+proof and does not erase the original parent routing failure below.
+
+The parent #330 receipt retains an unresolved routing failure: the slow-upload
+test received HTTP 503 instead of 200 at its then-line 870. Three bounded
+diagnostic attempts on main `1fc5187` stopped earlier at calculator memory
+admission (two insufficient-memory refusals and one restart-required result).
+Two additional attempts on updated main `a923b3b` both passed the selected
+slow-upload test. The stacked branch's complete routing file also passed
+52 cases after integrating parent `6773793`. The original 503 was not
+reproduced or diagnosed; passing samples do not establish its cause or stability.
+The routing test was not changed by this part.
+
+An isolated fake-OAuth server and incognito T3 preview browser exercised leave,
+empty-solo Join guidance, fresh-owner-invite rejoin and Past maps at desktop
+1920×1080 and phone 390×844. Both sizes completed real JSON downloads. The phone
+journey saved a solo chunk before rejoin, then displayed that chunk in the
+read-only frozen map; the downloaded document retained gameplay schema 1.
+Past maps had no editing controls, and the inspected phone pages had no
+horizontal overflow (390-pixel viewport; 375-pixel departure dialog). No runtime
+errors appeared in the inspected snapshots. The new wording identifies the
+specific ineligible character when a login also has an eligible returning solo.
+The server, shared-PC lease and browser tab were closed. No live save or
+personal account was used. Parent #330 separately exercised cross-login
+offer/acceptance, cancellation, same-login designation and stale-owner refusal.
+
+## Review follow-up
+
+The three P2 findings on #331 have regressions that fail on the corresponding
+original code. Per-player goal inverses now validate against each departure
+epoch's roster; the historical identity union remains available for old task
+references. Tests cover rosters 2–5, repeated departures, checks, Undo, portable
+round-trips and compacted History across restart.
+
+Departure first drains pending saves under a reversible admission/polling gate.
+A definite refusal releases that gate and keeps the document and confirmation.
+A lost response keeps saves, polling and character switches paused until the
+same request resolves. The cached dialog retains its selected target,
+confirmation and request ID when closed/reopened. Only known success triggers
+destructive teardown and navigation. Real-browser tests cover stale-review
+refusal, failure before the request reaches the server, and loss of a success
+response after the server commits. The latter two retry the same request and
+verify one departure/Past map, including on phone-sized viewports.
+
+The departure actor label replaces control characters, trims and bounds to 80
+characters, then uses a safe fallback if empty. Original display names remain
+unchanged in Past maps. The lifecycle audit found no other raw display-name
+to History/registry-label conversion: invitation/rejoin use the validated,
+trimmed 1–12-character canonical RuneScape name; handover records IDs and uses
+those canonical names only for presentation. A combined restored-name handover,
+departure and rejoin test verifies that boundary.
+
+Recovery also completes an already-persisted older departure with its empty
+destination and frozen Past map published, where the old build would fail while
+preparing the invalid actor. It retains the same receipt/destination, preserves
+the full saved name, and remains readable after another restart. These fixes
+add no durable fields or migration and leave registry 4, ledger 2 and gameplay
+schema 1 unchanged. The first review-fix receipt at `d569757` covers 14 files: **307 passed,
+zero failures, no skips**. Hosted CI and fresh stability proof remain required.
+
+## Re-review recovery fixes
+
+Admission now checks pending transactions in both directions inside the registry
+queue. A solo with an incoming admission cannot rejoin elsewhere, and a group
+with an outgoing move cannot accept another member. Concurrent attempts have
+one winner before either second intent is published.
+
+For overlapping intents written by older builds, recovery keeps the incoming
+admission and the solo's designated owner. It removes only the outgoing move's
+unplaced destination projection through the normal backed-up departure boundary,
+revokes that slot's credentials, then publishes the invitation as revoked and
+releases its reservation. Issued IDs, retained backups and any frozen Past map
+remain. The original transaction remains the recovery intent until cancellation
+publishes. Restart can resume after projection removal, each credential sidecar,
+or terminal registry publication, including when an older recovery already
+finished the incoming admission. No successor is selected or credential revived.
+
+Usage reads validate against retained allocated member IDs; new usage submissions
+follow the current roster, including newly joined members. Restart fixtures also
+retain plugin achievement suppression, live/beta/unknown item and bank evidence,
+journal commit ledgers, currency metadata, plugin keys, overlays and invite sessions. Those other sidecar readers
+validate saved ID syntax independently of the current roster; live operations
+recheck membership. Progress-source observations and multipart assemblies are
+memory-only and are cleared by existing departure fencing.
+
+Task assignments remain historical. Restore and roster mapping read departed-ID
+declarations from existing incoming History/provenance archives, without replaying
+their inverses or interpreting unrelated previous-save History. Current claims
+and per-player goals remain restricted to the live roster. Command/Undo
+validation preserves that split. Roster mapping refuses a collision between a
+historical departed ID and a destination player, rather than silently giving
+that player the former assignment.
+
+These fixes add no durable fields or versions: cancellation uses existing
+revoked-invitation, backup and departure-History shapes; usage schema 1,
+gameplay schema 1, registry 4 and ledger 2 remain unchanged. The forward-repair
+rollback position above still applies. Reverting to the affected builds can
+reintroduce the overlap and reject historical usage/assignments; do not treat
+such a downgrade as a repair.
+
+The final re-review receipt is **304 passed, zero failures, no skips across 17
+affected files**. It includes 90 departure storage cases, 14 departure HTTP
+cases, 14 gameplay cases and six usage-storage cases, plus state, transfer,
+History, invitations, goals, server/module loading and browser checks. The 26
+older-conflict recovery combinations cover both destination projection states,
+both incoming placement states, pre-publication interruption and every following
+roster/credential/registry seam. Actual HTTP server startup completes recovery.
+Restore/import cases cover rosters 2–5, repeated restores, remapping, reassignment
+Undo and restart; another HTTP journey restores and imports the exported save.
+The existing desktop/phone refusal and same-request network-retry browser tests
+also pass. All three reviewed failures were reproduced before their fixes.
+Full hosted CI and a new 50-first-attempt stability receipt remain required.
+Launch-readiness stays **55 shipped / 37 partial / 17 missing**; these are fixes
+within the existing stage, not completion of the deferred lifecycle work.

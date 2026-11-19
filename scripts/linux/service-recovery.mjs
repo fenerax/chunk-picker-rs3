@@ -461,6 +461,17 @@ export async function restoreServiceStopped({ settings, backup, release, assertS
     await mutate(step, 'restore.stage-cleanup', () => rm(stage, { recursive: true, force: true }));
   }
   await assertStopped(); await assertSameRelease(release); await verifyServiceBackup(backup);
+  if (document.pastMaps?.length) {
+    const retained = path.join(settings.multiPicker.registryDir, 'past-maps');
+    await mutate(step, 'restore.past-maps', () => directory(retained));
+    for (const m of document.pastMaps) {
+      const source = path.join(backup, 'past-maps', m.id + '.json'), target = path.join(retained, m.id + '.json');
+      await noLinks(source);
+      if (await exists(target)) { await noLinks(target); if (sha(await readFile(target)) !== m.digest) throw actionRequired('A retained Past map differs from its checkpoint. Review recovery before replacing it.'); }
+      else await mutate(step, 'restore.past-map', () => copyFile(source, target, 1));
+    }
+    await syncRecoveryTree(retained);
+  }
   const registryFile = path.join(settings.multiPicker.registryDir, 'registry.json'), bytes = encode(document);
   const digest = sha(bytes), previous = await exists(registryFile) ? sha(await readFile(registryFile)) : null;
   if (previous && ![digest, progress.registrySha256, progress.previousRegistrySha256].includes(previous)) throw actionRequired(`Registry destination changed. Move ${registryFile} aside after checking the journal registry digests; then rerun.`);

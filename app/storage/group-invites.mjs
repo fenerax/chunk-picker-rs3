@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { generateToken } from '../security/tokens.mjs';
 import { newCharacterId, characterName, normalizedCharacterName } from './registry-characters.mjs';
+import { departureSoloEligible, pastMapSlots, pickerHasPendingJoin } from './group-departures.mjs';
 
 const DAY = 86400000;
 const hash = secret => createHash('sha256').update(secret).digest('hex');
@@ -15,7 +16,7 @@ export function stage2SourceEligible(document, accountId, characterId) {
   const p = document.pickers.find(p => p.id === c?.placement?.pickerId);
   return Boolean(c?.requestId === 'initial' && p?.kind === 'default' && p.lifecycle === 'active' && p.provisioning === 'ready'
     && p.ownerAccountId === accountId && p.ownerCharacterId === c.id && p.seats.length === 1 && p.seats[0].memberId === 'owner'
-    && !(document.groupInvites ?? []).some(i => i.transaction?.source?.pickerId === p.id)
+    && !pickerHasPendingJoin(document, p.id)
     && p.memberIds.length === 1 && !document.capabilities.some(k => k.pickerId === p.id)
     && !document.accounts.some(a => a.memberships.some(m => m.pickerId === p.id && (a.id !== accountId || m.role !== 'owner'))));
 }
@@ -46,7 +47,8 @@ export function validateGroupInvites(doc) {
     if (i.status === 'accepted' && (!uuid(i.acceptingAccountId) || !/^c_[0-9a-f]{32}$/.test(i.acceptingCharacterId))) bad();
     if (i.transaction) {
       const t = i.transaction;
-      if (i.status !== 'accepted' || Object.keys(t).some(k => !['source', 'memberId', 'runescapeName', 'newCharacter'].includes(k))
+      if (i.status !== 'accepted' || Object.keys(t).some(k => !['source', 'memberId', 'runescapeName', 'newCharacter', ...(doc.schemaVersion === 4 ? ['pastMapId'] : [])].includes(k))
+        || t.pastMapId !== undefined && (t.newCharacter || t.pastMapId !== i.id)
         || !/^m_[0-9a-f]{32}$/.test(t.memberId) || typeof t.newCharacter !== 'boolean'
         || (t.newCharacter ? t.source !== null : !t.source || typeof t.source.pickerId !== 'string' || t.source.memberId !== 'owner')
         || characterName(t.runescapeName) !== t.runescapeName) bad();
@@ -68,6 +70,11 @@ export function validateGroupInvites(doc) {
 export function createGroupInvites({ read, save, version, issueCharacter, now, caps, point }) {
   let cursor = 0;
   const stamp = () => new Date(now()).toISOString();
+  const conflict = (doc, i) => {
+    const source = i?.transaction?.source?.pickerId;
+    return Boolean(source && (doc.pickers.find(p => p.id === source)?.seats.length !== 1
+      || doc.groupInvites.some(other => other.id !== i.id && other.transaction && other.pickerId === source)));
+  };
   const authorized = (doc, i) => {
     const p = doc.pickers.find(p => p.id === i.pickerId);
     return p?.kind === 'default' && p.lifecycle === 'active' && p.provisioning === 'ready' && p.ownerAccountId === i.issuerAccountId
@@ -103,8 +110,18 @@ export function createGroupInvites({ read, save, version, issueCharacter, now, c
     resumeVersion: version,
     list(accountId, pickerId) { const doc = read(); owner(doc, accountId, pickerId); return (doc.groupInvites ?? []).filter(i => i.pickerId === pickerId).map(i => metadata(doc, i)); },
     preview(secret) { const doc = read(), i = bySecret(doc, secret); return metadata(doc, i); },
-    eligible(accountId, characterId) { return stage2SourceEligible(read(), accountId, characterId); },
+    eligible(accountId, characterId) { return stage2SourceEligible(read(), accountId, characterId) || departureSoloEligible(read(), accountId, characterId); },
     transactions() { return structuredClone((read().groupInvites ?? []).filter(i => i.transaction)); },
+    conflict(id) { const doc = read(); return conflict(doc, doc.groupInvites?.find(i => i.id === id)); },
+    async cancelConflict(id) {
+      const doc = structuredClone(read()), i = doc.groupInvites.find(i => i.id === id);
+      if (!conflict(doc, i)) fail('The invitation no longer has an admission conflict. Retry recovery.');
+      // The invalid outgoing move never acquired placement. Keep its issued
+      // member ID and frozen files, release its reservation, and retain a
+      // terminal consumed invitation instead of inventing an owner successor.
+      terminal(doc, i, 'revoked'); i.transaction = null; i.acceptingAccountId = null; i.acceptingCharacterId = null;
+      await save(doc); await point('invite-conflict-cancelled', i.pickerId);
+    },
     async create(accountId, pickerId, replaceId) {
       owner(read(), accountId, pickerId);
       await version();
@@ -118,7 +135,8 @@ export function createGroupInvites({ read, save, version, issueCharacter, now, c
       if (p.seats.length + p.reservations.length >= 5) fail('This group has no vacant player seats.');
       const live = doc.groupInvites.filter(i => state(doc, i) === 'pending');
       if (doc.groupInvites.length >= 20000 || live.length >= 10000 || live.filter(i => i.issuerAccountId === accountId).length >= 40) fail('The invitation limit has been reached. Wait for old invitations to expire.');
-      const secret = 'gin_' + generateToken(), id = randomUUID(), reservationId = randomUUID(), createdAt = stamp(), expiresAt = new Date(Date.parse(createdAt) + 7 * DAY).toISOString();
+      const secret = 'gin_' + generateToken(); let id; do { id = randomUUID(); } while (doc.groupInvites.some(i => i.id === id) || (doc.departures ?? []).some(d => d.id === id) || (doc.pastMaps ?? []).some(m => m.id === id));
+      const reservationId = randomUUID(), createdAt = stamp(), expiresAt = new Date(Date.parse(createdAt) + 7 * DAY).toISOString();
       p.reservations.push({ id: reservationId, inviteId: id, expiresAt });
       const i = { id, secretHash: hash(secret), issuerAccountId: accountId, issuerCharacterId: p.ownerCharacterId, pickerId, reservationId,
         createdAt, expiresAt, status: 'pending', terminalAt: null, acceptingAccountId: null, acceptingCharacterId: null, transaction: null };
@@ -140,12 +158,15 @@ export function createGroupInvites({ read, save, version, issueCharacter, now, c
       }
       const status = state(doc, i);
       if (status !== 'pending') { if (i.status === 'pending') { terminal(doc, i, status); await save(doc); } fail(`This player invite is ${status}.`); }
+      if ((doc.departures ?? []).some(d => !d.completedAt && [d.source.pickerId, d.destination.pickerId].includes(i.pickerId))) fail('A departure is completing. Retry this invitation after recovery.');
+      if (doc.groupInvites.some(other => other.transaction?.source?.pickerId === i.pickerId)) fail('This group is completing an outgoing move. Retry this invitation after recovery.');
       const account = doc.accounts.find(a => a.id === accountId);
       if (!account?.initialProvisioned || account.pendingCreation) fail('Finish first sign-in or character creation before joining.');
       const own = doc.characters.filter(c => c.accountId === accountId && c.lifecycle === 'active');
       let c;
       if (characterId) {
-        if (!stage2SourceEligible(doc, accountId, characterId)) fail(MOVE_UNAVAILABLE);
+        if (!stage2SourceEligible(doc, accountId, characterId) && !departureSoloEligible(doc, accountId, characterId)) fail(MOVE_UNAVAILABLE);
+        if (departureSoloEligible(doc, accountId, characterId) && pastMapSlots(doc) >= 20000) fail('The retained map record limit has been reached. Your solo remains available.');
         c = own.find(c => c.id === characterId);
       } else {
         runescapeName = characterName(runescapeName);
@@ -160,8 +181,10 @@ export function createGroupInvites({ read, save, version, issueCharacter, now, c
       if (p.memberIds.length >= caps.membersPerPicker || p.seats.length + p.reservations.length > 5) fail('The group seat or member record limit has been reached.');
       // Allocation is irreversible history, before the registry publication.
       if (!characterId) { await issueCharacter(c.id); await point('invite-ids', p.id); }
+      const rejoining = characterId && departureSoloEligible(doc, accountId, characterId);
       i.status = 'accepted'; i.terminalAt = stamp(); i.acceptingAccountId = accountId; i.acceptingCharacterId = c.id;
       i.transaction = { source: characterId ? c.placement : null, newCharacter: !characterId, memberId: 'm_' + randomUUID().replaceAll('-', ''), runescapeName: c.runescapeName };
+      if (rejoining) i.transaction.pastMapId = i.id;
       p.memberIds.push(i.transaction.memberId);
       // Reservation is held until placement is ready; accepted transactions are
       // also counted against capacity. It still has no playable map or character.
@@ -170,6 +193,7 @@ export function createGroupInvites({ read, save, version, issueCharacter, now, c
     async finish(id) {
       const doc = structuredClone(read()), i = doc.groupInvites.find(i => i.id === id);
       if (!i?.transaction) return i;
+      if (conflict(doc, i)) fail('A prior admission won this source group. Recover the conflicting invitation first.');
       const t = i.transaction, p = doc.pickers.find(p => p.id === i.pickerId), a = doc.accounts.find(a => a.id === i.acceptingAccountId);
       let c = doc.characters.find(c => c.id === i.acceptingCharacterId);
       if (t.newCharacter) {
@@ -182,6 +206,7 @@ export function createGroupInvites({ read, save, version, issueCharacter, now, c
         for (const other of doc.groupInvites) if (other.pickerId === source.id && other.status === 'pending') terminal(doc, other, 'revoked');
         a.memberships = a.memberships.filter(m => m.pickerId !== source.id);
         if (a.defaultPickerId === source.id) a.defaultPickerId = null;
+        doc.capabilities = doc.capabilities.filter(k => k.pickerId !== source.id || k.memberId !== t.source.memberId);
       }
       c.placement = { pickerId: p.id, memberId: t.memberId };
       p.reservations = p.reservations.filter(r => r.inviteId !== i.id); p.seats.push({ memberId: t.memberId, characterId: c.id });

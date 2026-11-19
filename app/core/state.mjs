@@ -1,4 +1,5 @@
 import { displayText, displayList, trimTaskStars } from '../import-output.mjs';
+import { departedMemberIds } from './member-departure.mjs';
 import { identityValue, identityEntries, identityValidationEntries, isIdentityDictionary, createIdentityDictionary, editIdentityDictionary, freezeIdentityTree, materializeIdentities } from '../tasks/identity-dictionary.mjs';
 import { isResidentState, hasResidentIdentities, cloneResidentState, shareResidentCatalogue, freezeResidentCatalogue, reconcileResidentIdentities } from './resident-copy.mjs';
 import { mergePluginItemEvidence, pluginItemEvidenceFromEnvelope, portablePluginItemEvidence, retainPluginItemEvidence } from './plugin-item-evidence.mjs';
@@ -724,6 +725,19 @@ export function createOwnedStateValidationCache() {
   return handle;
 }
 
+function historicalRosterIds(state) {
+  return new Set([...state.members.map(member => member.id), ...departedMemberIds(state)]);
+}
+// Small command/Undo validation states deliberately omit History and archives.
+// Check historical task assignments against the full state before stripping
+// them from that validation-only projection; current claims stay roster-bound.
+function gameplayValidationTasks(tasks, state) {
+  const departed = departedMemberIds(state);
+  if (!departed.size) return tasks;
+  const ids = new Set([...state.members.map(m => m.id), ...departed]);
+  return tasks.map(task => { validateTask(task, ids); const { memberIds, ...row } = task; return row; });
+}
+
 function validateStateCopy(copy, registry, cache) {
   knownKeys(copy, STATE_KEYS, 'state');
   if (copy.identityRegistry !== undefined && !cache?.identities.has(copy.identityRegistry)) {
@@ -748,7 +762,9 @@ function validateStateCopy(copy, registry, cache) {
   record(copy.rules, 'rules');
   registryOrDefault(registry).resolve(copy.rules);
   if (copy.ruleReviews !== undefined) validateRuleReviews(copy.ruleReviews, registryOrDefault(registry));
-  const rosterIds = new Set((copy.members ?? []).map(member => member.id));
+  const departedIds = departedMemberIds(copy);
+  for (const id of departedIds) propertyKey(id, 'departed member');
+  const rosterIds = new Set([...(copy.members ?? []).map(member => member.id), ...departedIds]);
   // Task shape depends on assignments, hence the roster key. Rules and all
   // per-state references/History are still checked for every snapshot below.
   const rosterKey = cache ? JSON.stringify([...rosterIds].sort()) : undefined;
@@ -851,7 +867,7 @@ function validateStateCopy(copy, registry, cache) {
   }
   // Validate bounded undo snapshots independently, without recursive history.
   const historicalTasks = new Map(copy.tasks.map(task => [task.id, task]));
-  const memberIds = new Set(copy.members.map(member => member.id));
+  const memberIds = new Set([...copy.members.map(member => member.id), ...departedIds]);
   const historyByRevision = new Map(copy.history.map(event => [event.revision, event]));
   for (const event of copy.history) {
     if (event.command?.type === 'add-task') {
@@ -893,7 +909,12 @@ function validateStateCopy(copy, registry, cache) {
       return side.exists ? side.value : historicalTasks.get(id);
     },
   });
+  // Historical task assignments can mention any declared past member, while
+  // per-player goal snapshots must use the roster at their own revision.
+  const goalRosterAtEvent = new Set([...copy.members.map(m => m.id),
+    ...copy.history.filter(e => e.type === 'member-departed').map(e => e.command.memberId)]);
   for (const event of copy.history) {
+    if (event.type === 'member-departed') goalRosterAtEvent.delete(event.command.memberId);
     if (event.undo !== undefined) {
       record(event.undo, 'history undo'); knownKeys(event.undo, new Set(['members', 'rules', 'tasks', 'memberChanges', 'taskChanges', 'taskClaimChanges', 'finishLineChange', 'groupGoalChanges', 'ruleReviewChange']), 'history undo');
       if (!Object.keys(event.undo).length) fail('History undo needs a snapshot');
@@ -911,7 +932,7 @@ function validateStateCopy(copy, registry, cache) {
       }
       if (event.undo.taskClaimChanges !== undefined) validateTaskClaimChanges(event.undo.taskClaimChanges, historicalTasks, memberIds);
       if (event.undo.finishLineChange !== undefined) validateFinishLineChange(event.undo.finishLineChange, memberIds);
-      if (event.undo.groupGoalChanges !== undefined) validateGroupGoalChanges(event.undo.groupGoalChanges, memberIds);
+      if (event.undo.groupGoalChanges !== undefined) validateGroupGoalChanges(event.undo.groupGoalChanges, goalRosterAtEvent);
       if (event.undo.ruleReviewChange !== undefined) validateRuleReviewChange(event.undo.ruleReviewChange, registryOrDefault(registry));
       const snapshotMembers = event.undo.members ?? [];
       uniqueRecords(snapshotMembers, 'history undo members');
@@ -932,7 +953,7 @@ function validateStateCopy(copy, registry, cache) {
       const snapshot = { schemaVersion: SCHEMA_VERSION, revision: 0, history: [], rules: event.undo.rules ?? {}, members: snapshotMembers,
         tasks: referencedTasks.map(({ memberIds: assignment, ...task }) => task) };
       validateState(snapshot, registry);
-      for (const member of snapshot.members) if (!copy.members.some(current => current.id === member.id)) fail('History undo references absent member');
+      for (const member of snapshot.members) if (!memberIds.has(member.id)) fail('History undo references absent member');
     }
     if (event.undoneRevision !== undefined) {
       if (!Number.isSafeInteger(event.undoneRevision) || event.undoneRevision <= event.revision || !event.undo) fail('History undo revision is invalid');
@@ -954,6 +975,7 @@ function validateStateCopy(copy, registry, cache) {
     let replayPositions = new Map(copy.tasks.map((task, index) => [task.id, index]));
     for (let index = copy.history.length - 1; index >= 0; index--) {
       const event = copy.history[index];
+      if (event.type === 'member-departed') break; // old inverses belong to the historical roster
       if (!event.undo || event.undoneRevision !== undefined || event.type === 'undo') continue;
       if (event.undo.members) for (const member of event.undo.members) replay.members[replay.members.findIndex(current => current.id === member.id)] = jsonClone(member);
       if (event.undo.memberChanges) for (const change of event.undo.memberChanges) {
@@ -1391,6 +1413,7 @@ function undoTarget(state, undoRevision) {
     ? state.history.findLast(event => event.undo && event.undoneRevision === undefined && event.type !== 'undo')
     : state.history.find(event => event.revision === undoRevision);
   if (!target) fail(undoRevision === undefined ? 'No reversible command remains to undo' : 'Undo revision is not in the active history');
+  if (state.history.some(e => e.type === 'member-departed' && e.revision >= target.revision)) fail('This change belongs to a past roster. Membership changes cannot be undone.');
   if (target.undoneRevision !== undefined) fail('This command has already been undone');
   if (!target.undo || target.type === 'undo') fail('This history entry is not reversible');
   return target;
@@ -1466,7 +1489,7 @@ function prepareUndo(state, undoRevision, registry) {
   }
   if (target.undo.tasks) restored.tasks = jsonClone(target.undo.tasks);
   if (target.undo.taskChanges) {
-    validateTaskChanges(target.undo.taskChanges, new Set(state.members.map(member => member.id)));
+    validateTaskChanges(target.undo.taskChanges, historicalRosterIds(state));
     // Rows themselves are only read/validated. Keep the shared live array and
     // its cached ID index intact, including when a later preview check fails.
     restored.tasks = [...restored.tasks];
@@ -1486,7 +1509,7 @@ function prepareUndo(state, undoRevision, registry) {
     const task = rows.get(id) ?? claimTaskRow(state, id); if (!task) fail(`Undo task claim references absent task: ${id}`); referenced.set(id, task);
   }
   validateOwnedState({ schemaVersion: state.schemaVersion, revision: state.revision, rules: restored.rules,
-    members: restored.members, tasks: [...referenced.values()], history: [], ...(restored.taskClaims !== undefined ? { taskClaims: restored.taskClaims } : {}) }, registry);
+    members: restored.members, tasks: gameplayValidationTasks([...referenced.values()], state), history: [], ...(restored.taskClaims !== undefined ? { taskClaims: restored.taskClaims } : {}) }, registry);
   if (restored.finishLine !== undefined) validateFinishLine(restored.finishLine, new Set(state.members.map(member => member.id)));
   if (restored.groupGoals !== undefined) validateGroupGoals(restored.groupGoals, new Set(state.members.map(member => member.id)));
   return { target, restored, skippedClaimIds };
@@ -1551,7 +1574,7 @@ function validateCommandGameplay(state, baseline, registry) {
     if (!task) fail(`Command task claim references absent task: ${id}`); referenced.set(id, task);
   }
   const checked = validateOwnedState({ schemaVersion: state.schemaVersion, revision: state.revision, rules: state.rules,
-    members: state.members, tasks: [...referenced.values()], history: [], ...(state.taskClaims !== undefined ? { taskClaims: state.taskClaims } : {}) }, registry);
+    members: state.members, tasks: gameplayValidationTasks([...referenced.values()], state), history: [], ...(state.taskClaims !== undefined ? { taskClaims: state.taskClaims } : {}) }, registry);
   const diagnostics = [...(checked.provenance?.taskRuleDiagnostics ?? []),
     ...(baseline.provenance?.taskRuleDiagnostics ?? []).filter(item => item.sourceMapId !== undefined)];
   if (JSON.stringify(diagnostics) !== JSON.stringify(baseline.provenance?.taskRuleDiagnostics ?? [])) {
@@ -2395,7 +2418,7 @@ function applyCommandCopy(next, command, { expectedRevision, world, registry, ra
   // yet acquired its undo delta, so validate its shape without replaying that
   // temporarily incomplete chain. Final validation includes the entire history.
   const commandTasks = baseline ? validateCommandGameplay(next, baseline, registry) : undefined;
-  if (!baseline && payload.type !== 'undo') validateOwnedState({ ...next, history: [] }, registry);
+  if (!baseline && payload.type !== 'undo') validateOwnedState({ ...next, tasks: gameplayValidationTasks(next.tasks, next), history: [] }, registry);
   const at = commandAt ?? timestamp(now);
   if (finishLineCommandTypes.includes(payload.type) && payload.type !== 'set-finish-line-custom') payload.affectedMemberIds = next.members.map(member => member.id);
   next.revision++;
@@ -2406,7 +2429,7 @@ function applyCommandCopy(next, command, { expectedRevision, world, registry, ra
       for (const change of undo.taskChanges ?? []) if (change.before.exists) beforeRows.set(change.id, change.before.value);
       for (const change of undo.memberChanges) validateMemberChanges(change, beforeRows, new Set(next.members.map(member => member.id)), commandTasks);
     }
-    if (undo.taskChanges) validateTaskChanges(undo.taskChanges, new Set(next.members.map(member => member.id)));
+    if (undo.taskChanges) validateTaskChanges(undo.taskChanges, historicalRosterIds(next));
     if (undo.taskClaimChanges) validateTaskClaimChanges(undo.taskClaimChanges, commandTasks, new Set(next.members.map(member => member.id)));
     if (undo.finishLineChange) validateFinishLineChange(undo.finishLineChange, new Set(next.members.map(member => member.id)));
     if (undo.groupGoalChanges) validateGroupGoalChanges(undo.groupGoalChanges, new Set(next.members.map(member => member.id)));

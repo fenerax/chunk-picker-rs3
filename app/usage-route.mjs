@@ -23,7 +23,7 @@ export function createUsageRateLimit({ now = Date.now, perIdentity = 12, global 
 }
 
 export async function openUsageRoute({ dataDir, members, authenticate, bodyJSON, json, now = Date.now, rateLimits, readOnly = false, storage, admission } = {}) {
-  const actors = members.map(member => member.id);
+  const actors = () => (typeof members === 'function' ? members() : members).map(member => member.id);
   storage ??= await openUsageStore({ dataDir, actors, now, readOnly });
   admission ??= createUsageRateLimit({ now, ...rateLimits });
   return {
@@ -46,7 +46,7 @@ export async function openUsageRoute({ dataDir, members, authenticate, bodyJSON,
       const fresh = authenticate(request, security);
       if (!fresh) throw failure(401, 'Access required.');
       // The master link belongs to the first player; unlinked invitations stay separate.
-      const actor = fresh.readOnly ? 'viewer' : fresh.memberId ?? (fresh.kind === 'master' ? actors[0] : 'unlinked');
+      const actor = fresh.readOnly ? 'viewer' : fresh.memberId ?? (fresh.kind === 'master' ? actors()[0] : 'unlinked');
       await storage.add(body, actor);
       await json(request, response, 200, { accepted: true }); return true;
     },

@@ -132,6 +132,7 @@ test('v3 migration retains preimage, gameplay and the legacy picker; sanitized r
   assert.equal(await readFile(path.join(f.options.registryDir, 'registry.pre-handovers-v3.json'), 'utf8'), old);
   assert.equal(await readFile(path.join(f.options.tombstoneDir, 'ledger.json'), 'utf8'), ledger);
   const saved = await doc(f); assert.throws(() => stage2RegistryVersionGate(saved), /Unsupported newer registry/);
+  assert.equal(saved.schemaVersion, 4); assert.deepEqual(saved.departures, []); assert.deepEqual(saved.pastMaps, []);
   for (const edit of [d => { delete d.handovers; }, d => { d.handovers[0].status = 'unknown'; }, d => { d.handovers.push(d.handovers[0]); }]) {
     const corrupt = structuredClone(saved); edit(corrupt); assert.throws(() => validateHandovers(corrupt), /Invalid ownership/);
   }

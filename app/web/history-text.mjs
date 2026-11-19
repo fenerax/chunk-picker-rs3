@@ -60,6 +60,7 @@ export function describeHistoryEvent(event = {}, { memberName = id => id, chunkN
   const customFinishItem = () => c.itemLabel || c.itemText || c.text ? `“${c.itemLabel || c.itemText || c.text}”` : 'an item';
   const groupGoal = c.goalText || c.text ? `“${c.goalText || c.text}”` : 'a group goal';
   switch (event.type) {
+    case 'member-departed': return `${event.actor?.label || who || 'A character'} left this roster; the previous map is preserved in Past maps`;
     case 'add-group-goal': return `Added group goal ${groupGoal}`;
     case 'update-group-goal': return `Edited group goal ${groupGoal}`;
     case 'move-group-goal': return `Moved group goal ${groupGoal} to position ${c.index + 1}`;

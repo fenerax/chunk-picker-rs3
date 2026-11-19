@@ -23,12 +23,12 @@ function validate(value) {
   }
   return value;
 }
-async function write(file, value) {
+async function write(file, value, strict = false) {
   const temporary = `${file}.${randomUUID()}.tmp`; let handle;
   try {
     handle = await open(temporary, 'wx', 0o600); await handle.writeFile(`${JSON.stringify(validate(value))}\n`);
     await handle.sync(); await handle.close(); handle = null;
-    return await publishFile(temporary, file, { onPostPublishSyncError: 'warn' });
+    return await publishFile(temporary, file, { onPostPublishSyncError: strict ? 'throw' : 'warn' });
   } finally { await handle?.close(); await rm(temporary, { force: true }); }
 }
 
@@ -41,11 +41,11 @@ export async function openPluginKeys({ dataDir, clock = Date.now, maxActiveKeysP
     const token = /^Bearer (gpk_[A-Za-z0-9_-]{43})$/i.exec(request.headers.authorization ?? '')?.[1];
     return token ? hash(token) : null;
   };
-  function mutate(operation) {
+  function mutate(operation, strict = false) {
     const pending = queue.then(() => withStoreWrite(dataDir, async () => {
       if (closed) throw fail(503, 'The picker is stopping.');
       const next = structuredClone(current), result = operation(next);
-      const publication = await write(file, next); current = next; dirty = false;
+      const publication = await write(file, next, strict); current = next; dirty = false;
       warnDurability(publication, 'plugin keys'); return result;
     })); queue = pending.catch(() => {}); return pending;
   }
@@ -73,6 +73,7 @@ export async function openPluginKeys({ dataDir, clock = Date.now, maxActiveKeysP
       if (!record) throw fail(404, 'Game plugin key not found.'); record.revoked = true; return publicRecord(record);
     }); },
     revokeDeletion() { return mutate(next => { for (const record of next.keys) record.revoked = true; }); },
+    revokeMember(player) { return mutate(next => { const rows = next.keys.filter(record => record.player === player); for (const record of rows) record.revoked = true; return rows; }, true); },
     touch(id, world) {
       const record = current.keys.find(record => record.id === id && !record.revoked);
       if (!record) throw fail(401, 'A game plugin key is required.');

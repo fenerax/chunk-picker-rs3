@@ -111,6 +111,18 @@ test('registration and provisioning enforce both layers without charging ready-p
   ready = true; await registry.firstLogin('discord', 'synthetic');
 });
 
+test('departure allocation shares provisioning budget while durable receipt retries remain available', async () => {
+  const limits = createPickerLimits({ provisioningPerAccount: 1, provisioningGlobal: 2 });
+  const receipts = new Map();
+  const registry = limits.provisioningRegistry({ getAccount: id => ({ id, initialProvisioned: true }),
+    getDeparture: id => receipts.get(id), async beginDeparture(accountId, _characterId, _pickerId, input) { const d = receipts.get(input.requestId) ?? { accountId, ...input }; receipts.set(input.requestId, d); return d; } });
+  const args = ['account', 'character', A, { requestId: 'same' }];
+  const original = await registry.beginDeparture(...args);
+  assert.deepEqual(await registry.beginDeparture(...args), original);
+  await assert.rejects(registry.beginDeparture('account', 'character', A, { requestId: 'new' }), { status: 429 });
+  assert.equal(receipts.size, 1);
+});
+
 test('body bytes include chunked iterator and piped readers and share global/account/picker budgets', async () => {
   const limits = createPickerLimits({ bodyBytesPerRequest: 10, bodyBytesPerAccount: 8, bodyBytesPerPicker: 12, bodyBytesGlobal: 15 });
   const read = async (text, id, pickerId, pipe = false) => {

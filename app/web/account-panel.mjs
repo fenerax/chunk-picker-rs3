@@ -1,14 +1,16 @@
 import { characterLabel, characterDetails, createCharacterForm } from './character-menu.mjs';
 import { ownerInviteControls } from './group-invites.mjs';
 import { handoverControls } from './group-handover.mjs';
+import { departureControls } from './group-departure.mjs';
 const providerNames = { discord: 'Discord', google: 'Google' };
 const providersFor = account => [...new Set([...(account?.providers ?? []), ...(account?.identities ?? []).map(identity => identity.provider), account?.provider].filter(provider => Object.hasOwn(providerNames, provider)))];
 
-export function createAccountPanel({ el, openDialog, menuButton, topMenu, fetch = globalThis.fetch, location = globalThis.location, beforeSignOut = () => {}, beforeSwitch = beforeSignOut, beginAccountAction = async () => () => {}, dialogCurrent = () => true, ownerActions = {} }) {
-  let session = {};
+export function createAccountPanel({ el, openDialog, menuButton, topMenu, fetch = globalThis.fetch, location = globalThis.location, beforeSignOut = () => {}, beforeSwitch = beforeSignOut, beforeDeparture = async () => () => {}, beginAccountAction = async () => () => {}, dialogCurrent = () => true, ownerActions = {} }) {
+  let session = {}, departurePanel;
   const available = () => Boolean(session.account) || (session.signIn?.providers?.length ?? 0) > 0;
   const signedInName = () => Object.hasOwn(providerNames, session.account?.provider) ? providerNames[session.account.provider] : providersFor(session.account).map(provider => providerNames[provider]).join(' and ');
   function setSession(value) {
+    if (session.pickerId !== value.pickerId || session.characterId !== value.characterId) departurePanel = undefined;
     session = value;
     if (menuButton) menuButton.hidden = !available();
     if (topMenu) {
@@ -55,6 +57,7 @@ export function createAccountPanel({ el, openDialog, menuButton, topMenu, fetch 
           }));
         }
         content.append(el('p', `Account: ${session.accountId ?? session.account.id}`, 'field-help'));
+        actions.append(link('Past maps', '/past-maps'));
         content.append(el('p', `Picker: ${session.pickerId}`, 'field-help'));
         if (session.ownerControls?.role) content.append(el('p', `Role: ${session.ownerControls.role}`, 'field-help'));
         if (isOwner()) for (const [label, action] of Object.entries(ownerActions)) actions.append(actionButton(label, action));
@@ -62,6 +65,11 @@ export function createAccountPanel({ el, openDialog, menuButton, topMenu, fetch 
           scopeHeaders: { 'X-Picker-Id': session.pickerId, 'X-Character-Id': session.characterId } }))));
         if (session.characterId && session.ownerControls?.shared === false) actions.append(actionButton('Group ownership', () => openDialog('Group ownership', handoverControls({ el, fetch, characterId: session.characterId,
           scopeHeaders: { 'X-Picker-Id': session.pickerId, 'X-Character-Id': session.characterId }, onChanged: async () => { await beforeSwitch(); location.reload(); } }))));
+        if (session.characterId && session.ownerControls?.shared === false) actions.append(actionButton('Leave or remove member', () => {
+          departurePanel ??= departureControls({ el, fetch, characterId: session.characterId, beforeDeparture, beforeSwitch, location,
+            scopeHeaders: { 'X-Picker-Id': session.pickerId, 'X-Character-Id': session.characterId } });
+          openDialog('Leave or remove member', departurePanel);
+        }));
         if (session.ownerControls) {
           for (const target of [...(isOwner() ? ['picker'] : []), 'account']) {
             const control = actionButton(`Delete ${target}`, () => deletionDialog(target));
