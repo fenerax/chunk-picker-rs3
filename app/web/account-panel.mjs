@@ -31,6 +31,10 @@ export function createAccountPanel({ el, openDialog, menuButton, topMenu, fetch 
         if (session.characters) {
           content.append(el('h3', 'Characters'));
           const status = el('p', undefined, 'field-help'); status.setAttribute('role', 'alert');
+          actions.append(actionButton('Characters and groups', async () => {
+            try { await beforeSwitch(); location.assign('/characters'); }
+            catch (failure) { status.textContent = failure.message; }
+          }));
           for (const [index, character] of session.characters.entries()) {
             const current = character.id === session.characterId;
             const button = actionButton(`${characterLabel(character, index)}${current ? ' · Current' : ''}`, async () => {

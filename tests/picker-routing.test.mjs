@@ -6,6 +6,8 @@ import { mkdtemp, mkdir, rm, writeFile, readFile, readdir, rename } from 'node:f
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
+import { openChrome, until } from '../scripts/perf/cdp.mjs';
+import { findChrome } from '../scripts/ci/gallery-support.mjs';
 
 process.env.RS3_DATASET = 'open-f2p';
 for (const key of ['RS3_PACKS_DIR', 'RS3_PACK_SELECTION', 'RS3_PUBLIC_ORIGIN', 'RS3_LOOPBACK_PORT', 'RS3_LOOPBACK_ROLE', 'RS3_SIGNIN', 'RS3_GOOGLE_CLIENT_ID', 'RS3_GOOGLE_CLIENT_SECRET_FILE']) delete process.env[key];
@@ -94,6 +96,93 @@ async function fixture(t, { initiallyEnabled = true, beforeCommit, ...limits } =
     note: (cookie, text, revision, extra = {}) => send('/api/command', cookie, { body: { command: { type: 'set-note', memberId: 'owner', chunkId: '12341', note: text }, expectedRevision: revision, ...extra } }),
   };
 }
+
+for (const migrated of [true, false]) test(`${migrated ? 'migrated characterless' : 'other-group character'} signed-in viewer opens the map read-only and finds it in navigation`, { timeout: 120000 }, async t => {
+  const f = await fixture(t), owner = await f.login('90315'), groupId = await f.picker('90315');
+  await f.note(owner, 'Viewed map', 0);
+  let viewerCookie = migrated ? null : await f.login('90316');
+  const viewerId = '00000000-0000-4000-8000-000000000315';
+  await f.restart(async () => {
+    const doc = await f.registry();
+    if (migrated) {
+      // Recreate the shipped pre-character registry, retaining real schema-1
+      // gameplay produced by this synthetic server, then exercise migration.
+      doc.schemaVersion = 1;
+      delete doc.characters; delete doc.groupInvites;
+      doc.accounts = doc.accounts.map(({ id, identities, memberships, defaultPickerId, createdAt }) => ({ id, identities, memberships, defaultPickerId, createdAt }));
+      doc.pickers = doc.pickers.map(({ id, kind, ownerAccountId, lifecycle, provisioning, memberIds, createdAt }) => ({ id, kind, ownerAccountId, lifecycle, provisioning, memberIds, createdAt }));
+      doc.accounts.push({ id: viewerId, identities: [{ provider: 'discord', subject: '90316' }], memberships: [], defaultPickerId: null, createdAt: doc.accounts[0].createdAt });
+      await writeFile(path.join(f.multiPicker.tombstoneDir, 'ledger.json'), JSON.stringify({ schemaVersion: 1, issuedPickerIds: doc.pickers.map(p => p.id), pickers: [], accounts: [] }));
+    }
+    doc.accounts.find(a => a.identities.some(i => i.subject === '90316')).memberships.push({ pickerId: groupId, role: 'viewer', memberId: null });
+    await writeFile(path.join(f.multiPicker.registryDir, 'registry.json'), JSON.stringify(doc));
+  });
+  viewerCookie ??= await f.login('90316');
+  const navigation = (await f.send('/api/characters', viewerCookie)).json();
+  assert.equal(navigation.characters.length, migrated ? 0 : 1);
+  assert.deepEqual(navigation.viewerMemberships, [{ pickerId: groupId, groupLabel: 'Group game', playerCount: 1, available: true, href: `/pickers/${groupId}/` }]);
+  const page = await f.send(`/pickers/${groupId}/`, viewerCookie);
+  assert.equal(page.status, 200, page.text); assert.match(page.text, /<html/);
+  const scope = { headers: { 'X-Picker-Id': groupId } };
+  const session = (await f.send('/api/session', viewerCookie, scope)).json();
+  assert.equal(session.pickerId, groupId); assert.equal(session.readOnly, true);
+  assert.deepEqual(session.capabilities, { canWrite: false }); assert.equal(session.characterId ?? null, null);
+  assert.equal((await f.send(`/api/pickers/${groupId}/state`, viewerCookie)).json().state.members[0].notes['12341'], 'Viewed map');
+  const before = await readFile(path.join(f.multiPicker.pickerRoot, groupId, 'state.json'));
+  for (const [route, body, message] of [
+    ['/api/command', { expectedRevision: 1, command: { type: 'set-note', memberId: 'owner', chunkId: '12341', note: 'Forbidden' } }, 'This link is view only.'],
+    ['/api/command', { expectedRevision: 1, command: { type: 'undo' } }, 'This link is view only.'],
+    ['/api/import/preview', {}, 'Picker owner access required.'],
+    ['/api/restore', {}, 'Picker owner access required.'],
+    ['/api/member-restore', {}, 'Picker owner access required.'],
+    ['/api/game-plugin/keys', { memberId: 'owner' }, 'This link is view only.'],
+    ['/api/invites', { label: 'Forbidden' }, 'Administrator access requires a private connection.'],
+    ['/api/group-invites', {}, 'Select the group owner character to manage invitations.'],
+  ]) {
+    const response = await f.send(route, viewerCookie, { ...scope, body });
+    assert.equal(response.status, 403, `${route}: ${response.text}`); assert.equal(response.json().message, message, route);
+  }
+  assert.deepEqual(await readFile(path.join(f.multiPicker.pickerRoot, groupId, 'state.json')), before);
+  const foreign = await f.send(`/pickers/${'p_' + 'f'.repeat(32)}/`, viewerCookie);
+  assert.equal(foreign.status, 403);
+  if (migrated) return;
+  const own = navigation.characters[0];
+  assert.equal((await f.send(`/pickers/${groupId}/?character=${own.id}`, viewerCookie)).status, 403);
+  const selected = await f.send(own.href, viewerCookie); assert.equal(selected.status, 303);
+  assert.equal((await f.send(selected.headers.location, viewerCookie)).status, 200);
+  assert.equal((await f.note(viewerCookie, 'Own map still writable', 0)).status, 200);
+
+  // Exercise the real menu and full-document switch with an isolated browser.
+  const browser = await openChrome(await findChrome(), path.join(f.root, 'chrome'), {
+    extraArgs: process.platform === 'linux' ? ['--no-sandbox', '--disable-dev-shm-usage'] : [],
+  });
+  try {
+    await browser.send('Emulation.setDeviceMetricsOverride', { width: 2560, height: 1440, deviceScaleFactor: 1, mobile: false });
+    const base = `http://127.0.0.1:${f.app().address().port}`;
+    const [name, value] = viewerCookie.split('=');
+    await browser.send('Network.setCookie', { name, value, url: base });
+    const navigate = async route => {
+      await browser.send('Page.navigate', { url: base + route });
+      await until(() => browser.evaluate(`location.pathname === ${JSON.stringify(route.split('?')[0])} && document.readyState === 'complete'`));
+    };
+    await navigate('/characters');
+    await until(() => browser.evaluate(`!!document.querySelector('#characters a[href="/pickers/${groupId}/"]')`));
+    const link = `document.querySelector('#characters a[href="/pickers/${groupId}/"]')`;
+    assert.match(await browser.evaluate(`${link}.textContent`), /View only/);
+    assert.equal(await browser.evaluate(`${link}.checkVisibility()`), true);
+    await browser.send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });
+    assert.equal(await browser.evaluate('document.documentElement.scrollWidth <= innerWidth'), true);
+    assert.equal(await browser.evaluate(`${link}.checkVisibility()`), true);
+    await browser.evaluate(`${link}.click()`);
+    await until(() => browser.evaluate(`location.pathname === '/pickers/${groupId}/' && document.documentElement.dataset.readOnly === 'true'`));
+    assert.equal(await browser.evaluate(`fetch('/api/session', { headers: { 'X-Picker-Id': '${groupId}' } }).then(r => r.json()).then(s => s.readOnly)`), true);
+    await navigate('/characters');
+    await until(() => browser.evaluate(`!!document.querySelector('#characters a[href="${own.href}"]')`));
+    await browser.evaluate(`document.querySelector('#characters a[href="${own.href}"]').click()`);
+    await until(() => browser.evaluate(`location.search.includes('${own.id}') && document.documentElement.dataset.readOnly === 'false'`));
+    assert.equal(await browser.evaluate(`fetch('/api/session', { headers: { 'X-Character-Id': '${own.id}' } }).then(r => r.json()).then(s => s.readOnly)`), false);
+  } finally { await browser.close(); }
+});
 
 test('a saved bound group with missing state returns restore instructions without changing its files', async t => {
   const f = await fixture(t), cookie = await f.login('90101');
