@@ -160,7 +160,7 @@ test('shipped schema-1 reader refuses both new documents and new reader refuses 
   assert.throws(() => validateOriginalRegistry(JSON.parse(documents[0])), /Invalid registry document/);
   assert.throws(() => validateOriginalLedger(JSON.parse(documents[1])), /Invalid registry document/);
   for (const [index, file] of [f.file, f.ledger].entries()) {
-    const newer = JSON.parse(documents[index]); newer.schemaVersion = index === 0 ? 4 : 3; await writeFile(file, JSON.stringify(newer));
+    const newer = JSON.parse(documents[index]); newer.schemaVersion = index === 0 ? 5 : 3; await writeFile(file, JSON.stringify(newer));
     const bytes = await readFile(file); await assert.rejects(f.open(), /Unsupported newer registry/); assert.deepEqual(await readFile(file), bytes);
     await writeFile(file, documents[index]);
   }

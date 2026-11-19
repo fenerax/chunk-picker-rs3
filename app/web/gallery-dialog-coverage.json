@@ -8,6 +8,9 @@
   "app/web/account-panel.mjs :: 'Account'": {
     "reason": "Account uses the Settings layout. Provider redirects and sign-out change authentication, which the read-only gallery cannot perform; generated-account browser evidence covers these controls at desktop and phone widths."
   },
+  "app/web/account-panel.mjs :: 'Group ownership'": {
+    "reason": "Ownership changes require authenticated owner and successor characters, which the read-only gallery cannot supply. Synthetic group-handovers storage/HTTP and account-panel tests cover scoped proposals, explicit acceptance, decline/cancel, same-login designation and durable retry. An isolated incognito browser walkthrough exercised cancellation, cross-login acceptance and same-login designation at desktop and phone widths."
+  },
   "app/web/account-panel.mjs :: 'Add character'": {
     "reason": "Creating a character writes account/registry records and navigates to its exact map, which the read-only gallery cannot perform. Synthetic account-panel and character-registry tests cover the form, duplicate-name acknowledgement, refusal and exact navigation; an isolated generated-account browser walkthrough covers creation and switching."
   },

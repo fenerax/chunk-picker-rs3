@@ -21,7 +21,7 @@ export function stage2SourceEligible(document, accountId, characterId) {
 }
 
 export function validateGroupInvites(doc) {
-  if (doc.schemaVersion !== 3) return;
+  if (doc.schemaVersion < 3) return;
   const bad = () => { throw new TypeError('Invalid group invitation registry.'); };
   if (!Array.isArray(doc.groupInvites) || doc.groupInvites.length > 20000) bad();
   const ids = new Set(), reservations = new Set(), allocating = new Set(), moving = new Set();
@@ -189,6 +189,6 @@ export function createGroupInvites({ read, save, version, issueCharacter, now, c
       i.transaction = null; cleanup(doc, p.id);
       await save(doc); await point('invite-placed', p.id); return structuredClone(i);
     },
-    async clean() { if (read().schemaVersion !== 3) return; const doc = structuredClone(read()); cleanup(doc); await save(doc); },
+    async clean() { if (read().schemaVersion < 3) return; const doc = structuredClone(read()); cleanup(doc); await save(doc); },
   };
 }
