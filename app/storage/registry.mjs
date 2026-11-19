@@ -529,6 +529,7 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
   }
   function validateRetirementTarget(next, nextLedger) {
     validate(next); validateLedger(nextLedger); validateCharacters(next, caps); validateGroupInvites(next); validateHandovers(next); validateDepartures(next);
+    checkRetirementCapacity(next, nextLedger);
     createRegistryCaps(next, caps).checkInitial(nextLedger);
     if (nextLedger.issuedCharacterIds.length > caps.issuedCharacterIds || nextLedger.characters.length > caps.retiredCharacters || nextLedger.slots.length > caps.retiredSlots) throw characterError('The retirement history limit has been reached. Existing IDs and bindings cannot be reused.');
   }
