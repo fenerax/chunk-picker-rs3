@@ -588,3 +588,22 @@ participation, cross-intent slot capacity held across restart, and unchanged
 registry/ledger/gameplay after capacity refusal. A real-runtime pre-deletion
 backup restores after completed or pending non-owner deletion and releases from
 quarantine, preserving the surviving owner's map and earlier History.
+
+Focused re-review validation passes: **226 lifecycle cases**, **19 HTTP deletion
+cases**, and an overlapping **58-case migration/capacity rerun** after migration
+preflight changed. All **four real-runtime older-backup cases** pass, including
+interrupted install and quarantine-release retry with one departure History
+boundary. The existing off-site capture, missing-ledger clean restore and real
+rehearsal proof passes again, as do off-site/tool-package/owned-closure checks
+with their reported platform skips. Full hosted CI and stability proof remain
+required before landing.
+
+The fresh re-review quick inventory covers **401 files: 399 passed, two failed**.
+`linux-multi-picker` encountered Windows `EPERM` during an atomic synthetic
+registry rename in the dormant-picker health case; `projection-measurements`
+still reads Linux `/proc/<pid>/status`. The plugin-items file's first attempt
+hit the shared-PC lease limit. Subsequent bounded name-selected executions
+include a complete **274-case pass with no skips**, matching its unchanged case
+inventory; the interrupted attempt remains recorded. All files are accounted
+for, with platform/private-harness skips retained. This is not a green local
+quick receipt; full hosted CI and stability proof remain required.
