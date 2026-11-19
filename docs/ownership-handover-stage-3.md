@@ -429,8 +429,8 @@ The existing desktop/phone refusal and same-request network-retry browser tests
 also pass. All three reviewed failures were reproduced before their fixes.
 Full hosted CI and a new 50-first-attempt stability receipt remain required.
 At that earlier commit launch-readiness was **55 shipped / 37 partial / 17
-missing**. The deletion and rename updates bring the current table to **68 shipped /
-27 partial / 14 missing**; human/operations gates remain separate.
+missing**. The deletion, rename and off-site tooling updates bring the current table to **68 shipped /
+28 partial / 13 missing**; human/operations gates remain separate.
 
 ## Initial deletion verification
 
@@ -520,3 +520,36 @@ cases** with no skips or cancellations. The property case retains all 1,000
 fixed-seed saves. New review regressions cover allocation fencing, receipt
 purity, capacity reservations and unchanged state after cap refusal; HTTP tests
 exercise a concurrent Add character and surviving Progress/restore reviews.
+
+### Integration with off-site service recovery (#335)
+
+Service recovery v2 retains the complete ledger as opaque, versioned,
+digest-pinned bytes. Registry 5 remains responsible for interpreting ledger 3;
+capture, clean-host initialization and rehearsal never discard its character,
+slot or receipt records. Reconciliation operates on a disposable ledger copy
+under the live ledger's lock and preserves the authoritative bytes.
+
+The registry supplies a transient roster projection to recovery probes and
+quarantine release. It excludes retired slots while retaining the historical
+member-ID allowlist in the checkpoint. Comparing gameplay against the entire
+allowlist incorrectly quarantined a valid post-deletion map. This projection
+adds no durable field or version and does not interpret ledger records in the
+transport layer.
+
+`character-deletion-offsite.test.mjs` creates a real joined character, deletes
+it from a surviving group, captures and uploads the service pair, initializes
+a missing target ledger through the `restore-clean` path, and verifies its
+bytes against the captured digest. It removes the original roots and runs
+the captured decoder and a real isolated service rehearsal from the downloaded
+pair, including fresh-key revocation. Both restored targets reject the deleted
+character and retired slot after an older registry checkpoint is installed.
+The end-to-end case and the six deletion-recovery cases pass locally.
+
+The current quick selection contains **401 files**. Review-fix receipts plus
+post-merge reruns cover the full inventory, with unchanged passing receipts
+reused and the affected service-recovery files rerun. All 401 files completed;
+400 passed and the existing Windows-only `projection-measurements` failure
+remains (`rss` reads Linux `/proc/<pid>/status`). Platform/private-harness skips
+remain visible. Validation used Node 24, one worker, BelowNormal priority and
+sequential shared-PC leases. This remains a local receipt with that explicit
+failure; full hosted CI and stability proof are required before landing.
