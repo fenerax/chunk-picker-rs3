@@ -193,6 +193,24 @@ test('a pending login deletion rejects Add character over HTTP before allocating
   await f.restart(); assert.equal((await f.send('/api/characters', login.cookie)).status, 401);
 });
 
+test('a pending new-character acceptance refuses a stale login-deletion confirmation over HTTP', async t => {
+  const entered = Promise.withResolvers(), release = Promise.withResolvers(); let armed = false;
+  t.after(() => release.resolve());
+  const f = await groupHttpFixture(t, { async crashPoint(name) { if (armed && name === 'invite-roster') { armed = false; entered.resolve(); await release.promise; } } });
+  const owner = await f.login('721'), login = await f.login('722'), url = route({}, 'account');
+  const invitation = await f.send('/api/group-invites', owner.cookie, {});
+  const opened = await f.send(new URL(invitation.json().link).pathname, login.cookie); login.cookie = f.cookies(opened, login.cookie);
+  const deletion = await review(f, login.cookie, url);
+  const inviteReview = (await f.send('/auth/group-invite/review', login.cookie)).json(); armed = true;
+  const accepting = f.send('/auth/group-invite/accept', login.cookie, { confirmed: true, reviewToken: inviteReview.reviewToken });
+  await entered.promise;
+  const before = await f.document(), ledgerFile = path.join(f.multiPicker.tombstoneDir, 'ledger.json'), bytes = await readFile(ledgerFile);
+  const refused = await f.send(url, login.cookie, confirmation(deletion)); assert.equal(refused.status, 409, refused.text); assert.match(refused.text, /lifecycle change is pending/);
+  assert.deepEqual(await f.document(), before); assert.deepEqual(await readFile(ledgerFile), bytes);
+  release.resolve(); assert.equal((await accepting).status, 200);
+  await f.restart(); const menu = await f.send('/api/characters', login.cookie); assert.equal(menu.status, 200, menu.text); assert.equal(menu.json().characters.length, 2);
+});
+
 for (const reviewKind of ['progress', 'transfer']) test(`completed HTTP receipt retry preserves a surviving character ${reviewKind} review`, async t => {
   const dataset = { ...fixtureDataset, capabilities: { ...fixtureDataset.capabilities, features: { ...fixtureDataset.capabilities.features, runeMetrics: true, externalNames: true } } };
   const s = await setup(t, { dataset, progressSources: { webSource: 'official-api', officialApi: { async snapshot() {

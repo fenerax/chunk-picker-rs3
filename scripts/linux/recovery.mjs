@@ -13,17 +13,19 @@ import { inPhase } from './phases.mjs';
 import { checkSavedDatasetEvidence, retainReleaseDatasetEvidence } from './dataset-evidence.mjs';
 import { recoverySources, withRecoveryLeases, captureOwnedClosure, copyOwnedClosure, verifyOwnedClosure, installOwnedClosure } from './owned-recovery.mjs';
 
-export async function runProbe(release, dataDir, output) {
-  return runChildProbe(release, dataDir, output, 'portable');
+export async function runProbe(release, dataDir, output, { memberDepartures = [] } = {}) {
+  return runChildProbe(release, dataDir, output, 'portable', { memberDepartures });
 }
 export async function runCompatibilityProbe(release, dataDir, output) {
   return runChildProbe(release, dataDir, output, 'compatibility');
 }
-async function runChildProbe(release, dataDir, output, mode) {
+async function runChildProbe(release, dataDir, output, mode, input = {}) {
   // Pass only an explicit config file, never credentials in argv or diagnostics.
   await new Promise((resolve, reject) => {
     const child = spawn(process.execPath, ['--expose-gc', fileURLToPath(new URL('./probe.mjs', import.meta.url)), release.pointer.config.path, dataDir, output, mode],
-      { env: { ...process.env, NODE_OPTIONS: '', NODE_PATH: '' }, stdio: 'ignore', windowsHide: true });
+      { env: { ...process.env, NODE_OPTIONS: '', NODE_PATH: '' }, stdio: ['pipe', 'ignore', 'ignore'], windowsHide: true });
+    child.stdin.on('error', () => {}); // exit/refusal is reported by the child result
+    child.stdin.end(JSON.stringify(input));
     let timedOut = false;
     const timer = setTimeout(() => { timedOut = true; child.kill('SIGKILL'); }, 180000);
     child.once('error', () => { clearTimeout(timer); reject(new Error('Recovery probe could not start.')); });

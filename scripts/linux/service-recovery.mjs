@@ -96,11 +96,12 @@ export async function reconcileServiceRecoveryTombstones({ settings, checkpoint,
       const checkpoint = await registry.withRecoveryCheckpoint(value => value);
       // The registry interprets lifecycle versions. Transport retains the full
       // ledger and historical allowlist, but probes the current playable roster.
+      const memberDepartures = Object.fromEntries(checkpoint.pickers.map(p => [p.id, registry.recoveryMemberDepartures(p.id)]));
       const memberIds = Object.fromEntries(checkpoint.pickers.map(p => {
-        const retired = new Set(registry.retiredMemberIds(p.id));
+        const retired = new Set(memberDepartures[p.id].map(d => d.memberId));
         return [p.id, p.memberIds.filter(id => !retired.has(id))];
       }));
-      return { checkpoint, memberIds, excludedPickerIds: decisions.blockedPickerIds };
+      return { checkpoint, memberIds, memberDepartures, excludedPickerIds: decisions.blockedPickerIds };
     } finally {
       try {
         await invites?.close(); await accounts?.close();
@@ -398,6 +399,7 @@ export async function restoreServiceStopped({ settings, backup, release, assertS
   // MP5 planning call site: before even the legacy probe; no live store changes.
   const reconciled = await reconcileTombstones({ settings, backup, manifest, progress, checkpoint: structuredClone(document), step });
   let memberIds = reconciled?.memberIds;
+  let memberDepartures = reconciled?.memberDepartures;
   if (reconciled && [...absent].some(id => !reconciled.excludedPickerIds?.includes(id))) throw serviceLedgerError('Absent picker has no authoritative tombstone; retain the capture and recover its matching ledger.');
   const excludedPickerIds = new Set([...absent, ...(reconciled?.excludedPickerIds ?? [])]);
   if (reconciled?.checkpoint) {
@@ -417,7 +419,7 @@ export async function restoreServiceStopped({ settings, backup, release, assertS
     await mutate(step, 'restore.legacy-copy', () => copyFile(path.join(backup, 'pickers', legacy.id + '.dataset.json'), store + '.dataset.json', 1));
     try {
       const before = await probeInput(store);
-      const checked = await probe(release, store, path.join(stage, 'portable.json'));
+      const checked = await probe(release, store, path.join(stage, 'portable.json'), { memberDepartures: memberDepartures?.[legacy.id] ?? [] });
       legacyRow.probeChanged = await probeChanged(store, before);
       const expected = memberIds?.[legacy.id] ?? document.pickers.find(p => p.id === legacy.id)?.memberIds;
       if (!checked?.state?.members || encode(checked.state.members.map(m => m.id)) !== encode(expected)) throw legacyRefusal();
@@ -446,6 +448,7 @@ export async function restoreServiceStopped({ settings, backup, release, assertS
   if (applied) {
     document = registryRecoveryDocument(applied.checkpoint, undefined, { allowPendingDeletion: true });
     memberIds = applied.memberIds ?? memberIds;
+    memberDepartures = applied.memberDepartures ?? memberDepartures;
     for (const id of applied.excludedPickerIds) excludedPickerIds.add(id);
   }
   const save = async label => { await mutate(step, label, () => atomic(progressFile(settings), encode(progress))); await onProgress(structuredClone(progress)); };
@@ -495,7 +498,7 @@ export async function restoreServiceStopped({ settings, backup, release, assertS
       // Child exits before the next picker starts; no calculator heaps coexist.
       const before = await probeInput(stageStore);
       try {
-        const checked = await probe(release, stageStore, path.join(stage, 'portable.json'));
+        const checked = await probe(release, stageStore, path.join(stage, 'portable.json'), { memberDepartures: memberDepartures?.[picker.id] ?? [] });
         const expected = memberIds?.[picker.id] ?? document.pickers.find(p => p.id === picker.id).memberIds;
         if (!checked?.state?.members || encode(checked.state.members.map(m => m.id)) !== encode(expected)) throw new Error('Picker membership mismatch.');
       }
@@ -617,7 +620,7 @@ export async function releaseServiceQuarantine({ settings, id, release, assertSt
       await verifyOwnedClosure(stage, ['store']);
     }
     const before = await probeInput(path.join(stage, 'store'));
-    const checked = await probe(release, path.join(stage, 'store'), path.join(stage, 'portable.json'));
+    const checked = await probe(release, path.join(stage, 'store'), path.join(stage, 'portable.json'), { memberDepartures: reconciled?.memberDepartures?.[id] ?? [] });
     row.probeChanged = await probeChanged(path.join(stage, 'store'), before);
     if (encode(checked?.state?.members?.map(m => m.id)) !== encode(reconciled?.memberIds?.[id] ?? picker.memberIds)) throw new Error('Quarantine membership mismatch.');
     await assertStopped(); await assertSameRelease(release);

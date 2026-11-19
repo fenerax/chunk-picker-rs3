@@ -553,3 +553,38 @@ remains (`rss` reads Linux `/proc/<pid>/status`). Platform/private-harness skips
 remain visible. Validation used Node 24, one worker, BelowNormal priority and
 sequential shared-PC leases. This remains a local receipt with that explicit
 failure; full hosted CI and stability proof are required before landing.
+
+### Re-review: pending intents, retirement capacity and older backups
+
+Login deletion now checks the login's complete in-flight lifecycle, including
+accepted invitations whose new character has no placement yet, incoming/outgoing
+admissions, departures/removals, pending handovers and provisioning. The check
+runs again inside the registry queue, before publishing the deletion intent.
+Operator account/picker retirement and relink's source-account retirement also
+refuse overlapping lifecycle work; settled operator retirement retains its
+existing owned-group cascade.
+
+Pending departures and existing-character invitation moves reserve their source
+slots against the retired-slot ceiling. Every lifecycle registry/ledger writer
+counts the union of retired slots and pending source bindings. Finishing a move
+converts its reservation into the existing ledger record without consuming a
+second slot; cancellation releases the reservation. Operator retirement and
+relink preflight also reserve their eventual character/slot records before a
+tombstone or identity move can become durable. No new durable fields or versions
+are introduced.
+
+For service restore, the registry projects authoritative member removals from
+the live ledger into transient probe input. The captured runtime applies the
+existing departure History boundary to the disposable staged store before its
+portable export and roster comparison. Completed and unfinished deletions are
+handled, as are retired non-live bindings. The same path serves legacy preflight,
+ordinary picker restore and quarantine release; source backups and authoritative
+ledger bytes remain intact. Obsolete owner/move mappings still require recovery
+of the current registry rather than inventing succession.
+
+The re-review regressions cover stale login-deletion confirmation after pending
+new/existing-character invitation acceptance, pending handover/departure
+participation, cross-intent slot capacity held across restart, and unchanged
+registry/ledger/gameplay after capacity refusal. A real-runtime pre-deletion
+backup restores after completed or pending non-owner deletion and releases from
+quarantine, preserving the surviving owner's map and earlier History.

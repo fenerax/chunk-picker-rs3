@@ -9,8 +9,8 @@ import { CHARACTER_ID, newCharacterId, bindCharacter, validateCharacters, migrat
 import { createGroupInvites, validateGroupInvites } from './group-invites.mjs';
 import { createGroupHandovers, validateHandovers } from './group-handovers.mjs';
 import { createGroupDepartures, validateDepartures, departureSoloEligible } from './group-departures.mjs';
-import { validateRetirements, migrateRetirements, registryV5, slotKey } from './registry-retirements.mjs';
-import { deletionPlan } from './character-deletions.mjs';
+import { validateRetirements, migrateRetirements, registryV5, slotKey, reservedRetirementSlots, reservedRetiredCharacters } from './registry-retirements.mjs';
+import { deletionPlan, requireLoginDeletionReady } from './character-deletions.mjs';
 
 const PICKER = /^p_[0-9a-f]{32}$/;
 const HASH = /^[0-9a-f]{64}$/;
@@ -251,6 +251,7 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
   }
   async function save(next, changes = {}) {
     if (changes.characters) requireCharacterAllocations(next);
+    if (changes.characters || changes.relinkRetirements) checkRetirementCapacity(next, ledger);
     const accountRows = changes.accounts ?? [], pickerRows = changes.pickers ?? [];
     validate(next, { ...changes, accounts: accountRows, pickers: pickerRows, addedCapabilities: changes.addedCapabilities ?? [],
       account: id => accountIndex.get(id), picker: id => pickerIndex.get(id), identity: key => providerIndex.get(key) });
@@ -297,15 +298,19 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
   }
   async function saveLedger(next) {
     validateLedger(next); enforceCaps(current, next);
+    checkRetirementCapacity(current, next);
     // Pending login receipts reserve capacity without tombstoning the login
     // before its exact gameplay/credential cleanup has completed.
-    const accounts = new Set(next.accounts.map(a => a.accountId));
-    for (const d of next.deletions ?? []) if (d.kind === 'account' && !d.completedAt) accounts.add(d.accountId);
-    if (accounts.size > caps.retiredAccounts) throw characterError('The retired account record limit has been reached. Existing maps are unchanged. Ask the operator for help; existing records must be kept.');
     if ((next.issuedCharacterIds?.length ?? 0) > caps.issuedCharacterIds || (next.characters?.length ?? 0) > caps.retiredCharacters) throw characterError('The character ID history limit has been reached. Existing IDs cannot be reused.');
-    if ((next.slots?.length ?? 0) > caps.retiredSlots) throw characterError('The retired slot history limit has been reached. Historical bindings cannot be reused.');
     try { await writeRegistryJson(ledgerFile, next); ledger = next; rebuildLedgerIndexes(); }
     catch (failure) { failed = true; throw failure; }
+  }
+  function checkRetirementCapacity(doc, nextLedger) {
+    const accounts = new Set([...nextLedger.accounts.map(a => a.accountId), ...(doc.relinkRetirements ?? [])]);
+    for (const d of nextLedger.deletions ?? []) if (d.kind === 'account' && !d.completedAt) accounts.add(d.accountId);
+    if (accounts.size > caps.retiredAccounts) throw characterError('The retired account record limit has been reached. Existing maps are unchanged. Ask the operator for help; existing records must be kept.');
+    if (reservedRetirementSlots(doc, nextLedger) > caps.retiredSlots) throw characterError('The retired slot history limit has been reached. Existing maps are unchanged. Historical bindings cannot be reused.');
+    if (reservedRetiredCharacters(doc, nextLedger) > caps.retiredCharacters) throw characterError('The retired character history limit has been reached. Existing maps are unchanged.');
   }
   async function saveCharacterBindings(next, changes) {
     requireCharacterAllocations(next);
@@ -568,6 +573,7 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
     const target = relinkTarget(entry.accountId), source = accountForIdentity(current, provider, subject);
     if (!target) refuse();
     if (source) {
+      requireLoginDeletionReady(current, source.id);
       const picker = current.pickers.find(p => p.id === source.defaultPickerId);
       if (source.id === target.id || retiredAccounts.has(source.id) || source.identities.length !== 1 || source.memberships.length !== 1
         || source.memberships[0].pickerId !== picker?.id || source.memberships[0].role !== 'owner'
@@ -703,6 +709,19 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
       && !(current.departures ?? []).some(d => !d.completedAt && slotKey(d.source) === slotKey(s))
       && !(current.groupInvites ?? []).some(i => i.transaction?.source && slotKey(i.transaction.source) === slotKey(s))).map(s => s.memberId)])]; },
     capturePastMap(meta, document) { return enqueue(() => departures.capture(meta, document)); },
+    recoveryMemberDepartures(pickerId) {
+      usable();
+      const rows = new Map();
+      for (const d of ledger.deletions ?? []) for (const t of d.targets) if (t.pickerId === pickerId && !d.groups.includes(pickerId)) {
+        rows.set(t.memberId, { memberId: t.memberId, id: d.id + '-' + t.characterId, createdAt: d.createdAt });
+      }
+      const retired = new Set(api.retiredMemberIds(pickerId));
+      for (const s of ledger.slots ?? []) if (s.pickerId === pickerId && retired.has(s.memberId) && !rows.has(s.memberId)) {
+        const d = current.departures?.find(d => d.completedAt && slotKey(d.source) === slotKey(s));
+        rows.set(s.memberId, { memberId: s.memberId, id: d?.id ?? `retired-${pickerId}-${s.memberId}`, createdAt: d?.createdAt ?? s.retiredAt });
+      }
+      return [...rows.values()];
+    },
     listPastMaps(accountId) { usable(); return departures.list(accountId); },
     readPastMap(accountId, id) { usable(); return departures.readMap(accountId, id); },
     rejoinEligible(accountId, characterId) { usable(); return departureSoloEligible(current, accountId, characterId); },
@@ -817,7 +836,7 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
       if ((source?.id ?? null) !== emptyAccountId) throw error(409, 'This account claim is unavailable. Ask the operator for a new link.');
       const next = copy(current);
       if (source) {
-        const nextLedger = copy(ledger); retireAccount(nextLedger, source.id, true); enforceCaps(next, nextLedger);
+        const nextLedger = copy(ledger); retireAccount(nextLedger, source.id, true); enforceCaps(next, nextLedger); checkRetirementCapacity(next, nextLedger);
         requireAccount(next, source.id).identities = requireAccount(next, source.id).identities.filter(i => i.provider !== provider || i.subject !== subject);
         next.relinkRetirements = [source.id];
       }
@@ -962,6 +981,10 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
     }); },
     beginPickerDeletion(id, { onTombstone } = {}) { return enqueue(async () => {
       if (requirePicker(current, id).kind === 'legacy-shared') throw error(409, 'The shared picker cannot be deleted.');
+      if ((current.groupInvites ?? []).some(i => i.transaction && [i.pickerId, i.transaction.source?.pickerId].includes(id))
+        || (current.departures ?? []).some(d => !d.completedAt && [d.source.pickerId, d.destination.pickerId].includes(id))
+        || (current.handovers ?? []).some(h => h.status === 'pending' && h.pickerId === id)
+        || (current.deletions ?? []).some(d => !d.completedAt && d.targets.some(t => t.pickerId === id))) throw error(409, 'A group lifecycle change is pending. Finish or cancel it before deleting this group.');
       const next = copy(ledger); deletion(next, id); await saveLedger(next); onTombstone?.(); await point('picker-tombstoned', id);
       await applyTombstones(); return requirePicker(current, id);
     }); },
@@ -979,6 +1002,7 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
       await applyTombstones(); return { pickerId: id, lifecycle: 'deleted' };
     }); },
     deleteAccount(accountId, { runtimePurge = false, onTombstone } = {}) { return enqueue(async () => {
+      requireLoginDeletionReady(current, accountId);
       const account = current.accounts.find(a => a.id === accountId);
       if (!account && !ledger.accounts.some(t => t.accountId === accountId)) throw error(404, 'Account not found.');
       const next = copy(ledger);
@@ -1008,7 +1032,7 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
   };
   // A schema-1 checkpoint can only reconcile existing deletion decisions. It
   // must not expose login, character, identity or provisioning operations.
-  return recoveryOnly ? Object.fromEntries(['withRecoveryCheckpoint', 'reconcileTombstones', 'retiredMemberIds', 'isAccountDeleted',
+  return recoveryOnly ? Object.fromEntries(['withRecoveryCheckpoint', 'reconcileTombstones', 'retiredMemberIds', 'recoveryMemberDepartures', 'isAccountDeleted',
     'deletionRecords', 'deletionDirectory', 'advanceDeletion', 'completePickerDeletion', 'close'].map(name => [name, api[name]])) : api;
 }
 

@@ -9,6 +9,23 @@ const pid = v => typeof v === 'string' && /^p_[0-9a-f]{32}$/.test(v);
 const date = v => typeof v === 'string' && Number.isFinite(Date.parse(v));
 const bad = () => { throw new TypeError('Invalid retirement ledger.'); };
 export const slotKey = s => JSON.stringify([s.pickerId, s.memberId]);
+// Existing durable intents reserve history space without retiring their live
+// source binding early. Every registry and ledger writer honors the same union.
+export function reservedRetirementSlots(doc, ledger) {
+  return new Set([...(ledger.slots ?? []),
+    ...(doc.departures ?? []).filter(d => !d.completedAt).map(d => d.source),
+    ...(doc.groupInvites ?? []).flatMap(i => i.transaction?.source ? [i.transaction.source] : []),
+    ...accountRetirementTargets(doc, ledger).map(c => c.placement),
+  ].map(slotKey)).size;
+}
+function accountRetirementTargets(doc, ledger) {
+  const accounts = new Set([...ledger.accounts.map(a => a.accountId), ...(doc.relinkRetirements ?? [])]);
+  const pickers = new Set([...ledger.pickers.map(p => p.pickerId), ...doc.pickers.filter(p => p.kind === 'default' && p.lifecycle === 'active' && accounts.has(p.ownerAccountId)).map(p => p.id)]);
+  return (doc.characters ?? []).filter(c => c.lifecycle === 'active' && (accounts.has(c.accountId) || pickers.has(c.placement.pickerId)));
+}
+export function reservedRetiredCharacters(doc, ledger) {
+  return new Set([...(ledger.characters ?? []).map(c => c.characterId), ...accountRetirementTargets(doc, ledger).map(c => c.id)]).size;
+}
 export const DELETION_POINTS = ['deletion-intent', 'deletion-registry-intent', 'deletion-roster', 'deletion-credentials', 'deletion-retired', 'deletion-complete'];
 export const RETIREMENT_MIGRATION_POINTS = ['retirement-registry-preimage', 'retirement-ledger-preimage', 'retirement-backed-up', 'retirement-intent', 'retirement-ledger', 'retirement-registry', 'retirement-versioned'];
 export function validateRetirements(ledger) {

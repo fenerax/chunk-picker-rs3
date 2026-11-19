@@ -2,12 +2,23 @@ import { createHash } from 'node:crypto';
 
 const fail = (message, status = 409) => { throw Object.assign(new Error(message), { status }); };
 export const deletionRevision = value => createHash('sha256').update(JSON.stringify(value)).digest('hex');
+export function requireLoginDeletionReady(doc, accountId) {
+  if (doc.accounts.find(a => a.id === accountId)?.pendingCreation) fail('Finish character creation before deleting.');
+  if (doc.pickers.some(p => p.ownerAccountId === accountId && p.lifecycle === 'active' && p.provisioning !== 'ready')
+    || (doc.groupInvites ?? []).some(i => i.transaction && [i.acceptingAccountId, i.issuerAccountId].includes(accountId))
+    || (doc.departures ?? []).some(d => !d.completedAt && [d.accountId, d.actorAccountId].includes(accountId))
+    || (doc.handovers ?? []).some(h => h.status === 'pending' && [h.fromAccountId, h.toAccountId].includes(accountId))
+    || (doc.deletions ?? []).some(d => !d.completedAt && d.accountId === accountId)
+    || doc.relinkRetirements?.includes(accountId)
+  ) fail('A login lifecycle change is pending. Finish or cancel it before deleting this login.');
+}
 /** Full account/roster projection, recomputed inside the registry queue. */
 export function deletionPlan(doc, accountId, { kind, characterId = null, pickerId = null, deleteGroup = false } = {}) {
   if (!['character', 'picker', 'account'].includes(kind) || typeof deleteGroup !== 'boolean') fail('Choose a deletion action.', 400);
   const account = doc.accounts.find(a => a.id === accountId);
   if (!account) fail('Sign in again before deleting.', 401);
   if (account.pendingCreation) fail('Finish character creation before deleting.');
+  if (kind === 'account') requireLoginDeletionReady(doc, accountId);
   const own = doc.characters.filter(c => c.accountId === accountId && c.lifecycle === 'active');
   const c = own.find(c => c.id === characterId);
   if (kind !== 'account' && (!c || c.placement.pickerId !== pickerId)) fail('Select your own current character and group.', 403);

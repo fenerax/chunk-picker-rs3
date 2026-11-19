@@ -402,6 +402,11 @@ Current character-lifecycle defaults are recorded in
 ledger 3 add separate 1,000,000-record ceilings for issued character IDs,
 retired character IDs and retired slot bindings (`retiredSlots`). Pending login
 deletions reserve retired-account capacity using their existing receipt records.
+Pending departures and existing-character invitation moves reserve retired-slot
+capacity using their source bindings. Registry and ledger writers count that
+union before publishing an intent; completion converts the reservation to its
+retirement record. Operator/relink retirement preflight also includes its
+eventual character and slot records. Exhaustion refuses before map changes.
 
 ### MP1 validation and measurements
 
