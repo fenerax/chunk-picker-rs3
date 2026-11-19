@@ -94,6 +94,8 @@ test('character menu disambiguates, marks current and unavailable characters, an
   assert.equal(buttons.find(n => n.textContent.includes('Character 3')).disabled, true);
   await buttons.find(n => n.textContent.includes('Character 2')).listeners.click();
   assert.deepEqual(scopes, ['drained']); assert.deepEqual(moves, ['/characters/two']);
+  await buttons.find(n => n.textContent === 'Characters and groups').listeners.click();
+  assert.deepEqual(scopes, ['drained', 'drained']); assert.deepEqual(moves, ['/characters/two', '/characters']);
   assert.ok(buttons.filter(n => n.textContent.startsWith('Delete ')).every(n => n.disabled));
   assert.match(text(rows), /5 players/); assert.match(text(rows), /unavailable until character deletion/);
 });

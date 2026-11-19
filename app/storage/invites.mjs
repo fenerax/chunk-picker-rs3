@@ -110,6 +110,7 @@ export async function openInviteStore({ dataDir, masterToken, masterLabel, now =
       if (values.some(id => typeof id !== 'string' || !/^c_[0-9a-f]{32}$/.test(id)) || new Set(values).size > 1) throw error(403, 'Conflicting character selections. Open your character menu.');
       const group = /^(?:\/api)?\/pickers\/(p_[0-9a-f]{32})(?:\/|$)/.exec(url.pathname)?.[1];
       const pickerValues = [...url.searchParams.getAll('picker'), ...url.searchParams.getAll('pickerId'), ...(group ? [group] : [])];
+      if (request?.registryPickerId) pickerValues.push(request.registryPickerId);
       for (const name of ['x-picker-id', 'x-picker']) if (request?.headers[name] !== undefined) pickerValues.push(request.headers[name]);
       const legacyId = pickerValues.includes('legacy') ? pickerRegistry.listPickers().find(p => p.kind === 'legacy-shared')?.id : null;
       const pickerSelections = pickerValues.map(id => id === 'legacy' ? legacyId : id);
