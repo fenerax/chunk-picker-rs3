@@ -50,6 +50,15 @@ if (globalThis.document?.getElementById('characters')) {
         const link = el(character.available ? 'a' : 'p', `${characterLabel(character, index)} — ${characterDetails(character)}${character.available ? '' : ' · unavailable'}`, 'signin-provider');
         if (character.available) link.href = character.href; rows.append(link);
       });
+      const viewerGroups = value.viewerMemberships ?? [];
+      if (viewerGroups.length) {
+        rows.append(el('h2', 'View-only groups'));
+        viewerGroups.forEach((group, index) => {
+          const link = el(group.available ? 'a' : 'p', `${group.groupLabel} ${index + 1} · ${group.playerCount} ${group.playerCount === 1 ? 'player' : 'players'} · View only${group.available ? '' : ' · unavailable'}`, 'signin-provider');
+          if (group.available) link.href = group.href;
+          rows.append(link);
+        });
+      }
       document.getElementById('add-character').append(createCharacterForm({ el, accountId: value.accountId, onCreated: character => location.assign(character.href) }));
     } catch (failure) { rows.textContent = ''; document.getElementById('character-error').textContent = failure.message; }
   })();

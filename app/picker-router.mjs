@@ -194,7 +194,7 @@ export function createPickerRouter({ registry, legacy, openContext, publicOrigin
       if (selectors.some(value => typeof value !== 'string' || value !== pickerId && !(pickerId === 'legacy' && value === identity?.pickerId))) throw httpError(403, 'Picker access denied.');
     };
     checkSelectors();
-    if (identity?.accountScope && request.method === 'GET' && (pathname === '/' || pathScope && (!pathScope[2] || pathScope[2] === '/')) && !url.searchParams.has('character')) {
+    if (identity?.accountScope && identity.role !== 'viewer' && request.method === 'GET' && (pathname === '/' || pathScope && (!pathScope[2] || pathScope[2] === '/')) && !url.searchParams.has('character')) {
       if (!identity.characterId) return { redirect: '/characters' };
       for (const name of selectorKeys) url.searchParams.delete(name);
       url.searchParams.set('character', identity.characterId);
@@ -242,6 +242,9 @@ export function createPickerRouter({ registry, legacy, openContext, publicOrigin
     if (pathScope) url.pathname = (pathname.startsWith('/api/') ? '/api' : '') + (pathScope[2] || '/');
     for (const name of selectorKeys) url.searchParams.delete(name);
     url.searchParams.delete('character');
+    // Keep the authorized group when context authentication runs again after
+    // stripping URL selectors, including viewers without an acting character.
+    if (identity?.pickerId) request.registryPickerId = identity.pickerId;
     request.url = url.pathname + url.search;
     // Pending OAuth callbacks and sign-out always use the one session issuer.
     bindBody?.(legacyCredential ? pickerLimits.pluginScope(request, pickerId, legacyCredential.player) : pickerLimits.scope(capability ?? identity, pickerId));
@@ -341,7 +344,14 @@ export function createPickerRouter({ registry, legacy, openContext, publicOrigin
           }
           bindBody?.({ accountId: identity.accountId, pickerId: identity.pickerId ?? 'legacy' });
           if (target.pathname === '/api/characters') {
-            if (request.method === 'GET') { await json(request, response, 200, { accountId: identity.accountId, characters: registry.listCharacters(identity.accountId) }); return; }
+            if (request.method === 'GET') {
+              const viewerMemberships = registry.getAccount(identity.accountId).memberships.filter(m => m.role === 'viewer').map(m => {
+                const picker = registry.getPicker(m.pickerId);
+                return { pickerId: m.pickerId, groupLabel: picker?.kind === 'legacy-shared' ? 'Shared game' : 'Group game',
+                  playerCount: picker?.seats.length ?? 0, available: picker?.lifecycle === 'active' && picker.provisioning === 'ready', href: `/pickers/${m.pickerId}/` };
+              });
+              await json(request, response, 200, { accountId: identity.accountId, characters: registry.listCharacters(identity.accountId), viewerMemberships }); return;
+            }
             if (request.method !== 'POST') throw httpError(405, 'Use GET or POST.');
             checkRequestOrigin(request, security);
             const body = await bodyJSON(request, 4096);
