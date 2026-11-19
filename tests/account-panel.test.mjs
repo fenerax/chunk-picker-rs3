@@ -29,8 +29,8 @@ test('departure review never allocates for a solo and clearly offers Join anothe
 });
 
 test('departure confirmation scopes the chosen member and preserves its request after an uncertain response', async () => {
-  const sent = [], moves = []; let offline = true;
-  const root = departureControls({ el, characterId: 'member', randomId: () => 'same-request', beforeSwitch: async () => {}, scopeHeaders: { 'X-Character-Id': 'member', 'X-Picker-Id': 'source' }, location: { assign: url => moves.push(url) },
+  const sent = [], moves = []; let offline = true, drained = 0, released = 0, stopped = 0;
+  const root = departureControls({ el, characterId: 'member', randomId: () => 'same-request', beforeDeparture: async () => { drained++; return () => { released++; }; }, beforeSwitch: async () => { stopped++; }, scopeHeaders: { 'X-Character-Id': 'member', 'X-Picker-Id': 'source' }, location: { assign: url => moves.push(url) },
     fetch: async (url, options) => {
       sent.push(options); if (options.body) { if (offline) { offline = false; throw new Error('Offline'); } return { ok: true, json: async () => ({ character: { href: '/characters/member' } }) }; }
       return { ok: true, json: async () => ({ ownerCharacterId: 'owner', revision: 7, roster: [{ id: 'owner', owner: true }, { id: 'member', owner: false }], backups: { message: 'Configured retention disclosure' } }) };
@@ -40,7 +40,10 @@ test('departure confirmation scopes the chosen member and preserves its request 
   const select = walk(root).find(n => n.tag === 'select'); select.value = 'member';
   const confirm = walk(root).find(n => n.textContent === 'Confirm leave'); await confirm.listeners.click(); assert.equal(sent.some(o => o.body), false);
   walk(root).find(n => n.type === 'checkbox').checked = true;
-  await confirm.listeners.click(); await confirm.listeners.click();
+  await confirm.listeners.click();
+  assert.equal(drained, 1); assert.equal(released, 0); assert.equal(stopped, 0);
+  await confirm.listeners.click();
+  assert.equal(drained, 1); assert.equal(released, 1); assert.equal(stopped, 1);
   const posted = sent.filter(o => o.body); assert.equal(posted.length, 2); assert.equal(posted[0].body, posted[1].body);
   assert.equal(posted[0].headers['X-Picker-Id'], 'source'); assert.deepEqual(moves, ['/characters/member']);
 });

@@ -18,6 +18,28 @@ async function fixture(t, options) {
   return { root, get f() { return f; }, async restart(options) { await f.close(); f = await inviteFixture(root, options); return f; } };
 }
 const doc = f => readFile(path.join(f.options.registryDir, 'registry.json'), 'utf8').then(JSON.parse);
+test('recovery completes an older pending departure with an imported invalid actor label', async t => {
+  const validation = { prepareState: state => validateState(state) };
+  const h = await fixture(t, validation), { owner, players: [player] } = await roster(h.f, 2), pickerId = owner.picker.id;
+  const context = await h.f.open(pickerId), backup = await context.store.backup(), name = '  ' + 'Imported display name '.repeat(7) + '  ';
+  backup.state.members.find(m => m.id === player.character.placement.memberId).name = name;
+  await context.store.replace(backup.state, context.store.getInfo().revision);
+  const input = { requestId: randomUUID(), characterId: player.character.id, revision: context.store.getInfo().revision };
+  // Persist the same intent an older release leaves behind before attempting
+  // to build its invalid actor. No new transaction fields or migration needed.
+  const intent = await h.f.registry.beginDeparture(player.account.id, player.character.id, pickerId, input);
+  await h.f.registry.prepareDeparture(intent.id); await h.f.open(intent.destination.pickerId);
+  await h.f.registry.capturePastMap({ id: intent.id, accountId: intent.accountId, characterId: intent.characterId, pickerId, memberId: intent.source.memberId, reason: intent.reason, createdAt: intent.createdAt }, await context.store.backup());
+  await h.restart(validation); await h.f.departures.recover();
+  assert.ok(h.f.registry.getDeparture(input.requestId).completedAt);
+  assert.equal(h.f.registry.getCharacter(player.character.id).placement.pickerId, intent.destination.pickerId);
+  assert.equal((await h.f.registry.readPastMap(player.account.id, input.requestId)).document.state.members.find(m => m.id === intent.source.memberId).name, name);
+  assert.match((await h.f.departures.depart(player.account.id, player.character.id, pickerId, input)).message, /Left/);
+  await h.restart(validation);
+  const recovered = (await h.f.open(pickerId)).store.getReadState();
+  assert.doesNotThrow(() => validateState(recovered));
+  assert.ok(recovered.history.find(e => e.type === 'member-departed').actor.label.length <= 80);
+});
 async function roster(f, size) {
   const owner = await f.registry.firstLogin('google', 'owner'), players = [];
   for (let n = 1; n < size; n++) {
@@ -30,6 +52,26 @@ async function leave(f, actor, target, pickerId, requestId = randomUUID()) {
   const review = await f.departures.review(actor.account.id, actor.character.id, pickerId);
   return f.departures.depart(actor.account.id, actor.character.id, pickerId, { requestId, characterId: target.character.id, revision: review.revision });
 }
+
+test('handover and rejoin use canonical registry names while preserving imported display names', async t => {
+  const { f } = await fixture(t, { prepareState: state => validateState(state) }), { owner, players: [player] } = await roster(f, 2), pickerId = owner.picker.id;
+  const source = (await f.open(pickerId)).store, saved = await source.backup();
+  saved.state.members.find(m => m.id === 'owner').name = '\u0000';
+  const long = '  ' + 'Restored successor '.repeat(8) + '  ';
+  saved.state.members.find(m => m.id === player.character.placement.memberId).name = long;
+  await source.replace(saved.state, source.getInfo().revision);
+  const offer = await f.registry.proposeGroupHandover(owner.account.id, owner.character.id, pickerId, { requestId: randomUUID(), targetCharacterId: player.character.id });
+  await f.registry.resolveGroupHandover(player.account.id, player.character.id, pickerId, offer.id, 'accept');
+  await leave(f, owner, owner, pickerId);
+  assert.equal(source.getReadState().history.at(-1).actor.label, 'Departed character');
+  const invite = await f.registry.createGroupInvite(player.account.id, pickerId);
+  await f.join(invite, owner.account, { characterId: owner.character.id });
+  const current = source.getReadState(); assert.doesNotThrow(() => validateState(current));
+  assert.equal(current.members.find(m => m.id === player.character.placement.memberId).name, long);
+  assert.equal(f.registry.getCharacter(owner.character.id).runescapeName, null);
+  const retained = f.registry.listPastMaps(owner.account.id).find(m => m.reason === 'left');
+  assert.equal((await f.registry.readPastMap(owner.account.id, retained.id)).document.state.members.find(m => m.id === 'owner').name, '\u0000');
+});
 
 test('solo and legacy departure refuse without allocating groups, fencing data or creating Past maps', async t => {
   const { f } = await fixture(t), { owner } = await roster(f, 1), before = await doc(f);
@@ -73,8 +115,11 @@ test('concurrent fresh invitations compete for one returned solo placement', asy
 test('compacted History retains departed attribution through restart, export and further Undo', async t => {
   const h = await fixture(t, { retention: { historyEntries: 2 } }), { owner, players: [player] } = await roster(h.f, 2), p = owner.picker.id;
   const store = (await h.f.open(p)).store;
+  await store.command({ type: 'add-group-goal', goalId: 'group-goal:epoch', text: 'Every current player', completion: 'players' }, store.getInfo().revision);
+  await store.command({ type: 'set-group-goal-done', goalId: 'group-goal:epoch', done: true }, store.getInfo().revision);
   await store.command({ type: 'set-journal', memberId: player.character.placement.memberId, note: 'Historical player' }, store.getInfo().revision);
   await leave(h.f, player, player, p);
+  for (const done of [false, true]) await store.command({ type: 'set-group-goal-done', goalId: 'group-goal:epoch', memberId: 'owner', done }, store.getInfo().revision);
   for (let n = 0; n < 8; n++) await store.command({ type: 'set-journal', memberId: 'owner', note: String(n) }, store.getInfo().revision);
   assert.ok(store.getReadState().history.some(e => e.type === 'member-departed'));
   assert.ok(store.getReadState().provenance.historyArchive.length);

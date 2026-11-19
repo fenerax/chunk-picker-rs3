@@ -7,7 +7,7 @@ import { createRuleRegistry } from '../../app/core/rules.mjs';
 import { createGroupInviteService } from '../../app/group-invite-service.mjs';
 import { createGroupDepartureService } from '../../app/group-departure-service.mjs';
 
-export async function inviteFixture(root, { crashPoint, now = () => Date.parse('2026-01-01T00:00:00Z'), caps, retention } = {}) {
+export async function inviteFixture(root, { crashPoint, now = () => Date.parse('2026-01-01T00:00:00Z'), caps, retention, prepareState } = {}) {
   const options = { registryDir: path.join(root, 'registry'), pickerRoot: path.join(root, 'pickers'), tombstoneDir: path.join(root, 'ledger'), legacyDir: path.join(root, 'legacy') };
   await mkdir(options.legacyDir, { recursive: true });
   const registry = await openRegistry({ ...options, crashPoint, now, caps });
@@ -19,7 +19,7 @@ export async function inviteFixture(root, { crashPoint, now = () => Date.parse('
     if (!contexts.has(id)) {
       const p = registry.getPicker(id);
       const initialState = createGroupState(p.memberIds.map(id => ({ id, name: 'Unnamed character' })), gameplayRules);
-      const store = await openStore({ dataDir: registry.pickerDirectory(id), initialState, registry: gameplayRules, now, retention,
+      const store = await openStore({ dataDir: registry.pickerDirectory(id), initialState, registry: gameplayRules, now, retention, prepareState,
         beforeCommit: change => ['roster', 'departure'].includes(change.operation) ? crashPoint?.(change.operation === 'departure' ? 'departure-roster-prepared' : 'invite-roster-prepared', { pickerId: id }) : undefined });
       let queue = Promise.resolve();
       contexts.set(id, { store, groupRuleDefinitions: () => gameplayRules.definitions, withGroupAdmission(work) { const result = queue.then(() => work(store)); queue = result.catch(() => {}); return result; },

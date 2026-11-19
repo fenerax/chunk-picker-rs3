@@ -46,6 +46,22 @@ test('voluntary switching waits for accepted commands and refuses unresolved rec
   assert.equal(f.c.panelContext.pickerSession.stopped, false); assert.ok(f.c.state);
   pending = false; await f.c.panelContext.pickerSession.beforeSwitch(); assert.equal(f.c.panelContext.pickerSession.stopped, true);
 });
+
+test('departure drains saves with reversible admission and polling gates, without clearing the document', async () => {
+  const f = fixture(), held = deferred(); f.c.queue = held.promise;
+  const preparing = f.c.panelContext.pickerSession.beforeDeparture();
+  assert.throws(() => f.c.panelContext.pickerSession.queueCommand(), /switch is in progress/);
+  assert.equal(f.c.panelContext.pickerSession.stopped, false); assert.ok(f.c.state);
+  held.resolve(); const release = await preparing;
+  await assert.rejects(f.c.panelContext.pickerSession.check(), /account change is in progress/);
+  await assert.rejects(f.c.panelContext.pickerSession.beforeSwitch(), /account change is in progress/);
+  release(); await f.c.panelContext.pickerSession.check();
+  const finish = f.c.panelContext.pickerSession.queueCommand(); finish();
+  assert.equal(f.c.panelContext.pickerSession.stopped, false); assert.ok(f.c.state);
+  f.c.panelContext.pickerSession.registerCommands({ pending: () => true });
+  await assert.rejects(f.c.panelContext.pickerSession.beforeDeparture(), /save is not confirmed/);
+  await f.c.panelContext.pickerSession.check(); assert.ok(f.c.state);
+});
 function fixture({ local = storage(), tab = storage(), initial = session(), transport, sessionTransport } = {}) {
   const notices = [], calls = [], listeners = {}, timers = [], disposed = [], rendered = { text: 'old view', replaceChildren() { this.text = ''; } };
   let current = initial, status = 200, reloads = 0, offline = false;

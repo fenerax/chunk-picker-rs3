@@ -225,8 +225,22 @@ export function createScreenPickerSession(c, { fetch = (...args) => globalThis.f
   };
   c.panelContext ??= {};
   c.panelContext.pickerSession = { initialize, check, fetch: scopedFetch, stop, beforeSignOut,
+    async beforeDeparture() {
+      if (checking) await checking;
+      active();
+      if (accountAction || switching) throw new Error('An account change is already in progress.');
+      accountAction = true; switching = true;
+      const release = () => { accountAction = false; switching = false; };
+      try {
+        await c.queue;
+        if (queued || commands?.pending() || storedPending(scope())) throw new Error('A save is not confirmed. Use Retry save and check History before leaving.');
+        return release;
+      } catch (error) { release(); throw error; }
+    },
     async beforeSwitch() {
-      active(); switching = true;
+      active();
+      if (accountAction) throw new Error('An account change is in progress. Recover its result before switching characters.');
+      switching = true;
       try {
         await c.queue;
         if (queued || commands?.pending() || storedPending(scope())) throw new Error('A save is not confirmed. Use Retry save and check History before switching characters.');

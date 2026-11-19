@@ -202,8 +202,9 @@ unimplemented. The automated and browser evidence below uses synthetic data.
 
 Local focused checks use Node 24.20.0, each entry's complete `testRunPolicy`
 environment, one worker, BelowNormal priority and shared-PC leases under ten
-minutes. The second part's new files cover 55 storage cases, 11 HTTP cases,
-four gameplay cases and one capture/restore case. Storage process exits cover
+minutes. After review fixes, the second part's new files cover 57 storage cases,
+11 HTTP cases, 13 gameplay cases, three browser cases and one capture/restore
+case. Storage process exits cover
 all thirteen leave/removal publication seams and ten rejoin seams. HTTP
 interruption/restart cases verify actual key/overlay/invite-session files,
 and a gated upstream fetch verifies late preview refusal. Capture/restore
@@ -215,7 +216,8 @@ The native chown-to-another-UID case in `linux-service-crash.test.mjs` is skippe
 on this platform; the other service recovery sweeps pass. Full hosted CI and
 50-first-attempt stability receipts are still required before landing.
 
-Latest focused receipts across 29 affected entry files: **486 passed, zero
+The original implementation receipt at `d195228` across 29 affected entry files
+was **486 passed, zero
 failed, one platform skip**, with no cancellations or todos. Earlier development
 failures were corrected before these receipts; this is not the hosted stability
 proof and does not erase the original parent routing failure below.
@@ -242,3 +244,37 @@ specific ineligible character when a login also has an eligible returning solo.
 The server, shared-PC lease and browser tab were closed. No live save or
 personal account was used. Parent #330 separately exercised cross-login
 offer/acceptance, cancellation, same-login designation and stale-owner refusal.
+
+## Review follow-up
+
+The three P2 findings on #331 have regressions that fail on the corresponding
+original code. Per-player goal inverses now validate against each departure
+epoch's roster; the historical identity union remains available for old task
+references. Tests cover rosters 2–5, repeated departures, checks, Undo, portable
+round-trips and compacted History across restart.
+
+Departure first drains pending saves under a reversible admission/polling gate.
+A definite refusal releases that gate and keeps the document and confirmation.
+A lost response keeps saves, polling and character switches paused until the
+same request resolves. The cached dialog retains its selected target,
+confirmation and request ID when closed/reopened. Only known success triggers
+destructive teardown and navigation. Real-browser tests cover stale-review
+refusal, failure before the request reaches the server, and loss of a success
+response after the server commits. The latter two retry the same request and
+verify one departure/Past map, including on phone-sized viewports.
+
+The departure actor label replaces control characters, trims and bounds to 80
+characters, then uses a safe fallback if empty. Original display names remain
+unchanged in Past maps. The lifecycle audit found no other raw display-name
+to History/registry-label conversion: invitation/rejoin use the validated,
+trimmed 1–12-character canonical RuneScape name; handover records IDs and uses
+those canonical names only for presentation. A combined restored-name handover,
+departure and rejoin test verifies that boundary.
+
+Recovery also completes an already-persisted older departure with its empty
+destination and frozen Past map published, where the old build would fail while
+preparing the invalid actor. It retains the same receipt/destination, preserves
+the full saved name, and remains readable after another restart. These fixes
+add no durable fields or migration and leave registry 4, ledger 2 and gameplay
+schema 1 unchanged. Post-review focused checks cover 14 files: **307 passed,
+zero failures, no skips**. Hosted CI and fresh stability proof remain required.

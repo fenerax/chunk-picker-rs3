@@ -6,6 +6,10 @@ export function memberDeparture(state, memberId, departureId, at) {
   if (!state.members.some(m => m.id === memberId) || state.members.length <= 1) throw new Error('Departure needs an existing non-final member.');
   const next = isResidentState(state) ? cloneResidentState(state) : structuredClone(state); next.revision++;
   const old = next.members.find(m => m.id === memberId);
+  // Imported display names have a wider contract than History actor labels.
+  // Keep the full original in the frozen map; derive bounded attribution even
+  // when recovering an intent written before this normalization existed.
+  const label = old.name.replace(/[\u0000-\u001f\u007f-\u009f]/g, ' ').trim().slice(0, 80).trim() || 'Departed character';
   next.members = next.members.filter(m => m.id !== memberId);
   // Definition rows stay saved with their original assignments; a departed ID
   // has no live member and therefore supplies no current tasks or completion.
@@ -16,6 +20,6 @@ export function memberDeparture(state, memberId, departureId, at) {
   }
   delete next.progressSnapshots; // the original daily series remains in Past maps
   next.history.push({ id: `revision-${next.revision}`, revision: next.revision, type: 'member-departed', at,
-    actor: { kind: 'invite', inviteId: departureId, memberId, label: old.name }, command: { type: 'member-departed', memberId, departureId } });
+    actor: { kind: 'invite', inviteId: departureId, memberId, label }, command: { type: 'member-departed', memberId, departureId } });
   return next;
 }

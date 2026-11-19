@@ -895,7 +895,11 @@ function validateStateCopy(copy, registry, cache) {
       return side.exists ? side.value : historicalTasks.get(id);
     },
   });
+  // Historical task assignments can mention any declared past member, while
+  // per-player goal snapshots must use the roster at their own revision.
+  const goalRosterAtEvent = new Set(memberIds);
   for (const event of copy.history) {
+    if (event.type === 'member-departed') goalRosterAtEvent.delete(event.command.memberId);
     if (event.undo !== undefined) {
       record(event.undo, 'history undo'); knownKeys(event.undo, new Set(['members', 'rules', 'tasks', 'memberChanges', 'taskChanges', 'taskClaimChanges', 'finishLineChange', 'groupGoalChanges', 'ruleReviewChange']), 'history undo');
       if (!Object.keys(event.undo).length) fail('History undo needs a snapshot');
@@ -913,7 +917,7 @@ function validateStateCopy(copy, registry, cache) {
       }
       if (event.undo.taskClaimChanges !== undefined) validateTaskClaimChanges(event.undo.taskClaimChanges, historicalTasks, memberIds);
       if (event.undo.finishLineChange !== undefined) validateFinishLineChange(event.undo.finishLineChange, memberIds);
-      if (event.undo.groupGoalChanges !== undefined) validateGroupGoalChanges(event.undo.groupGoalChanges, memberIds);
+      if (event.undo.groupGoalChanges !== undefined) validateGroupGoalChanges(event.undo.groupGoalChanges, goalRosterAtEvent);
       if (event.undo.ruleReviewChange !== undefined) validateRuleReviewChange(event.undo.ruleReviewChange, registryOrDefault(registry));
       const snapshotMembers = event.undo.members ?? [];
       uniqueRecords(snapshotMembers, 'history undo members');
