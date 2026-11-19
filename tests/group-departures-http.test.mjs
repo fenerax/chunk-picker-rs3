@@ -5,6 +5,7 @@ import { randomUUID, createHash } from 'node:crypto';
 import { readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { groupHttpFixture } from './helpers/group-invite-http.mjs';
+import { fixtureDataset } from './helpers/server-dataset.mjs';
 
 const scope = (pickerId, characterId) => ({ 'X-Picker-Id': pickerId, 'X-Character-Id': characterId });
 async function setup(t, options) {
@@ -22,6 +23,19 @@ async function depart({ f, player, ps, playerId }, actorCookie = player.cookie, 
   const left = await f.send('/api/group-departure', actorCookie, body, headers); assert.equal(left.status, 200, left.text);
   return { body, result: left.json() };
 }
+
+test('a delayed preview for a remaining member cannot republish into a departed browser scope', async t => {
+  const entered = Promise.withResolvers(), release = Promise.withResolvers(); t.after(() => release.resolve());
+  const dataset = { ...fixtureDataset, capabilities: { ...fixtureDataset.capabilities, features: { ...fixtureDataset.capabilities.features, runeMetrics: true, externalNames: true } } };
+  const x = await setup(t, { dataset, progressSources: { webSource: 'official-api', officialApi: { async snapshot() { entered.resolve(); await release.promise;
+    return { source: 'official-api', sourceLabel: 'Official API', fetchedAt: new Date().toISOString(), skills: [], quests: [] }; } } } });
+  const { f, owner, player, os, ps } = x, state = (await f.send('/api/state', owner.cookie, undefined, os)).json().state;
+  const named = await f.send('/api/command', owner.cookie, { expectedRevision: state.revision, command: { type: 'set-runescape-name', memberId: 'owner', name: 'OwnerSample' } }, os); assert.equal(named.status, 200, named.text);
+  const pending = f.send('/api/runemetrics/preview', player.cookie, { memberId: 'owner' }, ps);
+  await entered.promise; await depart(x); release.resolve();
+  const denied = await pending; assert.equal(denied.status, 403, denied.text); assert.equal(denied.json().previewId, undefined);
+  assert.equal((await f.send('/api/state', owner.cookie, undefined, os)).status, 200);
+});
 
 test('leave preserves a downloadable Past map, revokes exact plugin scopes, fences the old tab and survives restart/retry', async t => {
   const x = await setup(t), { f, owner, player, pickerId, playerId, memberId, os, ps } = x;

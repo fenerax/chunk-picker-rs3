@@ -152,7 +152,10 @@ Departure publication, under the source's durable mutation queue:
 5. Revoke exact old-slot plugin keys, overlays, then invite sessions, each as
    a durable sidecar publication. Close affected streams and clear transient
    previews, transfer reviews and cached calculations. Late operations must
-   reauthorize scope/revision. Account-wide login remains valid for other
+   reauthorize scope/revision; browser success responses recheck the current
+   account/character/picker/member tuple before publishing headers. Slow upstream
+   previews recheck before retaining a review, so revoked scopes cannot repopulate
+   cleared transient work. Account-wide login remains valid for other
    characters; the former document scope fails. No secret follows the character.
 6. Atomically publish the new solo, character placement, exact membership and
    capability removal, freed source seat, default preference and completed
@@ -174,7 +177,7 @@ chunk maps, notes, progress/settings, definitions, History and a complete JSON
 download. Files are digest-checked on every read. No mutable gameplay store is
 opened to display one. Service checkpoints include every referenced Past file
 and verify its digest; stopped restore installs/verifies those files before
-registry publication. Recovery's existing `service-recovery-v1` inventory now
+registry publication. Recovery's existing `picker-service-recovery-v1` inventory now
 allows these referenced files. Capture prevents new placement intents throughout
 the store-copy window and refuses already-pending departures/admissions.
 
@@ -197,24 +200,45 @@ The complete human acceptance gate remains open. General established-character
 moves, character/slot tombstones and final-character/group deletion remain
 unimplemented. The automated and browser evidence below uses synthetic data.
 
-Local focused checks used Node 24.20.0, each entry's complete `testRunPolicy`
-environment, one worker, BelowNormal priority and the shared-PC lock in leases
-under ten minutes. Latest results across thirteen distinct files: **262 passed,
-one failed**, no skips/cancellations. The new storage/HTTP cases passed 30/30 and
-3/3; account-panel passed 16/16. Character registry, owner invites (storage/HTTP),
-registry, server, browser-module graph, invitation/session storage, account
-reclaim and gallery checks passed. Picker routing passed 49 cases and failed
-`a slow backup upload is received outside residency; another picker is served
-meanwhile`: line 870 received HTTP 503 instead of 200 on another picker's cold
-state request. The assertion did not retain the response body, so the precise
-503 source remains unresolved. That test was not retried or changed; this is
-not an all-green result and does not establish whether the failure predates
-this branch. Full hosted CI and stability receipts remain required.
+Local focused checks use Node 24.20.0, each entry's complete `testRunPolicy`
+environment, one worker, BelowNormal priority and shared-PC leases under ten
+minutes. The second part's new files cover 55 storage cases, 11 HTTP cases,
+four gameplay cases and one capture/restore case. Storage process exits cover
+all thirteen leave/removal publication seams and ten rejoin seams. HTTP
+interruption/restart cases verify actual key/overlay/invite-session files,
+and a gated upstream fetch verifies late preview refusal. Capture/restore
+tests interrupt each new Past-file stage and the following registry publication.
+These are deliberate fault injections, not timing retries. Adjacent handover,
+invitation, registry, state, History, save-transfer, overlay, plugin, server,
+browser-module, viewer-browser and gallery regressions are also checked.
+The native chown-to-another-UID case in `linux-service-crash.test.mjs` is skipped
+on this platform; the other service recovery sweeps pass. Full hosted CI and
+50-first-attempt stability receipts are still required before landing.
 
-An isolated synthetic server with fake OAuth and an incognito T3 preview browser
-exercised cancellation, cross-login offer/acceptance, invitation revocation,
-same-login designation and former-owner invitation refusal (403). The dialog
-was inspected at desktop 1920×1080 and phone 390×844; the phone document had
-390-pixel scroll width and a 375-pixel dialog. No runtime errors appeared in
-the inspected snapshots. Both server and tab were closed. No live save or
-personal account was used; leave/rejoin/Past maps browser journeys remain open.
+Latest focused receipts across 29 affected entry files: **486 passed, zero
+failed, one platform skip**, with no cancellations or todos. Earlier development
+failures were corrected before these receipts; this is not the hosted stability
+proof and does not erase the original parent routing failure below.
+
+The parent #330 receipt retains an unresolved routing failure: the slow-upload
+test received HTTP 503 instead of 200 at its then-line 870. Three bounded
+diagnostic attempts on main `1fc5187` stopped earlier at calculator memory
+admission (two insufficient-memory refusals and one restart-required result).
+Two additional attempts on updated main `a923b3b` both passed the selected
+slow-upload test. The stacked branch's complete routing file also passed
+52 cases after integrating parent `6773793`. The original 503 was not
+reproduced or diagnosed; passing samples do not establish its cause or stability.
+The routing test was not changed by this part.
+
+An isolated fake-OAuth server and incognito T3 preview browser exercised leave,
+empty-solo Join guidance, fresh-owner-invite rejoin and Past maps at desktop
+1920×1080 and phone 390×844. Both sizes completed real JSON downloads. The phone
+journey saved a solo chunk before rejoin, then displayed that chunk in the
+read-only frozen map; the downloaded document retained gameplay schema 1.
+Past maps had no editing controls, and the inspected phone pages had no
+horizontal overflow (390-pixel viewport; 375-pixel departure dialog). No runtime
+errors appeared in the inspected snapshots. The new wording identifies the
+specific ineligible character when a login also has an eligible returning solo.
+The server, shared-PC lease and browser tab were closed. No live save or
+personal account was used. Parent #330 separately exercised cross-login
+offer/acceptance, cancellation, same-login designation and stale-owner refusal.

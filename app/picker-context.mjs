@@ -407,6 +407,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
       : taskWorker.getClientHealth?.() ?? { status: 'ready', ready: true, restartRequired: false };
   }
   function broadcastWorker() {
+    if (pickerRouting?.authenticate) endInactiveClients();
     for (const [client, credentials] of clientCredentials) {
       const { request, security } = credentials;
       const identity = invites.authenticate(request, security);
@@ -992,6 +993,17 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
       // A concurrent revoke can finish while persisting the usage timestamp.
       identity = invites.authenticate(request, security);
       if (!identity) throw httpError(401, 'Access required.');
+      const currentScope = () => {
+        if (!pickerRouting?.authenticate) return;
+        const latest = invites.authenticate(request, security);
+        if (!latest) throw httpError(401, 'Access required.');
+        if (['accountId', 'characterId', 'pickerId', 'memberId'].some(key => latest[key] !== identity[key])) throw httpError(403, 'Character placement changed. Open your character menu.');
+      };
+      // Reads can outlive authorization during calculation, compression or an
+      // upstream fetch. Even work that ignores cancellation must not publish
+      // private success bytes into the previous character placement.
+      const writeHead = response.writeHead;
+      response.writeHead = function (status, ...args) { if (status < 400 || status === 409) currentScope(); return writeHead.call(this, status, ...args); };
       // Aggregate usage is the sole viewer POST exception; gameplay stays read only.
       const usageWrite = route === '/api/usage' && request.method === 'POST';
       if (identity.readOnly && !['GET', 'HEAD'].includes(request.method) && !usageWrite) throw httpError(403, 'This link is view only.');
@@ -1761,6 +1773,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
               const owner = store.getState().members.find(member => member.id === body.memberId);
               if (!owner) throw httpError(400, 'Choose a known player for progress sync.');
               let snapshot = await progressClient.snapshot(owner);
+              currentScope();
               const current = store.getState(), latest = current.members.find(member => member.id === owner.id);
               if (!latest || latest.runescapeName !== owner.runescapeName) throw Object.assign(httpError(409, 'The RuneScape name changed while fetching. Review a new sync.'), { code: 'REVISION_CONFLICT', state: current });
               // A plugin report arriving during a web fetch wins too.
@@ -1777,6 +1790,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
               if (Object.keys(body).length) throw httpError(400, 'Original-picker preview takes no fields; saved source map IDs identify the players.');
               const snapshot = await originalSyncClient.snapshot();
               const syncState = store.getInfo().retention.historyArchives ? (await store.backup()).state : store.getState();
+              currentScope();
               const proposal = originalSyncIntegration.previewOriginalSync(syncState, snapshot.document, snapshot.warnings, {
                 taskMap: parsedTaskMap, taskMapHistory: identityHistory,
                 catalogue: taskWorker?.catalogue ?? [], dynamicCatalogue: taskWorker?.dynamicCatalogue ?? [],
