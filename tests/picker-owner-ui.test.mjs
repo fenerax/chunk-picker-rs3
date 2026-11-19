@@ -105,6 +105,7 @@ const ACCOUNT = 101, OTHER_ACCOUNT = 102;
 const scope = 'p_' + 'a'.repeat(32);
 const missingRetention = 'Retained backups are not erased immediately. The retention period is not configured.';
 const defaultSession = () => ({ multiPicker: true, pickerId: scope, pickerRoute: scope, accountId: ACCOUNT,
+  characterId: 'c_' + 'a'.repeat(32),
   account: { id: ACCOUNT, provider: 'discord', providers: ['discord'] }, kind: 'account', memberId: 'owner', readOnly: false,
   capabilities: { canWrite: true }, ownerControls: { role: 'owner', shared: false, ownsDefaultPicker: true,
     backups: { retentionMs: null, message: missingRetention } } });
@@ -121,6 +122,12 @@ const walk = node => [node, ...node.children.flatMap(walk)];
 const text = node => walk(node).map(item => item.textContent).join(' ');
 const click = (node, label) => { const target = walk(node).find(item => item.tag === 'button' && item.textContent === label); assert.ok(target, label); return target.listeners.click(); };
 const response = (value, status = 200, headers = {}) => Response.json(value, { status, headers });
+const deletionReview = session => ({ reviewToken: 'a'.repeat(43), characters: [{ characterId: session.characterId, pickerId: session.pickerId }], keptCharacters: [], groups: [session.pickerId], backups: session.ownerControls.backups });
+async function prepareDeletion(b, target) {
+  b.open(target); await settle();
+  for (const node of walk(b.dialog.node).filter(n => n.type === 'checkbox')) node.checked = true;
+  return b.dialog.node;
+}
 function storage() {
   const values = new Map();
   return { get length() { return values.size; }, key: index => [...values.keys()][index], getItem: key => values.get(key) ?? null,
@@ -135,7 +142,7 @@ function browser(initial = defaultSession(), transport) {
     closeDialog: () => { generation++; dialog = undefined; }, notice: message => notices.push(message) };
   const rawFetch = async (route, options) => {
     calls.push([route, options]);
-    return transport ? transport(route, options, session) : response(route === '/api/session' ? session : { status: 'deleted', backups: session.ownerControls.backups });
+    return transport ? transport(route, options, session) : response(route === '/api/session' ? session : route.startsWith('/api/deletion') && !options?.body ? deletionReview(session) : { status: 'deleted', href: '/auth/signin', backups: session.ownerControls.backups });
   };
   const rendered = el('div'); rendered.append(el('p', 'private game'));
   const context = vm.createContext({ Headers, AbortController, Map, Set, clearTimeout, withStartupTimeout, startupRetryAfter,
@@ -145,14 +152,14 @@ function browser(initial = defaultSession(), transport) {
     notify: message => notices.push(message), schedule: callback => { monitors.push(callback); return 1; }, cancel: () => disposals.push('monitor') });
   const coordinator = c.panelContext.pickerSession; coordinator.initialize(session);
   const actions = [];
-  const panel = createAccountPanel({ el, fetch: rawFetch, beforeSignOut: coordinator.beforeSignOut, beginAccountAction: coordinator.beginAccountAction,
+  const panel = createAccountPanel({ el, fetch: rawFetch, beforeSignOut: coordinator.beforeSignOut, beforeDeparture: coordinator.beforeDeparture, beginAccountAction: coordinator.beginAccountAction,
     dialogCurrent: value => generation === value && !!dialog, location: { assign: path => destinations.push(path) },
     openDialog: (title, node) => { dialog = { title, node }; return ++generation; },
     ownerActions: Object.fromEntries(['Rules', 'Preferences', 'Export or restore gameplay', 'Plugin keys'].map(label => [label, () => actions.push(label)])) });
   panel.setSession(session);
   return { panel, c, coordinator, calls, destinations, notices, siteStore: local, tab, monitors, disposals, rendered, actions,
     get dialog() { return dialog; }, close: () => { generation++; dialog = undefined; },
-    setSession: value => { session = value; }, open: target => click(panel.rows(), target) };
+    setSession: value => { session = value; panel.setSession(value); }, open: target => click(panel.rows(), target) };
 }
 function serverTransport(f, cookie) {
   return async (route, options = {}) => {
@@ -161,12 +168,12 @@ function serverTransport(f, cookie) {
     return new Response(value.text, { status: value.status, headers: value.headers });
   };
 }
-for (const target of ['picker', 'account']) test(`stage 1 disables owner ${target} deletion and preserves the active document after server refusal`, async t => {
+for (const target of ['picker', 'account']) test(`unconfirmed owner ${target} deletion preserves the active document and pending saves`, async t => {
   const f = await fixture(t, target === 'account' ? { backupRetentionMs: 86400000 } : {});
   const cookie = await f.login(String(ACCOUNT)), session = (await f.send('/api/session', cookie)).json();
   assert.equal(session.ownerControls.role, 'owner'); assert.equal(session.ownerControls.shared, false);
   const b = browser(session, serverTransport(f, cookie));
-  assert.equal(session.ownerControls.deletionPaused, true);
+  assert.equal(session.ownerControls.deletionPaused, false);
   const prefix = `picker.scope.${encodeURIComponent(JSON.stringify([session.accountId, session.characterId, session.pickerId, session.memberId, session.datasetId, session.datasetDigest]))}.`;
   b.siteStore.setItem(prefix + 'duo-member', 'owner');
   const pending = JSON.stringify({ unsent: true });
@@ -174,13 +181,12 @@ for (const target of ['picker', 'account']) test(`stage 1 disables owner ${targe
   const finishQueue = b.coordinator.queueCommand();
   t.after(finishQueue);
   const rows = b.panel.rows(), control = walk(rows).find(node => node.textContent === `Delete ${target}`);
-  assert.equal(control.disabled, true);
-  assert.match(text(rows), /unavailable until character deletion/);
+  assert.equal(control.disabled, false);
   assert.deepEqual(b.calls, []);
   const registryBefore = await f.registry(), before = (await f.send('/api/backup', cookie)).text;
   const refused = await f.send(`/api/${target}/delete`, cookie, { body: {}, headers: { 'X-Picker-Id': session.pickerRoute } });
-  assert.equal(refused.status, 409, refused.text);
-  assert.match(refused.json().message, /unavailable until character deletion/);
+  assert.equal(refused.status, target === 'picker' ? 403 : 409, refused.text);
+  assert.match(refused.json().message, target === 'picker' ? /Conflicting deletion targets/ : /Review and explicitly confirm/);
   assert.deepEqual(await f.registry(), registryBefore);
   assert.equal((await f.send('/api/backup', cookie)).text, before);
   assert.equal(b.coordinator.stopped, false); assert.deepEqual(b.c.state, { revision: 7 });
@@ -192,7 +198,7 @@ for (const target of ['picker', 'account']) test(`stage 1 disables owner ${targe
   assert.equal((await b.coordinator.fetch('/api/state')).status, 200);
 });
 
-test('stage 1 disables shared character account deletion and preserves gameplay and access after restart', async t => {
+test('legacy shared character account deletion preserves gameplay and access after restart', async t => {
   const f = await fixture(t, { initiallyEnabled: false });
   const invite = (await f.private('/api/invites', { body: { label: 'Player 1', memberId: 'one' } })).json();
   const joined = await f.private(new URL(invite.link).pathname, { headers: { Authorization: '' } });
@@ -203,12 +209,12 @@ test('stage 1 disables shared character account deletion and preserves gameplay 
   assert.doesNotMatch(text(b.panel.rows()), /Delete picker|Leave|Rules|Plugin keys/);
   const rows = b.panel.rows();
   assert.equal(walk(rows).find(node => node.textContent === 'Delete account').disabled, true);
-  assert.match(text(rows), /unavailable until character deletion/);
+  assert.match(text(rows), /legacy shared picker needs operator recovery/);
   assert.deepEqual(b.calls, []);
   const before = hash((await f.private('/api/backup')).text);
   const refused = await f.send('/api/account/delete', cookie, { body: {} });
   assert.equal(refused.status, 409, refused.text);
-  assert.match(refused.json().message, /unavailable until character deletion/);
+  assert.match(refused.json().message, /Review and explicitly confirm/);
   assert.equal(hash((await f.private('/api/backup')).text), before);
   assert.equal((await f.send('/api/state', cookie)).status, 200);
   const claimed = await f.private(new URL(invite.link).pathname, { headers: { Authorization: '' } });
@@ -227,74 +233,76 @@ test('owner actions reuse gameplay tools and never offer operator powers', () =>
   b.panel.setSession({ ...defaultSession(), ownerControls: { ...defaultSession().ownerControls, role: 'player' } });
   assert.doesNotMatch(text(b.panel.rows()), /Delete picker|Export or restore|Rules|Plugin keys/);
 });
-for (const status of [403, 409, 503]) test(`${status} displays server refusal, preserves usability, and retries only on request`, async () => {
+for (const status of [403, 409, 503]) test(`${status} keeps deletion review and retries only on request`, async () => {
   let attempts = 0;
   const message = `Refusal ${status}`;
   const b = browser(defaultSession(), (route, options, session) => {
     if (route === '/api/session') return response(session);
     if (route === '/api/state') return response({ usable: true });
-    attempts++; return attempts === 1 ? response({ message }, status, status === 503 ? { 'Retry-After': '1' } : {}) : response({ status: 'deleted', backups: session.ownerControls.backups });
+    if (!options?.body) return response(deletionReview(session));
+    attempts++; return attempts === 1 ? response({ message }, status, status === 503 ? { 'Retry-After': '1' } : {}) : response({ status: 'deleted', href: '/auth/signin' });
   });
-  b.open('Delete account'); await click(b.dialog.node, 'Delete account');
-  assert.ok(text(b.dialog.node).includes(message)); assert.equal(b.coordinator.stopped, false); assert.ok(b.c.state);
-  assert.equal((await b.coordinator.fetch('/api/state')).ok, true);
+  const node = await prepareDeletion(b, 'Delete account'); await click(node, 'Confirm deletion');
+  assert.match(text(node), new RegExp(message)); assert.equal(b.coordinator.stopped, false); assert.ok(b.c.state);
   if (status === 503) {
-    const button = walk(b.dialog.node).find(item => item.textContent === 'Retry deletion'); assert.equal(button.disabled, true);
-    await click(b.dialog.node, 'Retry deletion'); assert.equal(attempts, 1);
+    await assert.rejects(b.coordinator.fetch('/api/state'), /account change is in progress/);
+    const confirm = walk(node).find(n => n.textContent === 'Confirm deletion'); assert.equal(confirm.disabled, true);
+    await click(node, 'Confirm deletion'); assert.equal(attempts, 1);
     await new Promise(resolve => setTimeout(resolve, 1050));
-    assert.equal(button.disabled, false); assert.equal(attempts, 1, 'Retry-After never starts an automatic retry');
-  }
-  await click(b.dialog.node, status === 503 ? 'Retry deletion' : 'Delete account');
-  assert.equal(attempts, 2); assert.equal(b.coordinator.stopped, true);
+    assert.equal(confirm.disabled, false); assert.equal(attempts, 1);
+  } else assert.equal((await b.coordinator.fetch('/api/state')).ok, true);
+  await click(node, 'Confirm deletion'); assert.equal(attempts, 2); assert.equal(b.coordinator.stopped, true);
+  const posts = b.calls.filter(([, o]) => o?.body); assert.equal(posts[0][1].body, posts[1][1].body);
 });
-for (const changed of ['account', 'picker', 'role']) test(`reauthentication refuses a changed ${changed} without deleting`, async () => {
-  const b = browser(); b.open('Delete picker'); const next = defaultSession();
+for (const changed of ['account', 'picker', 'role']) test(`a changed ${changed} prevents stale deletion controls from dispatching`, async () => {
+  const b = browser(), node = await prepareDeletion(b, 'Delete picker'), next = defaultSession();
   if (changed === 'account') next.accountId = OTHER_ACCOUNT;
   if (changed === 'picker') next.pickerId = 'p_' + 'b'.repeat(32);
   if (changed === 'role') next.ownerControls.role = 'player';
-  b.setSession(next); await click(b.dialog.node, 'Delete picker');
-  assert.deepEqual(b.calls.map(([route]) => route), ['/api/session']); assert.match(text(b.dialog.node), /changed/);
-  assert.equal(b.coordinator.stopped, false); assert.ok(b.c.state);
+  b.setSession(next); await click(node, 'Confirm deletion');
+  assert.equal(b.calls.filter(([, o]) => o?.body).length, 0); assert.equal(b.coordinator.stopped, false); assert.ok(b.c.state);
 });
-test('failed reauthentication keeps the dialog usable and never dispatches deletion', async () => {
+test('failed review keeps the document usable and never dispatches deletion', async () => {
   const b = browser(defaultSession(), () => response({ message: 'Access required.' }, 401));
-  b.open('Delete account'); await click(b.dialog.node, 'Delete account');
-  assert.match(text(b.dialog.node), /sign in again/); assert.equal(b.calls.length, 1); assert.ok(b.c.state);
-  click(b.dialog.node, 'Cancel'); assert.equal(b.dialog.title, 'Account');
+  b.open('Delete account'); await settle();
+  assert.match(text(b.dialog.node), /Access required/); assert.equal(b.calls.length, 1); assert.ok(b.c.state);
+  assert.equal(walk(b.dialog.node).some(n => n.textContent === 'Confirm deletion'), false); b.close();
 });
-test('cancel and a closed dialog never dispatch a stale confirmation', async () => {
-  const b = browser(); b.open('Delete account'); const old = b.dialog.node;
-  click(old, 'Cancel'); await click(old, 'Delete account'); assert.equal(b.calls.length, 0);
-  b.open('Delete account'); const closed = b.dialog.node; b.close(); await click(closed, 'Delete account'); assert.equal(b.calls.length, 0);
+test('closed dialogs never dispatch stale confirmations, including after reopening', async () => {
+  const b = browser(), old = await prepareDeletion(b, 'Delete account');
+  b.close(); await click(old, 'Confirm deletion'); assert.equal(b.calls.filter(([, o]) => o?.body).length, 0);
+  b.open('Delete account'); const closed = b.dialog.node; b.close(); await click(closed, 'Confirm deletion');
+  assert.equal(b.calls.filter(([, o]) => o?.body).length, 0);
 });
-test('closing a dialog during reauthentication prevents deletion', async () => {
-  const gate = Promise.withResolvers(); const b = browser(defaultSession(), () => gate.promise);
-  b.open('Delete picker'); const sending = click(b.dialog.node, 'Delete picker'); await settle();
-  b.close(); gate.resolve(response(defaultSession())); await sending;
-  assert.deepEqual(b.calls.map(([route]) => route), ['/api/session']); assert.equal(b.coordinator.stopped, false);
+test('closing a dialog while saves drain prevents deletion and releases the gate', async () => {
+  const b = browser(), node = await prepareDeletion(b, 'Delete picker'), gate = Promise.withResolvers(); b.c.queue = gate.promise;
+  const sending = click(node, 'Confirm deletion'); await settle(); b.close(); gate.resolve(); await sending;
+  assert.equal(b.calls.filter(([, o]) => o?.body).length, 0); assert.equal(b.coordinator.stopped, false);
+  await b.coordinator.check();
 });
-test('an active deletion excludes other requests and session monitors until a refusal releases it', async () => {
+test('an active deletion excludes requests and monitors until a definite refusal releases it', async () => {
   const gate = Promise.withResolvers(), entered = Promise.withResolvers();
   const b = browser(defaultSession(), (route, options, session) => {
     if (route === '/api/session') return response(session);
+    if (!options?.body) return response(deletionReview(session));
     entered.resolve(); return gate.promise;
   });
-  b.open('Delete picker'); const node = b.dialog.node; const first = click(node, 'Delete picker'); await entered.promise;
-  await click(node, 'Delete picker');
+  const node = await prepareDeletion(b, 'Delete picker'), first = click(node, 'Confirm deletion'); await entered.promise;
+  await click(node, 'Confirm deletion');
   await assert.rejects(b.coordinator.fetch('/api/command', { method: 'POST' }), /account change is in progress/);
   b.monitors[0](); await settle(); assert.equal(b.calls.length, 2); assert.deepEqual(b.destinations, []);
   gate.resolve(response({ message: 'Conflict' }, 409)); await first;
   assert.equal(b.coordinator.stopped, false); await b.coordinator.check(); assert.equal(b.calls.length, 3);
 });
-test('storage cleanup failure after deletion blocks landing and retries cleanup without another delete', async () => {
+test('cleanup failure after deletion retries browser cleanup without another delete', async () => {
   const b = browser(), remove = b.tab.removeItem; let denied = true;
-  b.tab.setItem(`picker.scope.${scope}.` + commandOutboxKey, '{}');
+  b.tab.setItem(`picker.scope.${encodeURIComponent(b.coordinator.storageScope)}.` + commandOutboxKey, '{}');
   b.tab.removeItem = key => { if (denied) throw new Error('Denied'); remove(key); };
-  b.open('Delete account'); await click(b.dialog.node, 'Delete account');
+  const node = await prepareDeletion(b, 'Delete account'); await click(node, 'Confirm deletion');
   assert.equal(b.coordinator.stopped, true); assert.match(text(b.dialog.node), /storage could not be cleared/);
   await click(b.dialog.node, 'Continue to sign in'); assert.deepEqual(b.destinations, []);
   denied = false; await click(b.dialog.node, 'Continue to sign in'); assert.deepEqual(b.destinations, ['/auth/signin']);
-  assert.equal(b.calls.filter(([route]) => route.endsWith('/delete')).length, 1);
+  assert.equal(b.calls.filter(([, o]) => o?.body).length, 1);
 });
 
 // Fixed synthetic markup hashes captured from the untouched MP9 START module.

@@ -28,7 +28,7 @@ export async function validateOwnedHistory(dataDir, options, { importBackup, can
   }
 }
 
-export async function probe(config, dataDir, output) {
+export async function probe(config, dataDir, output, { memberDepartures = [] } = {}) {
   const ownedFormat2 = await ownedRecoveryOptions(dataDir);
   let app;
   if (ownedFormat2) {
@@ -42,6 +42,16 @@ export async function probe(config, dataDir, output) {
     app = { store, close: () => store.close() };
   } else app = await openApplication(config, dataDir, { probe: true });
   try {
+    // Only a disposable stage is opened here. The registry has interpreted the
+    // authoritative ledger; the captured runtime applies its existing History
+    // boundary before export/roster validation. Missing members are inert retries.
+    if (memberDepartures.length) {
+      const liveMembers = new Set(app.store.getReadState().members.map(m => m.id));
+      for (const departure of memberDepartures) if (liveMembers.has(departure.memberId)) {
+        await app.store.departMember(departure);
+        liveMembers.delete(departure.memberId);
+      }
+    }
     const document = await app.store.backup();
     const { importBackup } = await stateValidators(config);
     importBackup(document);
@@ -63,6 +73,8 @@ if (isMain(import.meta.url)) {
     const [configFile, dataDir, output, mode = 'portable'] = process.argv.slice(2);
     await readFile(path.join(dataDir, 'state.json')); // Never initialize an empty store.
     if (!['portable', 'compatibility'].includes(mode)) throw new Error('Unknown recovery probe.');
-    await (mode === 'compatibility' ? compatibilityProbe : probe)(await json(configFile), dataDir, output);
+    let input = '';
+    for await (const chunk of process.stdin) input += chunk;
+    await (mode === 'compatibility' ? compatibilityProbe : probe)(await json(configFile), dataDir, output, input ? JSON.parse(input) : {});
   } catch { process.stderr.write('Recovery probe refused.\n'); process.exitCode = 1; }
 }

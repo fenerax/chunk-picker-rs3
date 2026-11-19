@@ -137,7 +137,7 @@ test('hash-only one-time link, migration preimage, reader refusal, sanitized che
   assert.deepEqual(redactInviteFields({ message: `%2fjoin%2f${invite.secret}` }), { message: '/join/[redacted]' });
   const recovered = registryRecoveryDocument(saved); assert.equal(recovered.groupInvites[0].secretHash, null); assert.equal(recovered.groupInvites[0].status, 'revoked'); assert.equal(recovered.pickers[0].reservations.length, 0);
   await h.restart(); assert.equal(h.f.registry.previewGroupInvite(invite.secret).status, 'pending');
-  await h.f.close(); await writeFile(path.join(f.options.registryDir, 'registry.json'), JSON.stringify({ ...saved, schemaVersion: 5 }));
+  await h.f.close(); await writeFile(path.join(f.options.registryDir, 'registry.json'), JSON.stringify({ ...saved, schemaVersion: 6 }));
   await assert.rejects(inviteFixture(h.root), /Unsupported newer registry/);
 });
 
@@ -223,7 +223,7 @@ for (const [seam, newCharacter] of [...GROUP_INVITE_POINTS.map(s => [s, s === 'i
   await f.service.recover();
   if (creating) {
     assert.equal(f.registry.getPicker(owner.picker.id).reservations.length, seam === 'invite-created' ? 1 : 0);
-    assert.equal((await doc(f)).schemaVersion, 3);
+    assert.equal((await doc(f)).schemaVersion, 5);
     await f.registry.firstLogin('google', 'after-interruption');
     await f.registry.createGroupInvite(owner.account.id, owner.picker.id);
   } else {

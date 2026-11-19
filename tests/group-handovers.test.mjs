@@ -8,6 +8,7 @@ import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { inviteFixture } from './helpers/owner-invite-fixture.mjs';
 import { HANDOVER_POINTS, validateHandovers } from '../app/storage/group-handovers.mjs';
+import { writeOlderLifecycleFixture } from './helpers/lifecycle-format-fixture.mjs';
 import { registryRecoveryDocument } from '../app/storage/registry.mjs';
 import { createGroupState } from '../app/core/state.mjs';
 import { stage2RegistryVersionGate } from './fixtures/registry-v3-version-gate.mjs';
@@ -66,7 +67,7 @@ for (const size of [2, 3, 4, 5]) for (const sameLogin of [false, true]) test(`ha
   assert.deepEqual(await propose(f, owner, player.character, requestId), { ...proposal, status: 'accepted' });
   assert.equal((await resolve(f, player, owner.picker.id, proposal.id, 'accept')).status, 'accepted');
   const after = await doc(f), p = f.registry.getPicker(owner.picker.id);
-  assert.equal(after.schemaVersion, 4); assert.equal(p.ownerCharacterId, player.character.id); assert.equal(p.ownerAccountId, player.account.id);
+  assert.equal(after.schemaVersion, sameLogin ? 4 : 5); assert.equal(p.ownerCharacterId, player.character.id); assert.equal(p.ownerAccountId, player.account.id);
   assert.deepEqual(p.seats, before.pickers.find(p => p.id === owner.picker.id).seats);
   assert.deepEqual(after.characters, before.characters); assert.deepEqual(after.capabilities, before.capabilities);
   assert.equal(after.accounts.flatMap(a => a.memberships).filter(m => m.pickerId === p.id && m.role === 'owner').length, 1);
@@ -122,17 +123,19 @@ test('accepted admissions must finish before handover; another owned default is 
 });
 
 test('v3 migration retains preimage, gameplay and the legacy picker; sanitized restore cannot revive a pending offer', async t => {
-  const h = await fixture(t), f = h.f, { owner, players: [player] } = await roster(f, 2);
+  const h = await fixture(t); let f = h.f; const { owner, players: [player] } = await roster(f, 2);
   const legacy = await f.registry.registerLegacy({ memberIds: ['one', 'two'], accounts: [1, 2].map(n => ({
     id: `00000000-0000-4000-8000-00000000000${n}`, identities: [{ provider: 'discord', subject: String(n) }], memberships: [{ role: 'player', memberId: n === 1 ? 'one' : 'two' }] })) });
   const gameplay = JSON.stringify({ format: 'rs3-chunk-picker', schemaVersion: 1, state: createGroupState([{ id: 'one', name: 'Player 1' }, { id: 'two', name: 'Player 2' }]) });
   await writeFile(path.join(f.options.legacyDir, 'state.json'), gameplay);
+  await f.close(); await writeOlderLifecycleFixture(f.options, 3);
   const old = await readFile(path.join(f.options.registryDir, 'registry.json'), 'utf8'), ledger = await readFile(path.join(f.options.tombstoneDir, 'ledger.json'), 'utf8');
+  f = await h.restart();
   const offer = await propose(f, owner, player.character);
   assert.equal(await readFile(path.join(f.options.registryDir, 'registry.pre-handovers-v3.json'), 'utf8'), old);
-  assert.equal(await readFile(path.join(f.options.tombstoneDir, 'ledger.json'), 'utf8'), ledger);
+  assert.equal(await readFile(path.join(f.options.registryDir, 'ledger.pre-retirements-v2.json'), 'utf8'), ledger);
   const saved = await doc(f); assert.throws(() => stage2RegistryVersionGate(saved), /Unsupported newer registry/);
-  assert.equal(saved.schemaVersion, 4); assert.deepEqual(saved.departures, []); assert.deepEqual(saved.pastMaps, []);
+  assert.equal(saved.schemaVersion, 5); assert.deepEqual(saved.departures, []); assert.deepEqual(saved.pastMaps, []);
   for (const edit of [d => { delete d.handovers; }, d => { d.handovers[0].status = 'unknown'; }, d => { d.handovers.push(d.handovers[0]); }]) {
     const corrupt = structuredClone(saved); edit(corrupt); assert.throws(() => validateHandovers(corrupt), /Invalid ownership/);
   }
@@ -147,9 +150,9 @@ test('v3 migration retains preimage, gameplay and the legacy picker; sanitized r
 });
 
 test('damaged migration preimage refuses upgrade before a proposal or role change', async t => {
-  const { f } = await fixture(t), { owner, players: [player] } = await roster(f, 2), before = await doc(f);
+  const h = await fixture(t), f = h.f; await roster(f, 2); await f.close(); await writeOlderLifecycleFixture(f.options, 3); const before = await doc(f);
   await writeFile(path.join(f.options.registryDir, 'registry.pre-handovers-v3.json'), 'damaged');
-  await assert.rejects(propose(f, owner, player.character), /preimage differs/);
+  await assert.rejects(h.restart(), /preimage differs/);
   assert.deepEqual(await doc(f), before);
 });
 
@@ -182,6 +185,7 @@ test('handover expires elapsed offers without reviving them; checkpoint retains 
 for (const sameLogin of [false, true]) for (const seam of HANDOVER_POINTS.slice(0, 4)) test(`process crash/retry ${seam}, ${sameLogin ? 'designation' : 'proposal'}`, async t => {
   const h = await fixture(t), { owner, players: [player] } = await roster(h.f, 2, sameLogin), input = { requestId: randomUUID(), targetCharacterId: player.character.id };
   await h.f.close();
+  if (['handover-backed-up', 'handover-versioned'].includes(seam)) await writeOlderLifecycleFixture(h.f.options, 3);
   await crash(h.root, seam, 'proposeGroupHandover', [owner.account.id, owner.character.id, owner.picker.id, input]);
   const f = await h.restart();
   const result = await f.registry.proposeGroupHandover(owner.account.id, owner.character.id, owner.picker.id, input);

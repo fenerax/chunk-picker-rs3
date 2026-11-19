@@ -99,7 +99,7 @@ export async function openInviteStore({ dataDir, masterToken, masterLabel, now =
       const account = pickerRegistry?.getAccount(session.accountId);
       if (!account?.identities.some(item => item.provider === session.provider)) return null;
       const url = new URL(request?.url ?? '/', 'http://localhost');
-      const accountOnly = ['/characters', '/api/characters', '/past-maps', '/api/past-maps', '/api/group-departure'].includes(url.pathname) || url.pathname.startsWith('/auth/') || url.pathname.startsWith('/past-maps/') || url.pathname.startsWith('/api/past-maps/');
+      const accountOnly = ['/characters', '/api/characters', '/past-maps', '/api/past-maps', '/api/group-departure', '/api/deletion', '/api/character/delete', '/api/picker/delete', '/api/account/delete'].includes(url.pathname) || url.pathname.startsWith('/auth/') || url.pathname.startsWith('/past-maps/') || url.pathname.startsWith('/api/past-maps/');
       if (accountOnly) return { kind: 'account', accountId: account.id, provider: session.provider, accountScope: true, label: 'Account', admin: false, readOnly: true, memberId: null, capabilities: { canWrite: false } };
       const values = url.searchParams.getAll('character');
       if (request?.headers['x-character-id'] !== undefined) values.push(request.headers['x-character-id']);

@@ -34,7 +34,7 @@ const denied = (operation, pattern) => assert.rejects(operation, failure => fail
 test('adopted defaults keep defensive bounds and raise only entity/capability ceilings', () => {
   assert.deepEqual(DEFAULT_REGISTRY_CAPS, { accounts: 3000, pickers: 3500, capabilities: 20000, capabilitiesPerPicker: 100,
     issuedPickerIds: 1000000, retiredAccounts: 1000000, membershipsPerAccount: 1000, membersPerPicker: 100,
-    characters: 3000, charactersPerAccount: 10, issuedCharacterIds: 1000000, retiredCharacters: 1000000 });
+    characters: 3000, charactersPerAccount: 10, issuedCharacterIds: 1000000, retiredCharacters: 1000000, retiredSlots: 1000000 });
 });
 
 test('the 3000th active login persists and the next login leaves records and ledger unchanged', async t => {

@@ -1,0 +1,12 @@
+import { readFile } from 'node:fs/promises';
+import path from 'node:path';
+import { inviteFixture } from './owner-invite-fixture.mjs';
+import { createCharacterDeletionService } from '../../app/character-deletion-service.mjs';
+const [root, seam] = process.argv.slice(2);
+let armed = seam.startsWith('retirement-');
+const point = async name => { if (armed && name === seam) process.exit(73); };
+const f = await inviteFixture(root, { crashPoint: point });
+const service = createCharacterDeletionService({ registry: f.registry, using: async (id, work) => work(await f.open(id)), purge: async () => {}, point });
+const { accountId, input } = JSON.parse(await readFile(path.join(root, 'request.json'), 'utf8'));
+const review = await service.review(accountId, input); armed = true;
+await service.delete(accountId, input, review); await f.close(); process.exitCode = 1;

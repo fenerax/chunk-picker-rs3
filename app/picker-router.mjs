@@ -42,6 +42,7 @@ export function createPickerRouter({ registry, legacy, openContext, publicOrigin
   const receiving = new Map();
   let queue = Promise.resolve(), closed = false, closing;
   const deletion = createPickerDeletion({ registry, legacy, backupRetentionMs, afterPurge: () => pickerLimits?.forgetDeleted(),
+    async using(id, work) { const entry = await acquire(id, pickerLimits?.scope({ accountId: registry.getPicker(id)?.ownerAccountId }, id)); try { return await work(entry.context); } finally { entry.active--; idle(entry); } },
     fencePicker: id => { const pending = receiving.get(id); if (pending && !pending.complete) pending.destroy(); const entry = entries.get(id); if (entry && !entry.closing) entry.context.fenceDeletion(); },
     fenceSessions: () => {
       legacy.fenceRevokedSessions();
@@ -259,6 +260,7 @@ export function createPickerRouter({ registry, legacy, openContext, publicOrigin
   return {
     groupInvites,
     departures,
+    deletion,
     checkpoint,
     getResidencyLimits: () => ({ maxOpenContexts, idleCloseMs,
       coldStartsPerAccount: pickerLimits?.config.coldStartsPerAccount, coldStartsGlobal: pickerLimits?.config.coldStartsGlobal,
@@ -282,7 +284,6 @@ export function createPickerRouter({ registry, legacy, openContext, publicOrigin
       pickerLimits?.forgetDeleted();
       return account;
     },
-    accountDeletionToken: deletion.accountDeletionToken,
     authenticate,
     authenticateKey(request, pickerId, memberId) {
       const key = /^Bearer (gpk_[A-Za-z0-9_-]{43})$/i.exec(request.headers.authorization ?? '')?.[1];
@@ -316,6 +317,7 @@ export function createPickerRouter({ registry, legacy, openContext, publicOrigin
         const security = listener.ingressRole === 'public' ? requestContext(request, options) : requestContextFor(request, options);
         bindBody = pickerLimits?.body(request);
         const target = new URL(request.url, 'http://localhost');
+        if (['/api/deletion', '/api/character/delete', '/api/picker/delete', '/api/account/delete'].includes(target.pathname)) { await deletion.handle(request, response, security, bindBody); return; }
         if (target.pathname === '/api/group-departure' || ['/past-maps', '/api/past-maps', '/past-maps.mjs', '/past-maps.css'].includes(target.pathname) || target.pathname.startsWith('/past-maps/') || target.pathname.startsWith('/api/past-maps/')) { await departureHTTP(request, response, security, bindBody); return; }
         if (target.pathname === '/api/group-handover') { await handover(request, response, security, bindBody); return; }
         if (target.pathname === '/api/group-invites') {
@@ -386,7 +388,7 @@ export function createPickerRouter({ registry, legacy, openContext, publicOrigin
         // /pickers/<id> prefix is rewritten away.
         let signInRoute; try { signInRoute = decodeURIComponent((request.url ?? '/').split('?')[0]); } catch {}
         if (request.method === 'GET' && /^\/auth\/(?:link\/)?(?:discord|google)$/.test(signInRoute ?? '')) pickerLimits?.registration(security.rateKey);
-        if (selected.deletion) { await deletion.handle(request, response, selected); return; }
+        if (selected.deletion) { await deletion.handle(request, response, selected.security, bindBody); return; }
         if (selected.legacyBackup) selected.context.checkImportBody(request, selected.checkBody);
         if (selected.backup) {
           releaseImport = selected.context.admitImport(request, security);
@@ -408,6 +410,11 @@ export function createPickerRouter({ registry, legacy, openContext, publicOrigin
           if (!request.complete) response.setHeader('Connection', 'close');
           if (error.retryAfter) response.setHeader('Retry-After', error.retryAfter);
           const badInput = error instanceof SyntaxError || error instanceof TypeError || error instanceof RangeError;
+          const pathname = new URL(request.url, 'http://localhost').pathname;
+          if ([403, 410].includes(error.status) && ['GET', 'HEAD'].includes(request.method) && (pathname.startsWith('/characters/') || pathname.startsWith('/pickers/'))) {
+            const text = pathname.startsWith('/characters/') ? 'This character was deleted, moved, or is unavailable to this login.' : 'You are no longer a member of this group, or the group was deleted.';
+            response.writeHead(error.status, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'private, no-store' }); response.end(`<!doctype html><html lang="en"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Map unavailable</title><main><h1>Map unavailable</h1><p>${text}</p><a href="/characters">Open your character menu</a></main></html>`); return;
+          }
           await json(request, response, error.status ?? (badInput ? 400 : 503), { message: error.status ? error.message : badInput ? 'Invalid request.' : 'The picker is unavailable. Retry in a moment.', ...(error.code === 'DUPLICATE_CHARACTER_NAME' ? { code: error.code } : {}) });
         }
       } finally { request.off('aborted', disconnected); response.off('close', disconnected); if (receiving.get(receivingId) === request) receiving.delete(receivingId); bindBody?.release(); releaseCheckpoint?.(); releaseImport?.(); releaseImportUser?.(); if (entry) { entry.active--; if (entries.get(entry.id) === entry) idle(entry); } }

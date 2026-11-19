@@ -439,10 +439,9 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
       : pickerRegistry.listPickers().find(item => item.kind === 'legacy-shared');
     const account = pickerRegistry.getAccount(identity.accountId);
     const membership = account?.memberships.find(item => item.pickerId === picker?.id && item.memberId === (identity.memberId ?? null));
-    return { ...view, ...(request?.headers['x-account-action'] === 'delete'
-      ? { accountDeletionToken: pickerRouter.accountDeletionToken(identity) } : {}), ownerControls: { role: membership?.role ?? null, shared: picker?.kind === 'legacy-shared',
+    return { ...view, ownerControls: { role: membership?.role ?? null, shared: picker?.kind === 'legacy-shared',
       ownsDefaultPicker: pickerRegistry.listPickers().some(item => item.kind === 'default' && item.ownerAccountId === identity.accountId && item.lifecycle === 'active'),
-      deletionPaused: pickerRegistry.listCharacters(identity.accountId).length > 0,
+      deletionPaused: picker?.kind === 'legacy-shared',
       backups: backupDeletionDisclosure(backupRetentionMs) }, characterId: identity.characterId ?? null,
       characters: pickerRegistry.listCharacters(identity.accountId), datasetId: dataset.datasetId, datasetDigest: dataset.digest };
   }
@@ -511,6 +510,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
         } });
       await pickerRouter.departures.recover();
       await pickerRouter.groupInvites.recover();
+      await pickerRouter.deletion.recover();
     }
   } catch (error) { await deepProfiles.close(); await pickerRouter?.close(); await context?.close(); await pickerRegistry?.close(); await taskWorker?.close(); await timings.close(); throw error; }
   // Preserve the original synchronous dispatcher when routing is disabled.

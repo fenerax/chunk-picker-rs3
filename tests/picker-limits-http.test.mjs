@@ -332,7 +332,7 @@ test('refused character deletion preserves key quotas; operator retirement relea
   assert.equal((await create(a)).status, 201);
   const b = await f.login('102'); assert.equal((await create(b)).status, 201);
   assert.equal((await create(await f.login('103'))).status, 429);
-  assert.equal((await f.send('/api/account/delete', b, { body: { accountDeletionToken: (await f.send('/api/session', b, { headers: { 'X-Account-Action': 'delete' } })).json().accountDeletionToken } })).status, 409);
+  assert.equal((await f.send('/api/account/delete', b, { body: {} })).status, 409);
   assert.equal((await create(await f.login('103'))).status, 429);
   await retire(b, 'account');
   assert.equal((await create(await f.login('103'))).status, 201);

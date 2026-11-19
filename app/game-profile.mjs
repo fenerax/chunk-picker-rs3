@@ -66,7 +66,8 @@ export function prepareOwnedPickerState(dataset, pickerRegistry, pickerId) {
     const ids = state.members.map(member => member.id);
     const departing = new Set(pickerRegistry.departingMemberIds?.(pickerId) ?? []);
     const required = pickerRegistry.listAccounts().flatMap(a => a.memberships.filter(m => m.pickerId === pickerId && m.role !== 'viewer' && !departing.has(m.memberId)).map(m => m.memberId));
-    if ((pickerRegistry.retiredMemberIds?.(pickerId) ?? []).some(id => ids.includes(id))) throw Object.assign(new Error('This save contains a departed slot. Restore with the current character mapping.'), { status: 422 });
+    const cleanup = new Set(['load', 'departure'].includes(operation) ? pickerRegistry.deletionCleanupMemberIds?.(pickerId) ?? [] : []);
+    if ((pickerRegistry.retiredMemberIds?.(pickerId) ?? []).some(id => ids.includes(id) && !cleanup.has(id))) throw Object.assign(new Error('This save contains a departed slot. Restore with the current character mapping.'), { status: 422 });
     if (required.some(id => !ids.includes(id)) || (operation !== 'replace' && ids.some(id => !registered.memberIds.includes(id)))) {
       throw Object.assign(new Error('Picker membership does not match its registry.'), { status: 403 });
     }

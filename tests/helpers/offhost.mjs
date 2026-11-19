@@ -73,7 +73,7 @@ export async function assertPayloadClosure(rebuild) {
 
 // Ordinary service storage, two synthetic groups and a schema-owned registry.
 // Keep the existing single-store fixture and its upload simulation unchanged.
-export async function serviceOffhostFixture(t, { runtime = false } = {}) {
+export async function serviceOffhostFixture(t, { runtime = false, prepare } = {}) {
   const f = await offhostFixture(t);
   const { openRegistry } = await import('../../app/storage/registry.mjs');
   const { captureServiceCheckpoint, publishServiceBackup } = await import('../../scripts/linux/service-checkpoint.mjs');
@@ -98,6 +98,7 @@ export async function serviceOffhostFixture(t, { runtime = false } = {}) {
       await bindDatasetStorage(dir, dataset);
       await writeFile(path.join(dir, 'plugin-keys.json'), '{"keys":[]}');
     }
+    await prepare?.({ registry, pickers, settings: f.settings, dataset });
     const pointer = await json(f.settings.current), config = await json(pointer.config.path);
     config.multiPicker = f.settings.multiPicker; config.datasetId = 'open-starter';
     config.packsDir = f.roots.packs;

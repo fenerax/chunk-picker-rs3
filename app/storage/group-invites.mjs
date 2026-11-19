@@ -47,7 +47,7 @@ export function validateGroupInvites(doc) {
     if (i.status === 'accepted' && (!uuid(i.acceptingAccountId) || !/^c_[0-9a-f]{32}$/.test(i.acceptingCharacterId))) bad();
     if (i.transaction) {
       const t = i.transaction;
-      if (i.status !== 'accepted' || Object.keys(t).some(k => !['source', 'memberId', 'runescapeName', 'newCharacter', ...(doc.schemaVersion === 4 ? ['pastMapId'] : [])].includes(k))
+      if (i.status !== 'accepted' || Object.keys(t).some(k => !['source', 'memberId', 'runescapeName', 'newCharacter', ...(doc.schemaVersion >= 4 ? ['pastMapId'] : [])].includes(k))
         || t.pastMapId !== undefined && (t.newCharacter || t.pastMapId !== i.id)
         || !/^m_[0-9a-f]{32}$/.test(t.memberId) || typeof t.newCharacter !== 'boolean'
         || (t.newCharacter ? t.source !== null : !t.source || typeof t.source.pickerId !== 'string' || t.source.memberId !== 'owner')
@@ -78,6 +78,7 @@ export function createGroupInvites({ read, save, version, issueCharacter, now, c
   const authorized = (doc, i) => {
     const p = doc.pickers.find(p => p.id === i.pickerId);
     return p?.kind === 'default' && p.lifecycle === 'active' && p.provisioning === 'ready' && p.ownerAccountId === i.issuerAccountId
+      && !(doc.deletions ?? []).some(d => d.groups.includes(p.id) || d.targets.some(t => t.characterId === i.issuerCharacterId))
       && p.ownerCharacterId === i.issuerCharacterId && doc.characters.some(c => c.id === i.issuerCharacterId && c.lifecycle === 'active' && c.accountId === i.issuerAccountId && c.placement.pickerId === p.id);
   };
   const state = (doc, i) => i.status !== 'pending' ? i.status : Date.parse(i.expiresAt) <= now() ? 'expired' : authorized(doc, i) ? 'pending' : 'revoked';
@@ -123,6 +124,7 @@ export function createGroupInvites({ read, save, version, issueCharacter, now, c
       await save(doc); await point('invite-conflict-cancelled', i.pickerId);
     },
     async create(accountId, pickerId, replaceId) {
+      if ((read().deletions ?? []).some(d => !d.completedAt && d.targets.some(t => t.pickerId === pickerId))) fail('Deletion is completing. Retry after recovery.');
       owner(read(), accountId, pickerId);
       await version();
       const doc = structuredClone(read()), p = owner(doc, accountId, pickerId);
@@ -152,6 +154,7 @@ export function createGroupInvites({ read, save, version, issueCharacter, now, c
     },
     async begin(secret, accountId, { characterId, runescapeName = null, acknowledgeDuplicate = false } = {}) {
       let doc = structuredClone(read()), i = bySecret(doc, secret);
+      if ((doc.deletions ?? []).some(d => !d.completedAt && (d.targets.some(t => t.pickerId === i.pickerId || t.characterId === characterId) || d.kind === 'account' && d.accountId === accountId))) fail('Deletion is completing. Retry after recovery.');
       if (i.status === 'accepted') {
         if (i.acceptingAccountId !== accountId || (characterId && characterId !== i.acceptingCharacterId) || (!characterId && !i.transaction?.newCharacter && read().characters.find(c => c.id === i.acceptingCharacterId)?.requestId !== `invite:${i.id}`)) fail('This invitation has already been accepted by another character.');
         return structuredClone(i);

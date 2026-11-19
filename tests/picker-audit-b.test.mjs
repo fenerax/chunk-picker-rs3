@@ -125,29 +125,13 @@ function panel(session, fetch) {
   return { instance, get dialog() { return dialog; }, open: () => click(instance.rows(), 'Delete account') };
 }
 
-test('MP12B: shared deletion stays bound to the account confirmed by the dialog', async t => {
-  const f = await fixture(t), firstCookie = await f.shared(FIRST, 'one'), secondCookie = await f.shared(SECOND, 'two');
-  const first = (await f.send('/api/session', firstCookie)).json();
-  const second = (await f.send('/api/session', secondCookie)).json();
-  assert.notEqual(first.account.id, second.account.id);
-  assert.equal(first.pickerRoute, second.pickerRoute); assert.equal(first.pickerRoute, 'legacy');
-  let activeCookie = firstCookie, deletion;
-  const ui = panel(first, async (route, options = {}) => {
-    const result = await f.send(route, activeCookie, { method: options.method,
-      ...(options.body ? { body: JSON.parse(options.body) } : {}), headers: options.headers });
-    // A different tab completes sign-in after the server produces the preflight
-    // response. Its cookie applies to the next request from this document too.
-    if (route === '/api/session') activeCookie = secondCookie;
-    if (route === '/api/account/delete') deletion = result;
-    return new Response(result.text, { status: result.status, headers: result.headers });
-  });
-  ui.open();
-  assert.ok(walk(ui.dialog.node).some(node => node.textContent.includes(first.account.id)));
-  await click(ui.dialog.node, 'Delete account');
-  const firstAfter = await f.send('/api/session', firstCookie), secondAfter = await f.send('/api/session', secondCookie);
-  assert.equal(deletion.status, 409);
-  assert.deepEqual({ deletionRefused: [401, 403, 409].includes(deletion.status), first: firstAfter.status, second: secondAfter.status },
-    { deletionRefused: true, first: 200, second: 200 }, 'A stale account confirmation must refuse deletion and preserve both accounts');
+test('MP12B: legacy shared deletion reviews preserve both controlling logins', async t => {
+  const f = await fixture(t), first = await f.shared(FIRST, 'one'), second = await f.shared(SECOND, 'two');
+  for (const cookie of [first, second]) {
+    assert.equal((await f.send('/api/deletion?kind=account&deleteGroup=true', cookie)).status, 409);
+    assert.equal((await f.send('/api/account/delete', cookie, { body: {} })).status, 409);
+    assert.equal((await f.send('/api/state', cookie)).status, 200);
+  }
 });
 
 
@@ -203,7 +187,7 @@ test('MP12B: sessions rotate, logout revokes its token, and refused character de
   assert.equal((await f.send('/api/session', first)).status, 401);
   assert.equal((await f.send('/api/session', rotated)).status, 200);
   const another = await f.login(FIRST);
-  assert.equal((await f.send('/api/account/delete', rotated, { body: { accountDeletionToken: session.accountDeletionToken }, headers: { 'X-Picker-Id': session.pickerRoute } })).status, 409);
+  assert.equal((await f.send('/api/account/delete', rotated, { body: {}, headers: { 'X-Picker-Id': session.pickerRoute } })).status, 409);
   assert.equal((await f.send('/api/session', first)).status, 401);
   for (const cookie of [rotated, another]) {
     assert.equal((await f.send('/api/session', cookie)).status, 200);
@@ -250,86 +234,72 @@ test('MP12B: owner controls do not grant operator powers or accept a caller-supp
 });
 
 test('MP12B: a forged shared-picker owner UI cannot delete the shared picker', async t => {
-  const f = await fixture(t), cookie = await f.shared(FIRST, 'one');
-  const session = (await f.send('/api/session', cookie)).json();
-  assert.equal(session.ownerControls.shared, true); assert.equal(session.ownerControls.role, 'player');
+  const f = await fixture(t), cookie = await f.shared(FIRST, 'one'), session = (await f.send('/api/session', cookie)).json();
   const ordinary = panel(session, () => { throw new Error('Opening controls must not send a request'); });
   assert.ok(!walk(ordinary.instance.rows()).some(node => node.textContent === 'Delete picker'));
-  const forged = { ...session, ownerControls: { ...session.ownerControls, role: 'owner', shared: false } };
-  let refused;
-  const ui = panel(forged, async (route, options = {}) => {
-    if (route === '/api/session') return Response.json(forged);
-    refused = await f.send(route, cookie, { body: JSON.parse(options.body), headers: options.headers });
-    return new Response(refused.text, { status: refused.status });
-  });
-  click(ui.instance.rows(), 'Delete picker'); await click(ui.dialog.node, 'Delete picker');
-  assert.equal(refused.status, 409); assert.equal((await f.send('/api/state', cookie)).status, 200);
+  const url = '/api/deletion?' + new URLSearchParams({ kind: 'picker', character: session.characterId, picker: session.pickerId, deleteGroup: 'true' });
+  assert.equal((await f.send(url, cookie)).status, 403);
+  assert.equal((await f.send('/api/picker/delete', cookie, { body: {} })).status, 409);
+  assert.equal((await f.send('/api/state', cookie)).status, 200);
 });
 
-test('MP12B: a cookie switch between distinct owned pickers cannot redirect a stale deletion', async t => {
-  const f = await fixture(t), firstCookie = await f.login(FIRST), secondCookie = await f.login(SECOND);
-  const session = (await f.send('/api/session', firstCookie)).json();
-  let cookie = firstCookie, refused;
-  const ui = panel(session, async (route, options = {}) => {
-    const result = await f.send(route, cookie, { method: options.method,
-      ...(options.body ? { body: JSON.parse(options.body) } : {}), headers: options.headers });
-    if (route === '/api/session') cookie = secondCookie;
-    if (route.endsWith('/delete')) refused = result;
-    return new Response(result.text, { status: result.status, headers: result.headers });
-  });
-  ui.open(); await click(ui.dialog.node, 'Delete account');
-  assert.equal(refused.status, 403);
-  assert.equal((await f.send('/api/session', firstCookie)).status, 200);
-  assert.equal((await f.send('/api/session', secondCookie)).status, 200);
+test('MP12B: a cookie switch cannot redirect an owned-login deletion review', async t => {
+  const f = await fixture(t), first = await f.login(FIRST), second = await f.login(SECOND);
+  const url = '/api/deletion?kind=account&deleteGroup=true', review = await f.send(url, first);
+  assert.equal(review.status, 200, review.text);
+  const body = { requestId: randomUUID(), reviewToken: review.json().reviewToken, confirmed: true, finalGroupConfirmed: true };
+  assert.equal((await f.send(url, second, { body })).status, 409);
+  assert.equal((await f.send('/api/session', first)).status, 200);
+  assert.equal((await f.send('/api/session', second)).status, 200);
 });
 
 
 test('MP13: account deletion refuses missing, forged, foreign and other-session confirmations', async t => {
-  const f = await fixture(t), first = await f.shared(FIRST, 'one'), second = await f.shared(SECOND, 'two');
-  const getToken = async cookie => (await f.send('/api/session', cookie,
-    { headers: { 'X-Account-Action': 'delete' } })).json().accountDeletionToken;
-  assert.equal(Object.hasOwn((await f.send('/api/session', first)).json(), 'accountDeletionToken'), false);
-  const token = await getToken(first), foreign = await getToken(second);
+  const f = await fixture(t), first = await f.login(FIRST), second = await f.login(SECOND);
+  const url = '/api/deletion?kind=account&deleteGroup=true';
+  const getToken = async cookie => { const r = await f.send(url, cookie); assert.equal(r.status, 200, r.text); return r.json().reviewToken; };
+  const token = await getToken(first), foreign = await getToken(second), otherSession = await f.login(FIRST);
   assert.match(token, /^[A-Za-z0-9_-]{43}$/); assert.notEqual(token, foreign);
-  const otherSession = await f.login(FIRST);
-  for (const [cookie, body] of [[first, {}], [first, { accountDeletionToken: randomUUID() }],
-    [second, { accountDeletionToken: token }], [first, { accountDeletionToken: foreign }],
-    [otherSession, { accountDeletionToken: token }]]) {
-    assert.equal((await f.send('/api/account/delete', cookie, { body })).status, 409);
-    assert.equal((await f.send('/api/session', first)).status, 200);
-    assert.equal((await f.send('/api/session', second)).status, 200);
+  for (const [cookie, reviewToken] of [[first, undefined], [first, randomUUID()], [second, token], [first, foreign], [otherSession, token]]) {
+    assert.equal((await f.send(url, cookie, { body: { requestId: randomUUID(), reviewToken, confirmed: true, finalGroupConfirmed: true } })).status, 409);
+    assert.equal((await f.send('/api/session', first)).status, 200); assert.equal((await f.send('/api/session', second)).status, 200);
   }
 });
 
-test('MP13: the deletion queue checks expiry and consumes confirmations once', async () => {
+test('MP13: queued deletion rechecks expiry and completed retries keep the same receipt', async () => {
   const { createPickerDeletion } = await import('../app/picker-router-deletion.mjs');
   const { rememberRoutedBody } = await import('../app/picker-context-http.mjs');
   let time = 0;
-  const entered = Promise.withResolvers(), release = Promise.withResolvers(), deleted = [];
+  const entered = Promise.withResolvers(), release = Promise.withResolvers(), deleted = [], records = new Map();
   const identities = [FIRST, SECOND].map(accountId => ({ kind: 'account', accountId, sessionId: randomUUID() }));
   const service = createPickerDeletion({ now: () => time, legacy: { authenticate: request => request.identity },
-    registry: { listCharacters: () => [], listPickers: () => [], deletionRecords: () => ({ accounts: [] }),
+    registry: {
+      deletionPlan: (accountId, input) => ({ ...input, targets: [], groups: [], characters: [], keptCharacters: [], revision: String(accountId) }),
+      getDeletion: id => records.get(id), deletionRecords: () => ({ accounts: [], pickers: [] }),
+      deletionTransactions: () => [...records.values()],
       reconcileTombstones: async () => ({ blockedPickerIds: [], deletedAccountIds: [] }),
-      deleteAccount: async id => { deleted.push(id); if (id === FIRST) { entered.resolve(); await release.promise; } } } });
-  const invoke = (identity, token) => {
-    const request = { identity, method: 'POST', url: '/api/account/delete', headers: { origin } };
-    rememberRoutedBody(request, { accountDeletionToken: token }, 0);
-    return service.handle(request, { writeHead() {}, end() {} },
-      { identity, deletion: '/api/account/delete', security: { origin } });
+      async beginCharacterDeletion(accountId, input, recheck) {
+        await recheck(); if (records.has(input.requestId)) return records.get(input.requestId);
+        if (accountId === FIRST) { entered.resolve(); await release.promise; }
+        const d = { ...input, id: input.requestId, accountId, targets: [], groups: [], completedAt: null }; records.set(d.id, d); deleted.push(accountId); return d;
+      },
+      async finishCharacterDeletion(id) { const d = records.get(id); d.completedAt = '2026-01-01T00:00:00Z'; return d; }
+    } });
+  const invoke = async (identity, body) => {
+    const request = { identity, method: body ? 'POST' : 'GET', url: '/api/deletion?kind=account&deleteGroup=true', headers: { origin } };
+    if (body) rememberRoutedBody(request, body, 0);
+    let value; await service.handle(request, { writeHead() {}, end(bytes) { value = JSON.parse(bytes); } }, { origin });
+    return value;
   };
-  const firstToken = service.accountDeletionToken(identities[0]);
-  const secondToken = service.accountDeletionToken(identities[1]);
-  const first = invoke(identities[0], firstToken); await entered.promise;
-  const second = invoke(identities[1], secondToken);
-  const rejected = assert.rejects(second, { status: 409 });
-  await Promise.resolve(); // Finish body admission and enqueue behind the first deletion.
-  // Advance while a prior deletion holds the queue: validation must happen
-  // after that wait, not merely when the request is admitted.
-  time = 5 * 60 * 1000; release.resolve(); await first; await rejected;
+  const firstToken = (await invoke(identities[0])).reviewToken, secondToken = (await invoke(identities[1])).reviewToken;
+  const firstBody = { requestId: randomUUID(), reviewToken: firstToken, confirmed: true }, secondBody = { requestId: randomUUID(), reviewToken: secondToken, confirmed: true };
+  const first = invoke(identities[0], firstBody); await entered.promise;
+  const second = invoke(identities[1], secondBody), rejected = assert.rejects(second, { status: 409 });
+  await Promise.resolve(); time = 5 * 60 * 1000; release.resolve(); await first; await rejected;
   assert.deepEqual(deleted, [FIRST]);
-  const renewed = service.accountDeletionToken(identities[1]); assert.notEqual(renewed, secondToken);
-  await assert.rejects(invoke(identities[1], secondToken), { status: 409 });
-  await invoke(identities[1], renewed);
-  await assert.rejects(invoke(identities[1], renewed), { status: 409 });
+  const renewed = (await invoke(identities[1])).reviewToken; assert.notEqual(renewed, secondToken);
+  await assert.rejects(invoke(identities[1], secondBody), { status: 409 });
+  const renewedBody = { ...secondBody, reviewToken: renewed }; await invoke(identities[1], renewedBody);
+  assert.equal((await invoke(identities[1], renewedBody)).requestId, renewedBody.requestId);
   assert.deepEqual(deleted, [FIRST, SECOND]);
 });

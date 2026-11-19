@@ -8,6 +8,12 @@
   "app/web/account-panel.mjs :: 'Account'": {
     "reason": "Account uses the Settings layout. Provider redirects and sign-out change authentication, which the read-only gallery cannot perform; generated-account browser evidence covers these controls at desktop and phone widths."
   },
+  "app/web/account-panel.mjs :: 'Delete character, group or login'": {
+    "reason": "Deletion requires authenticated review of exact character, group and login targets and revokes their access. The read-only gallery cannot perform it. Synthetic lifecycle storage, HTTP and controller tests cover confirmations, final-group acknowledgement and recovery."
+  },
+  "app/web/account-panel.mjs :: 'Deletion complete'": {
+    "reason": "A completed deletion with failed browser-storage cleanup needs a cleanup-only retry. The read-only gallery cannot change authenticated state. Synthetic owner UI tests cover refusal, stale/closed dialogs, uncertain responses and cleanup without another deletion."
+  },
   "app/web/account-panel.mjs :: 'Group ownership'": {
     "reason": "Ownership changes require authenticated owner and successor characters, which the read-only gallery cannot supply. Synthetic group-handovers storage/HTTP and account-panel tests cover scoped proposals, explicit acceptance, decline/cancel, same-login designation and durable retry. An isolated incognito browser walkthrough exercised cancellation, cross-login acceptance and same-login designation at desktop and phone widths."
   },
@@ -333,12 +339,6 @@
       "news",
       "roadmap"
     ]
-  },
-  "app/web/account-panel.mjs :: title": {
-    "reason": "Deletion requires a signed-in opt-in account and changes authentication and saved data. Synthetic owner UI/HTTP tests cover confirmation, refusal and the success receipt; the read-only gallery cannot perform deletion."
-  },
-  "app/web/account-panel.mjs :: 'Deletion complete'": {
-    "reason": "Deletion requires a signed-in opt-in account and changes authentication and saved data. Synthetic owner UI/HTTP tests cover confirmation, refusal and the success receipt; the read-only gallery cannot perform deletion."
   },
   "app/web/account-panel.mjs :: 'Player invitations'": {
     "reason": "Owner invitation management creates, replaces and revokes single-use registry invitations and copies secret links, which the read-only gallery cannot perform. Synthetic account-panel tests cover create, copy, replace and revoke; owner invite HTTP tests cover owner scope and CSRF; an isolated synthetic browser walkthrough covers the dialog and acceptance at desktop and phone widths."
