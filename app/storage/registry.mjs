@@ -250,6 +250,7 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
     return capCounts.prepare(next, nextLedger, changes);
   }
   async function save(next, changes = {}) {
+    if (changes.characters) requireCharacterAllocations(next);
     const accountRows = changes.accounts ?? [], pickerRows = changes.pickers ?? [];
     validate(next, { ...changes, accounts: accountRows, pickers: pickerRows, addedCapabilities: changes.addedCapabilities ?? [],
       account: id => accountIndex.get(id), picker: id => pickerIndex.get(id), identity: key => providerIndex.get(key) });
@@ -296,12 +297,18 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
   }
   async function saveLedger(next) {
     validateLedger(next); enforceCaps(current, next);
+    // Pending login receipts reserve capacity without tombstoning the login
+    // before its exact gameplay/credential cleanup has completed.
+    const accounts = new Set(next.accounts.map(a => a.accountId));
+    for (const d of next.deletions ?? []) if (d.kind === 'account' && !d.completedAt) accounts.add(d.accountId);
+    if (accounts.size > caps.retiredAccounts) throw characterError('The retired account record limit has been reached. Existing maps are unchanged. Ask the operator for help; existing records must be kept.');
     if ((next.issuedCharacterIds?.length ?? 0) > caps.issuedCharacterIds || (next.characters?.length ?? 0) > caps.retiredCharacters) throw characterError('The character ID history limit has been reached. Existing IDs cannot be reused.');
     if ((next.slots?.length ?? 0) > caps.retiredSlots) throw characterError('The retired slot history limit has been reached. Historical bindings cannot be reused.');
     try { await writeRegistryJson(ledgerFile, next); ledger = next; rebuildLedgerIndexes(); }
     catch (failure) { failed = true; throw failure; }
   }
   async function saveCharacterBindings(next, changes) {
+    requireCharacterAllocations(next);
     validateCharacters(next, caps);
     enforceCaps(next, ledger, changes);
     const missing = next.characters.filter(c => !ledger.issuedCharacterIds.includes(c.id));
@@ -318,6 +325,16 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
     queue = pending.catch(() => {}); return pending;
   }
   const requireAccount = (next, id) => { const account = next.accounts.find(a => a.id === id); if (!account) throw error(404, 'Account not found.'); return account; };
+  const loginDeleting = id => (ledger.deletions ?? []).some(d => d.kind === 'account' && d.accountId === id && !d.completedAt);
+  function requireAllocation(accountId) {
+    if (loginDeleting(accountId)) throw error(409, 'Login deletion is completing. New characters and groups cannot be created. Retry after recovery.');
+  }
+  function requireCharacterAllocations(next) {
+    const before = new Map((current.characters ?? []).map(c => [c.id, c]));
+    for (const c of next.characters ?? []) if (c.lifecycle === 'active') {
+      if (!before.has(c.id) || JSON.stringify(before.get(c.id).placement) !== JSON.stringify(c.placement)) requireAllocation(c.accountId);
+    }
+  }
   const requirePicker = (next, id) => { const picker = next.pickers.find(p => p.id === id); if (!picker) throw error(404, 'Picker not found.'); return picker; };
   const activePicker = (next, id) => {
     const picker = requirePicker(next, id);
@@ -350,7 +367,8 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
     if (betaPickerCap !== undefined && count >= betaPickerCap) throw error(409, 'The beta is full. New groups are paused; existing maps are unchanged. Ask the operator about the next opening.');
     if (ledger.issuedPickerIds.length + (current.departures ?? []).filter(d => !d.completedAt && !issuedIds.has(d.destination.pickerId)).length >= caps.issuedPickerIds) throw error(409, 'The picker ID limit has been reached. Ask the operator for help; existing IDs cannot be reused.');
   }
-  async function allocate(reserve = true) {
+  async function allocate(reserve = true, accountId) {
+    if (accountId) requireAllocation(accountId);
     checkPickerAllocation();
     for (let attempt = 0; attempt < 128; attempt++) {
       const bits = pickerRandomBytes(16);
@@ -373,6 +391,7 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
   }
   async function provision(id) {
     const picker = activePicker(current, id);
+    requireAllocation(picker.ownerAccountId);
     if (picker.provisioning === 'ready') return picker;
     const directory = path.join(pickerRoot, id);
     try {
@@ -387,6 +406,7 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
     await point('registry-ready', id); return requirePicker(current, id);
   }
   async function ensureDefault(accountId) {
+    requireAllocation(accountId);
     const account = requireAccount(current, accountId);
     if (account.pendingCreation) return (await createCharacter(accountId, { ...account.pendingCreation, acknowledgeDuplicate: true })).picker;
     if (account.defaultPickerId) return provision(account.defaultPickerId);
@@ -394,6 +414,7 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
     return (await createCharacter(accountId, { requestId: 'initial' })).picker;
   }
   async function createCharacter(accountId, { requestId, runescapeName = null, acknowledgeDuplicate = false } = {}) {
+    requireAllocation(accountId);
     if (typeof requestId !== 'string' || !/^[A-Za-z0-9_-]{1,128}$/.test(requestId)) throw error(400, 'A character creation request ID is required.');
     runescapeName = characterName(runescapeName);
     let account = requireAccount(current, accountId);
@@ -409,7 +430,7 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
       if (own.length >= caps.charactersPerAccount || current.characters.filter(c => c.lifecycle === 'active').length + current.accounts.filter(a => a.pendingCreation && !current.characters.some(c => c.id === a.pendingCreation.characterId)).length >= caps.characters) throw characterError('The character limit has been reached. Existing maps are unchanged.');
       if (account.memberships.length >= caps.membershipsPerAccount) throw error(409, 'The account membership record limit has been reached.');
       if (ledger.issuedCharacterIds.length >= caps.issuedCharacterIds) throw characterError('The character ID history limit has been reached.');
-      const pickerId = await allocate(false);
+      const pickerId = await allocate(false, accountId);
       let characterId; do { characterId = newCharacterId(); } while (ledger.issuedCharacterIds.includes(characterId));
       const next = copy(current), owner = requireAccount(next, accountId);
       owner.pendingCreation = { requestId, pickerId, characterId, runescapeName, createdAt: timestamp() };
@@ -621,8 +642,8 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
     // Reconcile before recovery can create a directory or expose any index.
     await saveLedger(ledger); await save(current);
     if (!recoveryOnly) {
-      for (const account of [...current.accounts]) if (account.pendingCreation) await createCharacter(account.id, { requestId: account.pendingCreation.requestId, runescapeName: account.pendingCreation.runescapeName, acknowledgeDuplicate: true });
-      for (const picker of current.pickers.filter(p => p.lifecycle === 'active' && p.provisioning === 'reserved')) await provision(picker.id);
+      for (const account of [...current.accounts]) if (account.pendingCreation && !loginDeleting(account.id)) await createCharacter(account.id, { requestId: account.pendingCreation.requestId, runescapeName: account.pendingCreation.runescapeName, acknowledgeDuplicate: true });
+      for (const picker of current.pickers.filter(p => p.lifecycle === 'active' && p.provisioning === 'reserved' && !loginDeleting(p.ownerAccountId))) await provision(picker.id);
     }
   } catch (failure) {
     for (const release of releases.reverse()) await release().catch(() => {});
@@ -671,8 +692,8 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
       await save(next, changes); await point('deletion-complete'); return d;
     }); },
     deletionCleanupMemberIds(pickerId) { return [...new Set((ledger.deletions ?? []).flatMap(d => d.targets.filter(t => t.pickerId === pickerId && !d.groups.includes(pickerId)).map(t => t.memberId)))]; },
-    beginDeparture(accountId, characterId, pickerId, input) { return enqueue(() => { if (lifecycleCapture) throw error(409, 'A service backup is in progress. Retry departure after it finishes.'); return departures.begin(accountId, characterId, pickerId, input); }); },
-    prepareDeparture(id) { return enqueue(() => departures.prepare(id)); },
+    beginDeparture(accountId, characterId, pickerId, input) { return enqueue(() => { requireAllocation(accountId); requireAllocation(characterIndex.get(input?.characterId)?.accountId); if (lifecycleCapture) throw error(409, 'A service backup is in progress. Retry departure after it finishes.'); return departures.begin(accountId, characterId, pickerId, input); }); },
+    prepareDeparture(id) { return enqueue(() => { requireAllocation(departures.get(id)?.accountId); return departures.prepare(id); }); },
     finishDeparture(id) { return enqueue(() => departures.finish(id)); },
     departureTransactions() { usable(); return departures.pending(); },
     getDeparture(id) { usable(); return departures.get(id); },
@@ -690,6 +711,7 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
     resolveGroupHandover(accountId, characterId, pickerId, id, action) { return enqueue(() => handovers.resolve(accountId, characterId, pickerId, id, action)); },
     groupInvitePoint(name, pickerId) { return point(name, pickerId); },
     createGroupInvite(accountId, pickerId, replaceId, characterId) { return enqueue(() => {
+      requireAllocation(accountId);
       if (characterId && pickerIndex.get(pickerId)?.ownerCharacterId !== characterId) throw error(403, 'Select the current designated owner to manage invitations.');
       return groupInvites.create(accountId, pickerId, replaceId);
     }); },
@@ -699,8 +721,9 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
       if (characterId && pickerIndex.get(pickerId)?.ownerCharacterId !== characterId) throw error(403, 'Select the current designated owner to manage invitations.');
       return groupInvites.revoke(accountId, pickerId, id);
     }); },
-    beginGroupJoin(secret, accountId, input) { return enqueue(() => { if (lifecycleCapture) throw error(409, 'A service backup is in progress. Retry joining after it finishes.'); return groupInvites.begin(secret, accountId, input); }); },
+    beginGroupJoin(secret, accountId, input) { return enqueue(() => { requireAllocation(accountId); if (lifecycleCapture) throw error(409, 'A service backup is in progress. Retry joining after it finishes.'); return groupInvites.begin(secret, accountId, input); }); },
     finishGroupJoin(id) { return enqueue(async () => {
+      requireAllocation(groupInvites.transactions().find(i => i.id === id)?.acceptingAccountId);
       if (groupInvites.transactions().some(i => i.id === id && i.transaction.source)) await retirementVersion();
       return groupInvites.finish(id);
     }); },
@@ -818,6 +841,7 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
       registryIdentity(provider, subject);
       // Refuse admission before persisting a new login or consuming an ID.
       const existing = accountForIdentity(current, provider, subject);
+      if (existing) requireAllocation(existing.id);
       if (!existing || !existing.initialProvisioned && !existing.pendingCreation) checkPickerAllocation();
       if (!existing && current.characters.filter(c => c.lifecycle === 'active').length >= caps.characters) throw characterError('The service character limit has been reached. Existing maps are unchanged.');
       if (!existing && ledger.issuedCharacterIds.length >= caps.issuedCharacterIds) throw characterError('The character ID history limit has been reached. Existing IDs cannot be reused.');
@@ -839,6 +863,7 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
     }); },
     ensureDefaultPicker(accountId) { return enqueue(() => ensureDefault(accountId)); },
     attachMembership(accountId, membership) { return enqueue(async () => {
+      requireAllocation(accountId);
       const next = copy(current), account = requireAccount(next, accountId), picker = activePicker(next, membership?.pickerId);
       if (!object(membership, ['pickerId', 'role', 'memberId']) || !roles.includes(membership.role) || (membership.role === 'viewer' ? membership.memberId !== null : !picker.memberIds.includes(membership.memberId)) || (membership.role === 'owner' && (picker.kind !== 'default' || picker.ownerAccountId !== accountId))) throw error(400, 'Invalid picker membership.');
       const existing = account.memberships.find(m => m.pickerId === picker.id && m.memberId === membership.memberId);
@@ -880,6 +905,7 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
       // Validate the complete plan before reserving an ID or changing the registry.
       for (const input of plan.accounts) {
         if (!object(input, ['id', 'identities', 'memberships']) || !REGISTRY_ACCOUNT.test(input.id) || ledger.accounts.some(t => t.accountId === input.id) || !Array.isArray(input.identities) || !Array.isArray(input.memberships)) throw new TypeError('Invalid legacy registration.');
+        if (input.memberships.some(m => m.role !== 'viewer' && !current.characters.some(c => c.lifecycle === 'active' && c.accountId === input.id && c.placement.pickerId === picker?.id && c.placement.memberId === m.memberId))) requireAllocation(input.id);
         let account = next.accounts.find(a => a.id === input.id);
         if (!account) { account = { id: input.id, identities: [], memberships: [], defaultPickerId: null, createdAt: timestamp(), initialProvisioned: true, lastCharacterId: null, pendingCreation: null }; next.accounts.push(account); }
         for (const identity of input.identities) {

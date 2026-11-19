@@ -36,6 +36,7 @@ export function createCharacterDeletionService({ registry, using, purge, fenceSe
       // residency cap. The registry intent fences every target before the
       // final per-group drain; accepted writes remain accounted for.
       const d = await registry.beginCharacterDeletion(accountId, { ...input, revision: review.revision }, recheck);
+      if (d.completedAt) return receipt(d);
       const result = await finish(d);
       await purge(); return result;
     }); },

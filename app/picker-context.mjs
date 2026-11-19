@@ -2195,6 +2195,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
     async revokeDepartedMember(memberId) {
       endInactiveClients();
       await gamePlugin.revokeMember(memberId);
+      await pickerRouting?.revokeMemberPluginKeys?.(memberId);
       await pickerRouting?.groupOperationPoint?.('departure-keys');
       await overlays.revokeMember(memberId);
       await pickerRouting?.groupOperationPoint?.('departure-overlays');

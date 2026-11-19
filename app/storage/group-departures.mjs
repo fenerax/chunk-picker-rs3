@@ -94,7 +94,7 @@ export function createGroupDepartures({ read, save, saveLedgerId, allocate, vers
       if ((read().pastMaps ?? []).some(m => m.id === requestId) || (read().groupInvites ?? []).some(i => i.id === requestId)) fail('This request ID is already used for another retained map or invitation.');
       const { c, removing } = check(read(), actorAccountId, actorCharacterId, characterId, pickerId);
       if ((read().departures?.length ?? 0) >= 20000 || pastMapSlots(read()) >= 20000) fail('The retained map record limit has been reached. Existing maps are unchanged.');
-      const picker = await allocate(false);
+      const picker = await allocate(false, c.accountId);
       await version();
       const doc = structuredClone(read()), d = { id: requestId, characterId: c.id, accountId: c.accountId, actorAccountId, actorCharacterId,
         source: structuredClone(c.placement), destination: { pickerId: picker, memberId: 'owner' }, reason: removing ? 'removed' : 'left', createdAt: stamp(), completedAt: null };

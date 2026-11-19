@@ -41,7 +41,7 @@ export function createPickerDeletion({ registry, legacy, using, backupRetentionM
       && timingSafeEqual(Buffer.from(retained.receiptProof, 'hex'), Buffer.from(receiptProof, 'hex'))) {
       // This proof permits only the already-committed receipt, including after
       // login/session removal and restart. It grants no gameplay or new action.
-      await service.recover(); await json(request, response, 200, { status: 'deleted', requestId: retained.id, kind: retained.kind,
+      await json(request, response, 200, { status: 'deleted', requestId: retained.id, kind: retained.kind,
         characters: retained.targets.map(t => t.characterId), groups: retained.groups, href: retained.kind === 'account' ? '/auth/signin' : '/characters', backups }); return;
     }
     const identity = legacy.authenticate(request, security);

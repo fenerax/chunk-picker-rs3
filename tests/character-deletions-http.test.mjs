@@ -177,3 +177,37 @@ test('join recovers after old-slot retirement publishes before the registry plac
   assert.equal((await f.document()).characters.find(row => row.id === c.id).placement.pickerId, pickerId);
   assert.equal((await f.send('/api/state', a.cookie, undefined, scope(pickerId, c.id))).status, 200);
 });
+
+test('a pending login deletion rejects Add character over HTTP before allocating any group or ID', async t => {
+  const entered = Promise.withResolvers(), release = Promise.withResolvers(); let armed = false;
+  t.after(() => release.resolve());
+  const f = await groupHttpFixture(t, { async crashPoint(name) { if (armed && name === 'deletion-roster') { armed = false; entered.resolve(); await release.promise; } } });
+  const login = await f.login('701'), c = (await f.document()).characters[0], url = route({ characterId: c.id, pickerId: c.placement.pickerId }, 'account');
+  const r = await review(f, login.cookie, url); armed = true;
+  const pending = f.send(url, login.cookie, confirmation(r)); await entered.promise;
+  const registry = await f.document(), ledgerFile = path.join(f.multiPicker.tombstoneDir, 'ledger.json'), bytes = await readFile(ledgerFile);
+  const denied = await f.send('/api/characters', login.cookie, { requestId: randomUUID() });
+  assert.equal(denied.status, 409, denied.text); assert.match(denied.text, /Login deletion is completing/);
+  assert.deepEqual(await f.document(), registry); assert.deepEqual(await readFile(ledgerFile), bytes);
+  release.resolve(); assert.equal((await pending).status, 200);
+  await f.restart(); assert.equal((await f.send('/api/characters', login.cookie)).status, 401);
+});
+
+for (const reviewKind of ['progress', 'transfer']) test(`completed HTTP receipt retry preserves a surviving character ${reviewKind} review`, async t => {
+  const dataset = { ...fixtureDataset, capabilities: { ...fixtureDataset.capabilities, features: { ...fixtureDataset.capabilities.features, runeMetrics: true, externalNames: true } } };
+  const s = await setup(t, { dataset, progressSources: { webSource: 'official-api', officialApi: { async snapshot() {
+    return { source: 'official-api', sourceLabel: 'Official API', fetchedAt: new Date().toISOString(), skills: [], quests: [] };
+  } } } }), { f, owner, player, os } = s;
+  const state = (await f.send('/api/state', owner.cookie, undefined, os)).json().state;
+  assert.equal((await f.send('/api/command', owner.cookie, { expectedRevision: state.revision, command: { type: 'set-runescape-name', memberId: 'owner', name: 'OwnerSample' } }, os)).status, 200);
+  const r = await review(f, player.cookie, route(s)), body = confirmation(r), deleted = await f.send(route(s), player.cookie, body); assert.equal(deleted.status, 200, deleted.text);
+  const preview = await f.send('/api/runemetrics/preview', owner.cookie, { memberId: 'owner' }, os); assert.equal(preview.status, 200, preview.text);
+  const backup = (await f.send('/api/backup', owner.cookie, undefined, os)).json();
+  const transfer = await f.send('/api/restore/preview', owner.cookie, { backup }, os); assert.equal(transfer.status, 200, transfer.text);
+  assert.ok(transfer.json().previewToken);
+  const retry = await f.send(route(s), player.cookie, body); assert.equal(retry.status, 200); assert.deepEqual(retry.json(), deleted.json());
+  const applied = reviewKind === 'progress'
+    ? await f.send('/api/runemetrics/apply', owner.cookie, { previewId: preview.json().previewId, expectedRevision: preview.json().stateRevision }, os)
+    : await f.send('/api/restore', owner.cookie, { backup, expectedRevision: preview.json().stateRevision, previewToken: transfer.json().previewToken }, os);
+  assert.equal(applied.status, 200, applied.text);
+});

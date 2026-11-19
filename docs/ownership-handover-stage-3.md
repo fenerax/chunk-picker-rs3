@@ -429,12 +429,12 @@ The existing desktop/phone refusal and same-request network-retry browser tests
 also pass. All three reviewed failures were reproduced before their fixes.
 Full hosted CI and a new 50-first-attempt stability receipt remain required.
 At that earlier commit launch-readiness was **55 shipped / 37 partial / 17
-missing**. The deletion update above brings the current table to **65 shipped /
-30 partial / 14 missing**; human/operations gates remain separate.
+missing**. The deletion and rename updates bring the current table to **68 shipped /
+27 partial / 14 missing**; human/operations gates remain separate.
 
-## Deletion verification
+## Initial deletion verification
 
-The deletion change's focused receipt is **460 passed, zero failures or skips
+The initial deletion change's focused receipt, before the review fixes below, is **460 passed, zero failures or skips
 across 27 distinct entry files**. It includes 38 deletion storage cases, 15 authenticated
 HTTP cases, six stopped-recovery/operator-retirement cases and two new browser
 journeys. Process exits cover both migration preimages, the retained migration
@@ -483,3 +483,40 @@ remains: `projection-measurements.test.mjs` calls `rss` in
 `scripts/perf/projection-warm.mjs`, which reads Linux `/proc/<pid>/status`.
 Platform and private-harness skips remain reported. This is not an all-green
 quick-suite receipt; complete hosted CI and stability proof are still required.
+
+## PR #334 review fixes
+
+Pending login-deletion receipts in the live ledger now fence character and
+owned-group allocation inside the registry queue. This covers Add character,
+first-login/default provisioning, invitation creation and acceptance, departure
+solos and new legacy bindings. The character/placement writer also checks the
+fence before publishing new issued IDs. Startup does not provision a deleting
+login's reserved groups. Tests compare registry/ledger bytes after refusals,
+resume the intent after restart and verify the surviving login remains usable.
+
+A completed deletion retry returns its retained receipt without opening any
+group, purging or replaying credential cleanup. New Progress previews and restore
+reviews created by survivors remain usable. Startup recovery still replays
+completed records before listening, as required when restoring older gameplay
+or sidecars; unfinished client requests resume only their own transaction.
+
+Pending login receipts reserve retired-account capacity until completion. Every
+ledger writer honors that reservation, including operator account retirement.
+Character and slot retirement records already consume their capacity with the
+intent. Exhaustion of any of these three ceilings refuses before a new intent,
+roster change or credential revocation. These reservations use existing receipt
+records and introduce no new durable fields or versions. The strict defaults
+assertion explicitly includes `retiredSlots: 1000000`.
+
+The branch includes rename authority from #333. Departure/deletion revocation
+also uses its exact `revokeMemberPluginKeys` helper after revoking the slot's
+sidecar keys. The controlling-login rename checks and both normalized-name and
+formatting-only behavior remain covered by the rename tests.
+
+The five files cancelled by shard 2's original cap assertion all pass directly:
+`training-planner` (23), `scheduling-server` (10), `storage-reader-purity` (4),
+`cache-topology-application` (12) and `picker-properties` (15), for **64 passing
+cases** with no skips or cancellations. The property case retains all 1,000
+fixed-seed saves. New review regressions cover allocation fencing, receipt
+purity, capacity reservations and unchanged state after cap refusal; HTTP tests
+exercise a concurrent Add character and surviving Progress/restore reviews.

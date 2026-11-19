@@ -4,7 +4,7 @@ Audit date: 2026-11-11. Source baseline: `daa221d931ef6dd1c4dd725821ecf0e80faf07
 
 The owner decided on 2026-11-11 to open an invite-only beta of roughly 25–50 groups once the launch basics pass, inside a load-tested envelope of about 100 active groups. The 2,000-character design ceiling must be proven before admission rises beyond demonstrated capacity. Public sign-up still requires her explicit OK. No release, live setting or sign-up change is authorized by this checklist.
 
-`shipped` means the cited code implements the stated row; `partial` means only part of that behavior exists; `missing` means the required operation, entity or proof is absent. A shipped source row does not pass a human or operations gate. Counts cover the 109 contract rows below, not the launch gates: **65 shipped, 30 partial, 14 missing**.
+`shipped` means the cited code implements the stated row; `partial` means only part of that behavior exists; `missing` means the required operation, entity or proof is absent. A shipped source row does not pass a human or operations gate. Counts cover the 109 contract rows below, not the launch gates: **68 shipped, 27 partial, 14 missing**.
 
 ## Launch-basics gates
 
