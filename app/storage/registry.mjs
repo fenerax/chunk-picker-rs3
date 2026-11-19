@@ -624,8 +624,8 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
       await save(next, { accounts: [account] });
     }); },
     addCharacter(accountId, input) { return enqueue(() => createCharacter(accountId, input)); },
-    // Names remain a projection of schema-1 gameplay until the separate rename
-    // workflow ships. Publish after gameplay, retry before replies and on open.
+    // Names project authorized schema-1 gameplay. Publish after gameplay, retry
+    // before replies and on open; metadata never grants rename authority.
     updateCharacterNames(pickerId, members) { return enqueue(async () => {
       if (pickerId === 'legacy') pickerId = current.pickers.find(p => p.kind === 'legacy-shared')?.id;
       const updates = current.characters.filter(c => c.lifecycle === 'active' && c.placement.pickerId === pickerId
@@ -799,6 +799,14 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
       const existing = capabilityIndex.get(capabilityKey(kind, hash)); if (!existing) return;
       const next = { ...current, capabilities: current.capabilities.filter(c => c.kind !== kind || c.hash !== hash) };
       await save(next, { removedCapabilities: [existing] });
+    }); },
+    revokeMemberPluginKeys(pickerId, memberId) { return enqueue(async () => {
+      const picker = pickerId === 'legacy' ? current.pickers.find(p => p.kind === 'legacy-shared') : requirePicker(current, pickerId);
+      if (!picker) return;
+      const removedCapabilities = current.capabilities.filter(c => c.kind === 'plugin-key' && c.pickerId === picker.id && c.memberId === memberId);
+      if (!removedCapabilities.length) return;
+      const next = { ...current, capabilities: current.capabilities.filter(c => !removedCapabilities.includes(c)) };
+      await save(next, { removedCapabilities });
     }); },
     beginPickerDeletion(id, { onTombstone } = {}) { return enqueue(async () => {
       if (requirePicker(current, id).kind === 'legacy-shared') throw error(409, 'The shared picker cannot be deleted.');

@@ -15,6 +15,16 @@ progress. Each player can have three active keys. Copy a newly created key once
 and paste it into the plugin. Only SHA-256 hashes are stored in the separate
 key sidecar. Keys can be revoked. Never put them in URLs, logs, or saves.
 
+Only the login controlling a character can change its declared RuneScape name,
+including through Undo or a save/map restore. A normalized name change revokes
+that character's existing keys before the name is saved. Those keys then return
+HTTP 401; create a new key and pair the plugin again, even if you Undo the rename.
+Case, outer whitespace and equivalent space/underscore formatting keep keys.
+Every name edit expires pending web/plugin progress previews and clears transient
+plugin observations. Fetch fresh progress before applying it. Previously saved
+observations and attributed History stay with the character; names never claim
+or merge characters. The plugin v1 wire format is unchanged.
+
 ### Picker testing mode
 
 Before testing on a beta world, turn on **Plugin testing mode** in **More →

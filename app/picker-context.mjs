@@ -191,10 +191,10 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
   }
   const storeStarted = performance.now();
   const handover = createLiveSwapAdmission();
-  let store;
+  let store, renameHandler;
   const prepareImportState = prepareState;
   prepareState = preserveGameIdentity(dataset, prepareState);
-  store = await openStore({ dataDir, world: indexedWorld, registry: ruleRegistry, initialState, migrateState, prepareState, prepareImportState, beforeCommit, afterRosterCommit: pickerRouting?.syncCharacterNames, now, random, retention, membersStartBanks, xpChoiceCatalogue, progressQuestPoints: createProgressQuestPoints(parsedDefinitions), rollPoolCache, computeRollPool: evaluatedRollPool,
+  store = await openStore({ dataDir, world: indexedWorld, registry: ruleRegistry, initialState, migrateState, prepareState, prepareImportState, beforeCommit, beforeMemberNameChange: changes => renameHandler?.(changes), afterRosterCommit: pickerRouting?.syncCharacterNames, now, random, retention, membersStartBanks, xpChoiceCatalogue, progressQuestPoints: createProgressQuestPoints(parsedDefinitions), rollPoolCache, computeRollPool: evaluatedRollPool,
     // Only rows carrying a level need a copy without it; generated goal rows are read as they are.
     taskCatalogue: taskWorker ? new Map([...(ownedBase?.tasks ?? taskWorker.catalogue), ...taskWorker.dynamicCatalogue].map(row => {
       if (!Object.hasOwn(row, 'level')) return [row.id, row];
@@ -284,6 +284,18 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
   if (openDiagnostics) openDiagnostics.timingMs.fingerprintsMs = performance.now() - fingerprintStarted;
   const progressClient = createProgressSources({ ...progressSources, runeMetrics, pluginSnapshot: owner => gamePlugin.progressSnapshot(owner) });
   const runeMetricsPreviews = new Map();
+  const nameGenerations = new Map();
+  renameHandler = async changes => {
+    for (const { memberId, normalized } of changes) {
+      nameGenerations.set(memberId, (nameGenerations.get(memberId) ?? 0) + 1);
+      for (const [id, review] of runeMetricsPreviews) if (review.command.memberId === memberId) runeMetricsPreviews.delete(id);
+      gamePlugin.invalidateName(memberId);
+      if (normalized) {
+        await gamePlugin.revokeMember(memberId);
+        await pickerRouting?.revokeMemberPluginKeys?.(memberId);
+      }
+    }
+  };
   const originalSyncClient = originalSyncIntegration?.createOriginalSyncClient(originalSync), originalSyncPreviews = new Map();
   const originalSyncNow = () => (originalSync.now?.() ?? new Date()).getTime();
   const previewLifetimeMs = 10 * 60 * 1000;
@@ -1777,10 +1789,11 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
               if (Object.keys(body).some(key => key !== 'memberId')) throw httpError(400, 'Progress preview accepts only memberId.');
               const owner = store.getState().members.find(member => member.id === body.memberId);
               if (!owner) throw httpError(400, 'Choose a known player for progress sync.');
+              const nameGeneration = nameGenerations.get(owner.id);
               let snapshot = await progressClient.snapshot(owner);
               currentScope();
               const current = store.getState(), latest = current.members.find(member => member.id === owner.id);
-              if (!latest || latest.runescapeName !== owner.runescapeName) throw Object.assign(httpError(409, 'The RuneScape name changed while fetching. Review a new sync.'), { code: 'REVISION_CONFLICT', state: current });
+              if (!latest || latest.runescapeName !== owner.runescapeName || nameGeneration !== nameGenerations.get(owner.id)) throw Object.assign(httpError(409, 'The RuneScape name changed while fetching. Review a new sync.'), { code: 'REVISION_CONFLICT', state: current });
               // A plugin report arriving during a web fetch wins too.
               snapshot = mergePluginProgress(latest, snapshot, gamePlugin.progressSnapshot(latest));
               if (snapshot.available === false) { await json(request, response, 200, { ...snapshot, memberId: owner.id, runescapeName: owner.runescapeName ?? '' }); return; }
@@ -1907,7 +1920,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
                 return;
               }
               if (body.originalPaste || body.originalMapCode || pickerId !== 'legacy' || body.previewToken) transferReviews.check(body, identity, currentRevision);
-              const applied = await store.applyTransfer(result.ticket, body.expectedRevision);
+              const applied = await store.applyTransfer(result.ticket, body.expectedRevision, { actor: identity.actor });
               if (applied.reply.bytes) {
                 await jsonBytes(request, response, 200, applied.reply.bytes, {}, { identityETag: applied.reply.etag });
                 return;

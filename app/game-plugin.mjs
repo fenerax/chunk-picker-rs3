@@ -659,6 +659,13 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
         : new Set([...(pendingRestore ?? []), ...event.restoredMemberIds]);
       notify();
     }
+    if (event.renamedMemberIds?.length) {
+      if (pendingRestore === null) pendingRestore = new Set(state().members.map(owner => owner.id));
+      for (const player of event.renamedMemberIds) {
+        pendingRestore?.delete(player); retainedReviewRestores.delete(player);
+        clearTestingCaches(player, true);
+      }
+    }
   });
   return {
     authenticate: credentialFor,
@@ -892,6 +899,11 @@ export async function openGamePlugin({ dataDir, store, world, registry, questMap
       if (hasActiveKey(memberId)) retainedTasks.set(memberId, bytes); else { retainedTasks.delete(memberId); taskRows.delete(memberId); activeLocations.delete(memberId); }
     },
     revokeDeletion() { return keys.revokeDeletion(); },
+    invalidateName(player) {
+      clearTestingCaches(player, true);
+      retainedReviewRestores.delete(player);
+      notify();
+    },
     async revokeMember(player) {
       const rows = await keys.revokeMember(player);
       for (const row of rows) pickerLimits?.revokeKey(row.tokenHash);
