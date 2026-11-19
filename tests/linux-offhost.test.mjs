@@ -9,10 +9,11 @@ import { recoveryBundle, recoveryUnits } from '../scripts/linux/recovery-bundle.
 import { readRelease } from '../scripts/linux/runtime.mjs';
 import { retentionArgs, resticArgs } from '../scripts/linux/restic.mjs';
 import { lifecycle, uploadCapabilities, cleanupCapabilities, protectedBucket } from '../scripts/ops/setup-b2.mjs';
-import { offhostFixture as fixture, assertPayloadClosure } from './helpers/offhost.mjs';
+import { offhostFixture as fixture, assertPayloadClosure, serviceOffhostFixture, serviceRepository } from './helpers/offhost.mjs';
 import { checkStart } from '../scripts/linux/start-check.mjs';
 import { backupStopped, verifyBackup } from '../scripts/linux/recovery.mjs';
 import { stagingBudget } from '../scripts/linux/staging.mjs';
+import { rehearseService } from '../scripts/linux/service-rehearsal.mjs';
 test('uploads immutable verified staging without operator lock; freshness remains capture time', async t => {
   const f = await fixture(t); let pinged = false;
   await offhostBackup({ ...f, config: {}, ping: async () => { pinged = true; throw Error(); }, run: async (args, options) => {
@@ -28,6 +29,68 @@ test('uploads immutable verified staging without operator lock; freshness remain
   assert.deepEqual(f.calls.map(args => args[0]), ['snapshots', 'backup', 'snapshots', 'restore']);
   assert.equal(f.calls[1][f.calls[1].indexOf('--time') + 1], f.snapshotAt.slice(0, 19).replace('T', ' '));
   assert.equal((await readdir(f.settings.scratchRoot)).length, 0);
+});
+
+test('ordinary service captures upload and verify remotely, including ledger and rebuild closure on retries', async t => {
+  const f = await serviceOffhostFixture(t), run = serviceRepository(f);
+  const pickerFiles = await inventory(f.settings.multiPicker.pickerRoot);
+  await assert.rejects(offhostBackup({ ...f, settings: { ...f.settings, scratchRoot: f.settings.multiPicker.pickerRoot }, run, config: {} }), /overlap/);
+  assert.equal(f.calls.length, 0); assert.deepEqual(await inventory(f.settings.multiPicker.pickerRoot), pickerFiles);
+  assert.deepEqual(await offhostBackup({ ...f, run, config: {}, ping: async () => {} }), { uploaded: true });
+  assert.equal((await selectSnapshot(f.settings.backupDir, Date.now(), { multiPicker: true })).backup, f.backup);
+  assert.equal((await selectSnapshot(f.settings.backupDir, Date.now(), { ownedFormat2: true })).manifest.format, 'picker-recovery-v1');
+  assert.equal((await json(path.join(f.settings.controlDir, 'offhost-status.json'))).snapshotAt, f.snapshotAt);
+  assert.deepEqual(await offhostBackup({ ...f, run, config: {}, ping: async () => {} }), { uploaded: false, alreadyOffsite: true });
+  const remote = path.join(f.dir, 'remote-payload');
+  for (const file of ['snapshot/ledger.json', 'snapshot/pickers/' + f.pickers[1].id + '/state.json', 'rebuild/pins/0/payload/first.json']) {
+    const target = path.join(remote, file), original = await readFile(target);
+    await writeFile(target, 'synthetic corrupt remote payload');
+    await assert.rejects(offhostBackup({ ...f, run, config: {}, ping: async () => assert.fail('Corrupt delivery cannot ping success') }));
+    assert.equal((await json(path.join(f.settings.controlDir, 'offhost-status.json'))).result, 'failed');
+    await writeFile(target, original);
+  }
+  await rm(path.join(f.backup, 'ledger.json'));
+  await assert.rejects(selectSnapshot(f.settings.backupDir, Date.now(), { multiPicker: true }), /No complete/);
+});
+
+test('off-site service pair restores into isolated roots and writes a timed rehearsal receipt', async t => {
+  const f = await serviceOffhostFixture(t), run = serviceRepository(f);
+  await offhostBackup({ ...f, run, config: {}, ping: async () => {} });
+  const source = path.join(f.dir, 'remote-payload'), before = await inventory(source);
+  // Remove every original service root: the pair alone must supply recovery.
+  for (const root of [f.settings.dataDir, ...Object.values(f.settings.multiPicker)]) await rm(root, { recursive: true });
+  await rm(f.settings.dataDir + '.dataset.json');
+  const scratch = path.join(f.dir, 'rehearsal'); let started = false;
+  const result = await rehearseService({ source, scratch,
+    probe: async (_release, dir) => json(path.join(dir, 'state.json')),
+    start: async configFile => {
+      const config = await json(configFile); started = true;
+      for (const root of [config.dataDir, config.coreRoot, config.packsDir, ...Object.values(config.multiPicker)]) assert(root.startsWith(scratch + path.sep));
+    } });
+  assert(started); assert.equal(result.result, 'success'); assert.equal(result.pickers.length, 2);
+  assert.equal(result.access.reclaimedAccounts, 1); assert.equal(result.credentials.imported, 0);
+  assert(result.gameplayRecoveryMs >= 0); assert(result.accessReclaimMs >= 0); assert(result.datasetClosure.verified);
+  assert.deepEqual(await json(path.join(scratch, 'restore-receipt.json')), result);
+  assert.deepEqual(await inventory(source), before);
+  await assert.rejects(rehearseService({ source, scratch }), /EEXIST/);
+  await assert.rejects(rehearseService({ source, scratch: path.join(source, 'nested') }), /overlap|inside|outside|nested/i);
+  const failed = path.join(f.dir, 'failed-rehearsal');
+  await assert.rejects(rehearseService({ source, scratch: failed, probe: async () => { throw Error('synthetic decoder refusal'); } }), /incompatible/);
+  assert.equal((await json(path.join(failed, 'restore-receipt.json'))).failures[0].phase, 'gameplay');
+});
+
+test('off-site rehearsal runs the captured decoder and starts a multi-picker runtime from the rebuild alone', async t => {
+  const f = await serviceOffhostFixture(t, { runtime: true });
+  const run = serviceRepository(f);
+  await offhostBackup({ ...f, run, config: {}, ping: async () => {} });
+  const source = path.join(f.dir, 'remote-payload');
+  for (const root of [f.roots.releases, f.roots.packs, f.settings.dataDir, ...Object.values(f.settings.multiPicker)]) await rm(root, { recursive: true });
+  await rm(f.settings.dataDir + '.dataset.json');
+  const result = await rehearseService({ source, scratch: path.join(f.dir, 'real-rehearsal') });
+  assert.equal(result.result, 'success'); assert.equal(result.pickers.length, 2);
+  assert.equal(result.access.reclaimedAccounts, 1);
+  assert(result.pickers.every(picker => picker.historyEvents > 0));
+  assert.equal(result.keys.verifiedPickers, 2); assert.equal(result.keys.freshKeyRevocation, true);
 });
 test('failed upload or snapshot verification preserves restore points and reports failure', async t => {
   const f = await fixture(t), remote = ['existing-restore-point'];

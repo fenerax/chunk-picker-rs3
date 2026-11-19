@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {mkdir,mkdtemp,readFile,rm,writeFile} from 'node:fs/promises';
+import {mkdir,mkdtemp,readFile,rm,writeFile,cp} from 'node:fs/promises';
 import {encode,exclusive,exists,inventory,json,sha} from '../../scripts/linux/files.mjs';
 import {recoveryBundle,recoveryUnits} from '../../scripts/linux/recovery-bundle.mjs';
 const base = fileURLToPath(new URL('../../.local/offhost-tests/', import.meta.url));
@@ -69,4 +69,70 @@ export async function assertPayloadClosure(rebuild) {
       assert.equal(sha(bytes), row.sha256); if (row.bytes !== undefined) assert.equal(bytes.length, row.bytes);
     }
   }
+}
+
+// Ordinary service storage, two synthetic groups and a schema-owned registry.
+// Keep the existing single-store fixture and its upload simulation unchanged.
+export async function serviceOffhostFixture(t, { runtime = false } = {}) {
+  const f = await offhostFixture(t);
+  const { openRegistry } = await import('../../app/storage/registry.mjs');
+  const { captureServiceCheckpoint, publishServiceBackup } = await import('../../scripts/linux/service-checkpoint.mjs');
+  const { readRelease } = await import('../../scripts/linux/runtime.mjs');
+  const { createGroupState, exportBackup, applyCommand } = await import('../../app/core/state.mjs');
+  const { bindDatasetStorage } = await import('../../app/dataset-binding.mjs');
+  const { resolveDataset } = await import('../../app/datasets.mjs');
+  const dataset = await resolveDataset({ datasetId: 'open-starter' });
+  f.settings.multiPicker = Object.fromEntries(['registryDir', 'pickerRoot', 'tombstoneDir'].map(name => [name, path.join(f.dir, name)]));
+  await mkdir(f.settings.dataDir);
+  const registry = await openRegistry({ ...f.settings.multiPicker, legacyDir: f.settings.dataDir });
+  let pickers;
+  try {
+    pickers = [await registry.registerLegacy({ memberIds: ['one', 'two'], accounts: [], droppedMemberships: 0 }),
+      (await registry.firstLogin('discord', 'synthetic-offsite-owner')).picker];
+    for (const picker of pickers) {
+      const dir = registry.pickerDirectory(picker.id);
+      const state = createGroupState(picker.memberIds.map(id => ({ id, name: 'Synthetic Player' })));
+      const changed = applyCommand(state, { type: 'set-note', memberId: picker.memberIds[0], chunkId: '100', note: 'Synthetic retained history' },
+        { world: { chunks: new Map([['100', { id: '100' }]]) } });
+      await writeFile(path.join(dir, 'state.json'), encode(exportBackup(changed)));
+      await bindDatasetStorage(dir, dataset);
+      await writeFile(path.join(dir, 'plugin-keys.json'), '{"keys":[]}');
+    }
+    const pointer = await json(f.settings.current), config = await json(pointer.config.path);
+    config.multiPicker = f.settings.multiPicker; config.datasetId = 'open-starter';
+    config.packsDir = f.roots.packs;
+    config.packs['rules-text'] = config.packs.rules; delete config.packs.rules;
+    for (const [name, pin] of Object.entries(config.packs)) {
+      const pack = await json(pin.path); pack.id = 'synthetic-' + name; pack.version = '1.0.0';
+      await writeFile(pin.path, encode(pack)); pin.sha256 = sha(encode(pack));
+    }
+    if (runtime) {
+      config.packs = {}; delete config.addons;
+      for (const name of ['app', 'scripts']) await cp(fileURLToPath(new URL('../../' + name, import.meta.url)), path.join(config.coreRoot, name), { recursive: true });
+      await writeFile(path.join(config.coreRoot, 'package.json'), '{"type":"module"}');
+    }
+    await writeFile(pointer.config.path, encode(config)); pointer.config.sha256 = sha(encode(config));
+    await writeFile(f.settings.current, encode(pointer));
+    const release = await readRelease(f.settings.current, f.settings.dataDir), id = '00000000-0000-4000-8000-000000000001';
+    await captureServiceCheckpoint({ settings: f.settings, registry, id, inputs: config.packs });
+    const source = f.settings.dataDir + '.snapshots/' + id;
+    const { target: backup } = await publishServiceBackup({ source, settings: f.settings, release, assertRelease: async () => {} });
+    return { ...f, backup, pickers, release, snapshotAt: (await json(path.join(backup, 'manifest.json'))).snapshotAt };
+  } finally { await registry.close(); }
+}
+
+// Simulate an immutable remote repository, including real read-back copies.
+export function serviceRepository(f) {
+  let stage;
+  return async args => {
+    if (args[0] === 'backup') {
+      stage = path.join(f.dir, 'remote-payload');
+      await cp(path.dirname(args.at(-2)), stage, { recursive: true });
+    }
+    if (args[0] === 'restore') {
+      const target = path.join(args[args.indexOf('--target') + 1], path.relative(path.parse(f.settings.scratchRoot).root, path.join(f.settings.scratchRoot, 'offhost-stage')));
+      await cp(stage, target, { recursive: true });
+    }
+    return f.run(args);
+  };
 }

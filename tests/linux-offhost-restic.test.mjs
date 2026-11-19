@@ -6,13 +6,27 @@ import { randomBytes } from 'node:crypto';
 import { promisify } from 'node:util';
 import { chmod, mkdir, writeFile, mkdtemp, readdir, rm, stat, readFile, open } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
-import { offhostFixture, assertPayloadClosure } from './helpers/offhost.mjs';
+import { offhostFixture, assertPayloadClosure, serviceOffhostFixture } from './helpers/offhost.mjs';
 import { offhostBackup, offhostCheck } from '../scripts/linux/offhost-backup.mjs';
 import { realOffhostFixture, realResticAvailable } from './helpers/offhost-restic.mjs';
 import { verifyBackup } from '../scripts/linux/recovery.mjs';
 import { retentionArgs, verifyRestic, resticArgs, guardedRestic, resticTempBound, resticPackLimit, executeRestic,
   resticTempBudget, windowsRepackBudget, redactedResticTail } from '../scripts/linux/restic.mjs';
 const execute = promisify(execFile);
+
+test('real Linux restic uploads and restores an ordinary service ledger and rebuild closure', { skip: process.platform !== 'linux' }, async t => {
+  const f = await realOffhostFixture(t, serviceOffhostFixture);
+  assert.deepEqual(await offhostBackup({ ...f, config: {}, ping: async () => {} }), { uploaded: false, alreadyOffsite: true });
+  const points = JSON.parse(await f.run(['snapshots', '--json', '--tag', 'chunk-picker']));
+  assert.equal(points.length, 1);
+  const download = path.join(f.dir, 'download'); await mkdir(download);
+  await f.run(['restore', points[0].id, '--target', download, '--verify'], { useCache: false });
+  const stage = path.join(download, path.relative(path.parse(f.settings.scratchRoot).root, path.join(f.settings.scratchRoot, 'offhost-stage')));
+  const manifest = await verifyBackup(path.join(stage, 'snapshot'));
+  assert.equal(manifest.format, 'picker-service-recovery-v2'); assert.equal(manifest.pickers.length, 2);
+  const { verifyRecoveryBundle } = await import('../scripts/linux/recovery-bundle.mjs');
+  await verifyRecoveryBundle(path.join(stage, 'rebuild'), manifest.releasePointerSha256);
+});
 
 async function temporary(t) {
   const base = fileURLToPath(new URL('../.local/restic-budget-tests/', import.meta.url)); await mkdir(base, { recursive: true });

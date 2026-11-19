@@ -214,6 +214,109 @@ test('service export retains bindings and membership checkpoint, excludes all cr
   await assert.rejects(verifyServiceBackup(backup), /manifest/);
 });
 
+test('service capture pairs the registry with a ledger at least as new, including deletion during copying', async t => {
+  const f = await fixture(t), removed = f.pickers[2], initialTime = Date.now();
+  const backup = await f.capture({ onPhase: async (phase, detail) => {
+    if (phase === 'picker-copied' && detail.id === removed.id) {
+      mock.timers.setTime(initialTime + 1000);
+      await f.registry.beginPickerDeletion(removed.id);
+    }
+  } });
+  const manifest = await verifyServiceBackup(backup), ledger = await json(path.join(backup, 'ledger.json'));
+  assert.equal(manifest.format, 'picker-service-recovery-v2');
+  assert.equal(manifest.snapshotAt, new Date(initialTime).toISOString(), 'backup age starts at the registry capture');
+  assert.equal(manifest.ledger.sha256, sha(await readFile(path.join(backup, 'ledger.json'))));
+  assert.equal(manifest.ledger.schemaVersion, ledger.schemaVersion);
+  assert(ledger.pickers.some(row => row.pickerId === removed.id));
+  assert(manifest.pickers.find(row => row.id === removed.id).absent);
+  await f.close();
+  const target = await f.target(); target.multiPicker.tombstoneDir = path.join(f.root, 'clean-ledger');
+  const result = await restoreServiceStopped({ settings: target, backup, release: f.release, assertStopped: stopped, initializeLedger: true, probe: portableProbe });
+  assert.equal(result.restored, 2); assert.equal(result.excluded, 1); assert.equal(result.credentialsRestored, 0);
+  assert(!await exists(path.join(target.multiPicker.pickerRoot, removed.id)));
+  assert.equal((await restoreServiceStopped({ settings: target, backup, release: f.release, assertStopped: stopped, initializeLedger: true, probe: portableProbe })).restored, 2);
+  assert.deepEqual(await readFile(path.join(target.multiPicker.tombstoneDir, 'ledger.json')), await readFile(path.join(backup, 'ledger.json')));
+  const restored = await openRegistry({ ...target.multiPicker, legacyDir: target.dataDir });
+  try { assert(restored.deletionRecords().pickers.some(row => row.pickerId === removed.id)); }
+  finally { await restored.close(); }
+});
+
+test('clean-host ledger initialization is explicit, journaled and resumable without touching source roots', async t => {
+  const f = await fixture(t), backup = await f.capture(), source = await inventory(backup); await f.close();
+  const target = await f.target(); target.multiPicker.tombstoneDir = path.join(f.root, 'clean-ledger');
+  const options = { settings: target, backup, release: f.release, assertStopped: stopped, probe: portableProbe };
+  await assert.rejects(restoreServiceStopped(options), /restore-clean/);
+  let interrupted = false;
+  await assert.rejects(restoreServiceStopped({ ...options, initializeLedger: true, step: async label => {
+    if (label === 'restore.ledger') { interrupted = true; throw Error('Synthetic ledger interruption'); }
+  } }), /ledger interruption/);
+  assert(interrupted); assert.equal((await json(path.join(target.controlDir, 'service-restore/progress.json'))).phase, 'prepared');
+  assert.equal((await restoreServiceStopped({ ...options, initializeLedger: true })).restored, 3);
+  assert.equal((await restoreServiceStopped({ ...options, initializeLedger: true })).restored, 3);
+  assert.deepEqual(await inventory(backup), source);
+  assert.equal((await json(path.join(target.multiPicker.registryDir, 'registry.json'))).accounts.every(a => a.identities.length === 0), true);
+});
+
+test('service recovery refuses stale, mismatched and missing capture ledgers without replacing uncertain payloads', async t => {
+  const f = await fixture(t), backup = await f.capture(); await f.close();
+  const target = await f.target(), ledgerFile = path.join(target.multiPicker.tombstoneDir, 'ledger.json');
+  const bytes = await readFile(ledgerFile), stale = JSON.parse(bytes); stale.issuedPickerIds.pop();
+  await writeFile(ledgerFile, encode(stale));
+  const options = { settings: target, backup, release: f.release, assertStopped: stopped, probe: portableProbe, initializeLedger: true };
+  await assert.rejects(restoreServiceStopped(options), /stale or mismatched/);
+  assert.deepEqual(await readFile(ledgerFile), Buffer.from(encode(stale))); assert(!await exists(target.dataDir));
+  await writeFile(ledgerFile, bytes);
+  const missing = path.join(f.root, 'missing-ledger-backup'); await copyTree(backup, missing);
+  await rm(path.join(missing, 'ledger.json'));
+  const manifest = await json(path.join(missing, 'manifest.json'));
+  manifest.files = (await inventory(missing)).filter(row => !['manifest.json', 'complete.json'].includes(row.path));
+  await writeFile(path.join(missing, 'manifest.json'), encode(manifest));
+  await assert.rejects(restoreServiceStopped({ ...options, backup: missing }));
+  assert.deepEqual(await readFile(ledgerFile), bytes);
+  target.multiPicker.tombstoneDir = path.join(f.root, 'lost-ledger');
+  await mkdir(target.dataDir); await writeFile(path.join(target.dataDir, 'uncertain'), 'retain me');
+  await assert.rejects(restoreServiceStopped(options), /empty targets/);
+  assert.equal(await readFile(path.join(target.dataDir, 'uncertain'), 'utf8'), 'retain me');
+  assert(!await exists(path.join(target.multiPicker.tombstoneDir, 'ledger.json')));
+});
+
+test('service transport pins an opaque future ledger version and keeps v1 manifests readable', async t => {
+  const f = await fixture(t), backup = await f.capture();
+  const file = path.join(backup, 'manifest.json'), manifest = await json(file);
+  const bytes = encode({ schemaVersion: 3, syntheticFutureRecords: [{ opaque: true }] });
+  await writeFile(path.join(backup, 'ledger.json'), bytes);
+  manifest.ledger = { schemaVersion: 3, sha256: sha(bytes) };
+  manifest.files = (await inventory(backup)).filter(row => !['manifest.json', 'complete.json'].includes(row.path));
+  await writeFile(file, encode(manifest));
+  assert.equal((await verifyServiceBackup(backup)).ledger.schemaVersion, 3);
+  manifest.ledger.schemaVersion = 2; await writeFile(file, encode(manifest));
+  await assert.rejects(verifyServiceBackup(backup), /version\/digest/);
+  await rm(path.join(backup, 'ledger.json')); delete manifest.ledger; delete manifest.snapshotAt;
+  manifest.format = 'picker-service-recovery-v1';
+  manifest.files = (await inventory(backup)).filter(row => !['manifest.json', 'complete.json'].includes(row.path));
+  await writeFile(file, encode(manifest)); assert.equal((await verifyServiceBackup(backup)).format, manifest.format);
+  await f.close();
+  const target = await f.target(); target.multiPicker.tombstoneDir = path.join(f.root, 'clean-ledger');
+  await assert.rejects(restoreServiceStopped({ settings: target, backup, release: f.release, assertStopped: stopped, initializeLedger: true }), /v2 service capture/);
+});
+
+test('stopped service backup refuses a stale ledger/registry pair without changing authoritative files', async t => {
+  const f = await fixture(t); await f.close();
+  const ledgerFile = path.join(f.settings.multiPicker.tombstoneDir, 'ledger.json'), document = await json(ledgerFile);
+  document.issuedPickerIds.pop(); await writeFile(ledgerFile, encode(document));
+  const registryBefore = await readFile(path.join(f.settings.multiPicker.registryDir, 'registry.json'));
+  const ledgerBefore = await readFile(ledgerFile), stores = await inventory(f.settings.multiPicker.pickerRoot);
+  await assert.rejects(serviceBackup({ settings: f.settings, release: f.release, stopped: true, assertStopped: stopped }), /Invalid registry/);
+  assert.deepEqual(await readFile(ledgerFile), ledgerBefore);
+  assert.deepEqual(await readFile(path.join(f.settings.multiPicker.registryDir, 'registry.json')), registryBefore);
+  assert.deepEqual(await inventory(f.settings.multiPicker.pickerRoot), stores);
+  assert(!await exists(f.settings.backupDir));
+  await rm(ledgerFile);
+  await assert.rejects(serviceBackup({ settings: f.settings, release: f.release, stopped: true, assertStopped: stopped }), /Live tombstone ledger is required/);
+  assert.deepEqual(await readFile(path.join(f.settings.multiPicker.registryDir, 'registry.json')), registryBefore);
+  assert.deepEqual(await inventory(f.settings.multiPicker.pickerRoot), stores);
+});
+
 test('service checkpoints, recovery copies and resumed identity checks never traverse warm artifacts', async t => {
   const f = await fixture(t), warm = path.join(f.dir(f.pickers[1]), 'warm-store');
   await mkdir(warm);
@@ -581,6 +684,7 @@ test('pickers and accounts deleted after a backup remain deleted after service r
   // seeds its scratch checkpoint before opening and publishes the live registry.
   await assert.rejects(openRegistry(target.multiPicker), /Restore registry\.json/);
   await assert.rejects(readFile(path.join(target.multiPicker.registryDir, 'registry.json')), { code: 'ENOENT' });
+  const ledgerBeforeRestore = await readFile(ledgerFile);
   let probes = 0;
   const options = { settings: target, backup, release: f.release, assertStopped: stopped,
     probe: async (...args) => { probes++; return portableProbe(...args); } };
@@ -594,9 +698,15 @@ test('pickers and accounts deleted after a backup remain deleted after service r
     await assert.rejects(readFile(path.join(target.multiPicker.pickerRoot, picker.id + '.dataset.json')), { code: 'ENOENT' });
   }
   assert(!JSON.stringify(await inventory(target.dataDir)).includes('plugin-keys.json'));
+  assert.deepEqual(await readFile(ledgerFile), ledgerBeforeRestore, 'Recovery bookkeeping never rewrites the authoritative ledger.');
   const registry = await openRegistry({ ...target.multiPicker, legacyDir: target.dataDir });
   assert.equal(registry.getAccount(retiredAccount.ownerAccountId), null);
   assert.equal(registry.findIdentity('discord', 'synthetic-1'), null);
+  assert.notEqual(registry.getPicker(deletedPicker.id).lifecycle, 'active');
+  // Normal startup replays native purge progress; recovery already removed the
+  // payload and all grants while retaining the authoritative deletion decision.
+  const { reconcileTombstones: startupPurge } = await import('../app/storage/tombstones.mjs');
+  await startupPurge({ registry });
   assert.equal(registry.getPicker(deletedPicker.id).lifecycle, 'deleted');
   assert.equal(registry.getPicker(legacy.id).lifecycle, 'active');
   assert.deepEqual(registry.getAccount(deletedPicker.ownerAccountId).memberships, []);
@@ -644,12 +754,15 @@ test('ownership repair hands the tombstone ledger back to the service user after
   const changed = [];
   await repairServiceOwnership({ settings: target, uid: 1001, gid: 1001, change: async file => { changed.push(file); } });
   assert(changed.includes(ledger));
+  assert(changed.includes(target.multiPicker.tombstoneDir));
   // Root CI models an operator that died after MP5 replaced the ledger.
   if (process.getuid?.() === 0) {
     await chown(ledger, 0, 0);
     await repairServiceOwnership({ settings: target, uid: 1001, gid: 1001 });
     const owner = await lstat(ledger);
     assert.equal(owner.uid, 1001); assert.equal(owner.gid, 1001);
+    const rootOwner = await lstat(target.multiPicker.tombstoneDir);
+    assert.equal(rootOwner.uid, 1001); assert.equal(rootOwner.gid, 1001);
   }
 });
 
@@ -847,10 +960,12 @@ test('copying one picker does not hold global admission or other store writes; r
   assert(!manifest.pickers.some(p => p.id === created.id));
   assert(!(await inventory(backup)).some(row => row.path.startsWith('pickers/' + deleting.id)));
   const target = await f.target();
-  const restored = await restoreServiceStopped({ settings: target, backup, release: f.release, assertStopped: stopped, reconcileTombstones: reconcile, probe: portableProbe });
+  await f.close();
+  const restored = await restoreServiceStopped({ settings: target, backup, release: f.release, assertStopped: stopped, probe: portableProbe });
   assert.equal(restored.restored, 2); assert.equal(restored.excluded, 2);
   const registry = await json(path.join(target.multiPicker.registryDir, 'registry.json'));
-  assert(!registry.pickers.some(p => [created.id, deleting.id, deletedAfterCopy.id].includes(p.id)));
+  assert(!registry.pickers.some(p => p.id === created.id));
+  assert(!registry.pickers.some(p => [deleting.id, deletedAfterCopy.id].includes(p.id) && p.lifecycle === 'active'));
 });
 
 test('service startup never reads private operator recovery state; privileged gate still blocks partial restores', async t => {

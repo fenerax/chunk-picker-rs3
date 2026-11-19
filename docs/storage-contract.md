@@ -87,6 +87,72 @@ This is a description of the existing file backend and a proposed boundary for a
 SQLite trial. The SC3 startup rule below updates the implementation; gameplay
 behavior is unchanged. Other inventory anchors describe SC1.
 
+## Service off-site recovery (service manifest v2)
+
+`picker-service-recovery-v2` adds `ledger.json`, its schema version and SHA-256,
+`snapshotAt` from the initial registry capture (for conservative backup age), and
+a published release-pointer digest. Save and registry formats
+are unchanged. The transport reads the ledger as an opaque versioned document;
+the registry implementation in the selected release owns schema validation.
+This also carries future ledger fields without a transport upgrade.
+
+Capture reads the durable ledger inside the registry queue at the final roster
+check, after the initial registry checkpoint and all per-picker copies. Every
+ledger mutation uses that queue and publishes before its corresponding registry
+mutation. Consequently the embedded ledger cannot be older than the captured
+registry and includes deletion decisions accepted during gameplay copying.
+Issued IDs, account retirements and every other ledger record travel together.
+Stopped backup first asks the registry owner to validate/reconcile disposable
+copies of the registry and ledger. A stale or invalid pair cannot be certified
+as a service capture, and neither authoritative file is rewritten.
+The manifest inventories both registry and ledger bytes. Gameplay remains a
+sequence of consistent per-picker copies, not one global gameplay instant.
+
+Normal restore preserves the destination ledger. For v2 captures it first
+requires conservative structural inclusion of the captured document: captured
+array elements and object fields must remain present, with matching scalar
+values. Additional records are accepted. A changed record or schema version
+refuses as stale or mismatched, even when an operator knows it represents later
+progress; transport does not guess lifecycle ordering or merge ledgers. Preserve
+both documents and obtain a verified covering replica or a fresh matching
+capture. Native registry reconciliation then validates the complete document,
+removes deleted scopes and revokes existing credentials. Absent picker rows stay
+internally consistent until that reconciliation removes their placements; an
+absent picker without an authoritative tombstone refuses restore.
+
+Reconciliation holds the authoritative ledger's lifetime lock and uses an opaque
+disposable ledger copy for MP5's purge bookkeeping. The authoritative bytes stay
+unchanged, so a restore's own cleanup cannot invalidate coverage on a later retry.
+Both planning and application re-read the authoritative ledger under that lock;
+later external decisions still win. Purges and credential revocations repeat
+idempotently after an interruption. Normal service startup can advance the live
+ledger's cleanup progress after recovery; recovery neither merges nor rolls it back.
+
+Explicit `restore-clean` can initialize a missing ledger from a v2 capture only
+when legacy, registry, picker and ledger roots are empty and the legacy binding
+is absent. It saves the existing prepared restore journal before exclusively
+creating the ledger, syncs it, and resumes only the same backup/release/targets.
+It never replaces a present ledger or removes uncertain destination payloads.
+A partial ledger write fails verification on retry and requires private review.
+Legacy v1 service manifests remain readable and require an existing valid ledger;
+they cannot establish a clean-host ledger or qualify for ordinary service upload.
+
+The recovery point is the selected delivered capture. Deletions after its final
+ledger read need a later off-site capture or a separately retained newer ledger;
+no snapshot can reconstruct decisions never delivered off-host. Choose the newest
+verified capture and retain any newer independent ledger. Never use a clean-host
+restore to discard an existing ledger. Provider identities, sessions, invitation,
+plugin and overlay credentials remain excluded; access reclaim requires private
+identity verification and fresh credentials. Restic encryption and repository
+trust remain required; manifest hashes alone do not authenticate a capture.
+
+`service-rehearsal.mjs` verifies a downloaded snapshot/rebuild pair, repins all
+runtime/input/service paths into a new private root, restores there, starts an
+isolated service and records gameplay time, separate synthetic reclaim time,
+picker History, Past maps, credentials policy, ledger pin and dataset closure.
+Its receipt and restored roots remain for inspection on success or failure.
+This synthetic mechanism does not pass the private timed off-site restore gate.
+
 ## Missing gameplay state admission
 
 The default-format store, multi-picker group cold-open path and service checkpoint
@@ -239,12 +305,12 @@ changes required):
 | --- | --- |
 | `app/storage/registry.mjs` startup (`saveLedger`, `save`), called by `app/server.mjs` / Linux `runtime.mjs`, `serve.mjs` | Yes after registry loss beside a used ledger: deliberately refuses. Fresh install with neither file, or a crash after the initial empty ledger write, starts. Existing registry provisioning/deletion crash recovery still reconciles normally. |
 | Registry allocation, deletion and `reconcileTombstones`; `app/storage/tombstones.mjs` purge | No missing-registry open during these operations; the registry is already open. Purge removes picker data/bindings, keeps registry/ledger, and resumes against both documents. |
-| `scripts/linux/service-recovery.mjs` `reconcileServiceRecoveryTombstones` (planning and application) | No: atomically seeds scratch `registry.json` from the sanitized checkpoint **before** opening against the existing live ledger. Never initializes or restores a ledger. |
+| `scripts/linux/service-recovery.mjs` `reconcileServiceRecoveryTombstones` (planning and application) | No: seeds scratch registry/ledger from a locked read of the existing ledger. Explicit `restore-clean` may first initialize an absent ledger from a verified v2 capture, under the empty-root and journal rules above. |
 | `restoreServiceStopped`, including interrupted/resumed recovery | No: uses the seeded adapter, then journals and publishes live `registry.json` before completion/startup. Empty target beside a used ledger is supported. `start-check.mjs` blocks incomplete recovery; unguarded app startup now also refuses while the registry is absent. |
 | `releaseServiceQuarantine`, including install/cleanup resume | No: normal release reads the existing registry and uses the seeded adapter. Missing registry already refuses that read. Completed cleanup resume does not open a registry or replace either metadata file. |
 | `scripts/linux/service-checkpoint.mjs` `captureServiceCheckpoint`, `publishServiceBackup`; `service-operator.mjs` `serviceBackup`; `online.mjs` capture/cleanup | No: write/copy/move/remove backup or spool registry images only, never the live registry or ledger. Stopped backup reads the existing registry; online capture uses its open owner. |
 | `service-operator.mjs` stopped proof, list/inspect, deploy, ownership repair | No registry open: read existing metadata, acquire/release locks, or repair ownership only. Missing registry cannot be silently recreated by these operations. Deploy startup goes through the server rule. |
-| Single-store `recovery.mjs`, `operator.mjs`, `probe.mjs`; install/runtime setup; `rehearse.mjs` | No registry/ledger creation, move or restore. Single-store recovery touches gameplay roots only; service mode dispatches to service recovery. Offline probes omit multiplayer configuration; rehearsal refuses service configuration. |
+| Single-store `recovery.mjs`, `operator.mjs`, `probe.mjs`; install/runtime setup; `rehearse.mjs` | Single-store behavior is unchanged. `service-rehearsal.mjs` separately restores the full service into new isolated roots; probes omit multiplayer configuration. |
 | `scripts/release/vps/release.mjs` stage/activate with `--go-live`, `bundle.mjs`; PC/private-companion release preparation | No metadata initialization: VPS activation delegates to `scripts/linux/operator.mjs` deploy and its service-root checks; release preparation writes release inputs. Per-store compatibility probes omit multiplayer configuration. Normal service startup still applies the refusal. |
 | `scripts/perf/duo-compatibility.mjs`, `picker-footprint.mjs` | Fresh temporary registry/ledger roots per server trial; cleanup removes the complete trial root. No used-ledger/missing-registry pairing. |
 
@@ -327,8 +393,9 @@ Readers: registry startup, allocation and filtered indexes; tombstone reconciler
 through the API; recovery explicitly opens the **existing live ledger**
 (`service-recovery.mjs:19`, `:33`). No direct external ledger writer was found:
 operator reconciliation delegates to openRegistry and repairs ownership
-(`:71`; `service-operator.mjs:26`). The ledger is outside restorable roots,
-never copied from a service backup, and must remain after deletion.
+(`:71`; `service-operator.mjs:26`). The live ledger stays outside gameplay roots
+and must remain after deletion. Service v2 embeds a queue-consistent copy for
+explicit clean-host recovery; normal recovery never replaces the live ledger.
 A durable tombstone precedes registry cleanup and synchronous delivery fencing;
 progress is replayable, including completed purges.
 Evidence: `tests/registry.test.mjs:101`, `:248`, `:260`, `:267`;
@@ -651,14 +718,16 @@ Owner: `scripts/linux/service-checkpoint.mjs`. Writers: copyGameplay `:75`
 registry `:186`, manifest `:193`, completion `:194`; publication copies via
 `:258`, fsyncs T, renames pending tree and fsyncs backupDir (`:259`); retention
 removes verified older trees (`:267`). Manifest format
-`picker-service-recovery-v1`, with picker roster/bindings/absent flags, input pins,
-file sizes/hashes. Complete metadata has id/counts/timings, no numeric version.
+`picker-service-recovery-v2`, with picker roster/bindings/absent flags, input pins,
+file sizes/hashes, versioned ledger pin, capture time and published release pin.
+The verifier also reads v1. Complete metadata has id/counts/timings, no numeric version.
 The roster is queue-held and credential-free; each gameplay copy has its own
 directory barrier (`:130`). Initial roster defines inclusion; final registry
 read removes vanished scopes/data (`:176`–`:184`) and never adds new IDs.
 It is **not one global gameplay instant**. Copy includes only state/static/history/
-backups and active plugin evidence plus pinned input payloads; never live ledger,
-issuer credentials or capabilities. T precedes manifest/complete F publication.
+backups and active plugin evidence plus pinned input payloads and the ledger
+copy described above; never issuer credentials or capabilities. T precedes
+manifest/complete F publication.
 Readers: online capture, verifier `:199`, publisher and stopped restore; source
 and published copies are verified against inventory/allowlists. Evidence:
 `tests/linux-multi-picker.test.mjs:80`, `:110`, `:143`, `:453`, `:466`,
@@ -920,7 +989,7 @@ the full application or calculator.
 | Scope | Must preserve | What changes and must be made explicit |
 | --- | --- | --- |
 | Registry | Existing schema validation, identity uniqueness, one owned default, membership/capability scope, caps, detached reads, fail-closed startup/error behavior; reserve ID before filesystem provisioning; restart repairs reserved directory without ID reuse; sanitized recovery retains explicit IDs/memberships but drops identities/capabilities | Rows/constraints replace whole-JSON rewrites; SQL transaction replaces one-file R, not the entire directory saga. Existing synchronous in-memory lookup API needs commit-ordered cache publication/invalidation. Replace direct registry.json reads/write and byte-hash installation CAS with versioned projection/import plus a logical generation/digest |
-| External ledger | Issued IDs never reused, account retirement, delete-before-cleanup ordering, immediate read filtering/fencing, idempotent purge including completed records; live ledger wins over every old checkpoint; no recovery initializes a missing ledger | Keep independent retention/restore domain (prefer separate database/path). Putting it in a DB restored with registry would resurrect deleted scopes. Two databases do not automatically provide one crash-atomic transaction, especially with WAL; preserve existing ordered ledger-first protocol. Define corruption/schema/missing-file checks before connecting, because SQLite connect may create an empty file |
+| External ledger | Issued IDs never reused, account retirement, delete-before-cleanup ordering, immediate filtering/fencing, idempotent purge; live ledger wins over older captures; only explicit v2 clean-host restore initializes a missing ledger | Keep its independent live root. Carry its queue-consistent bytes with the backup, preserving the coverage, empty-root and journal checks above. Two databases do not automatically provide one crash-atomic transaction; preserve ledger-first ordering and refuse implicit empty-file creation |
 | Recovery journals/control | Operation/backup/release/root identity, exact installed bytes and binding hash, previous/new registry acceptance, intent before any rename, complete only after fsync/verification, interrupted-resume behavior, startup refusal, quarantine cleanup after installed, dead-local-owner proof and ownership hand-back | SQL row update can replace F for intent but cannot atomically include directory/binding renames, pointer swap, chown, or deletion. Privileged start gate must read the new journal without app credentials; retain filesystem maintenance/permit compatibility until that gate changes. Define journal schema/version/migration and archival policy (currently unversioned), and digest compatibility for old pending intents |
 
 For all three, select and record journal_mode, synchronous level, busy timeout,
@@ -936,7 +1005,8 @@ backup/export mechanism from a consistent read transaction (or close/quiesce
 connections and prove a complete checkpoint before offline copy). Never copy only
 the main file while writers run. Export a stable schema-versioned sanitized
 registry document for service recovery; do not export the whole credential DB.
-Keep the external ledger outside that artifact. Define how database side files,
+Keep the authoritative live ledger outside gameplay restore targets and include
+a consistent ledger replica in the service backup. Define how database side files,
 ownership/modes, verifier allowlists, storage identity hashes, and restore import
 are handled before enabling the trial.
 

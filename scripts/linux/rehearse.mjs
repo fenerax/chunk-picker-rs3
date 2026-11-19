@@ -13,6 +13,7 @@ import { readRelease, openApplication } from './runtime.mjs';
 import { backupOnline, deployPrechecked, privateRequest } from './operator.mjs';
 import { captureOnline } from './online.mjs';
 import { verifyBackup } from './recovery.mjs';
+import { rehearseService } from './service-rehearsal.mjs';
 
 async function scratchPorts(port) {
   const servers = [];
@@ -85,8 +86,12 @@ async function rehearseInProcess({ pointer, source, scratch, port, coreRoot }) {
 }
 if (isMain(import.meta.url)) {
   try {
-    const { values } = parseArgs({ options: Object.fromEntries(['pointer', 'source', 'scratch', 'port', 'core-root'].map(key => [key, { type: 'string' }])) });
-    const result = await rehearseInProcess({ ...values, coreRoot: values['core-root'] });
+    const { values } = parseArgs({ options: Object.fromEntries(['pointer', 'source', 'service-source', 'scratch', 'port', 'core-root'].map(key => [key, { type: 'string' }])) });
+    if (values['service-source'] && (!values.scratch || ['pointer', 'source', 'port', 'core-root'].some(key => values[key]))) throw Error('Use --service-source and --scratch together without single-store options.');
+    const result = values['service-source'] ? await rehearseService({ source: values['service-source'], scratch: values.scratch })
+      : await rehearseInProcess({ ...values, coreRoot: values['core-root'] });
     process.stdout.write(encode(result));
-  } catch { process.stderr.write('Scratch rehearsal refused; inspect privately.\n'); process.exitCode = 1; }
+  } catch (error) {
+    process.stderr.write(process.argv.includes('--service-source') ? `Service rehearsal refused: ${error.message}\n` : 'Scratch rehearsal refused; inspect privately.\n'); process.exitCode = 1;
+  }
 }
