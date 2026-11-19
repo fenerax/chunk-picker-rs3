@@ -11,6 +11,8 @@ const date = v => typeof v === 'string' && Number.isFinite(Date.parse(v));
 const fail = (message, status = 409) => { throw Object.assign(new Error(message), { status }); };
 export const DEPARTURE_POINTS = ['departure-intent', 'departure-id', 'departure-directory', 'departure-destination', 'departure-snapshot-file', 'departure-snapshot', 'departure-roster-prepared', 'departure-roster', 'departure-keys', 'departure-overlays', 'departure-sessions', 'departure-credentials', 'departure-placed'];
 export const pastMapDigest = bytes => createHash('sha256').update(bytes).digest('hex');
+export const pickerHasPendingJoin = (doc, pickerId) => (doc.groupInvites ?? []).some(i => i.transaction
+  && (i.pickerId === pickerId || i.transaction.source?.pickerId === pickerId));
 export function pastMapSlots(doc) {
   const saved = new Set((doc.pastMaps ?? []).map(m => m.id));
   return saved.size + (doc.departures ?? []).filter(d => !d.completedAt && !saved.has(d.id)).length
@@ -55,7 +57,8 @@ export function departureSoloEligible(doc, accountId, characterId) {
   const p = doc.pickers.find(p => p.id === c?.placement?.pickerId);
   return Boolean(p?.kind === 'default' && p.lifecycle === 'active' && p.provisioning === 'ready' && p.ownerCharacterId === c.id
     && p.seats.length === 1 && (doc.departures ?? []).some(d => d.completedAt && d.characterId === c.id && d.destination.pickerId === p.id)
-    && !(doc.departures ?? []).some(d => !d.completedAt && d.characterId === c.id));
+    && !(doc.departures ?? []).some(d => !d.completedAt && d.characterId === c.id)
+    && !pickerHasPendingJoin(doc, p.id));
 }
 
 export function createGroupDepartures({ read, save, saveLedgerId, allocate, version, point, now, caps, pickerRoot, registryDir }) {

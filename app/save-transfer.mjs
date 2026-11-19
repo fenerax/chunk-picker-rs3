@@ -4,6 +4,7 @@ import { mapOptionalSidecarEvidence } from './optional-sidecar-evidence.mjs';
 import { mergePluginItemEvidence, portablePluginItemEvidence } from './core/plugin-item-evidence.mjs';
 import { portableCurrencyFacts } from './storage/plugin-currency.mjs';
 import { pluginTestingSettings } from './core/plugin-testing.mjs';
+import { departedMemberIds } from './core/member-departure.mjs';
 
 const fail = (status, message) => { throw Object.assign(new Error(message), { status }); };
 export function transferDigest(value) {
@@ -58,6 +59,9 @@ export function mapTransferRoster(state, destinations, mapping, requiredIds = de
   if (!entries || Array.isArray(entries) || Object.keys(entries).length !== source.length
     || source.some(id => !Object.hasOwn(entries, id))) fail(400, 'Assign every source member exactly once.');
   const targets = source.map(id => entries[id]), targetIds = new Set(targets);
+  if ([...departedMemberIds(state)].some(id => !source.includes(id) && targetIds.has(id))) {
+    fail(422, 'A destination member ID collides with a historical departed member. Choose a different roster mapping.');
+  }
   if (targets.some(id => !validRosterDestinationId(id))
     || targetIds.size !== targets.length || requiredIds.some(id => !targetIds.has(id))) {
     fail(422, 'Map each source member to a different destination member, keeping every assigned destination participant. Use a fresh picker when an assigned roster cannot fit.');

@@ -1,4 +1,27 @@
 import { isResidentState, cloneResidentState } from './resident-copy.mjs';
+
+// Restore and roster mapping archive incoming History rather than replay its
+// inverses. Its departed IDs still declare inert historical task assignments.
+// Previous/local restore History is a different save and grants no declaration.
+export function departedMemberIds(state) {
+  const ids = new Set(), seen = new Set();
+  const history = rows => { for (const e of rows ?? []) if (e.type === 'member-departed') ids.add(e.command?.memberId); };
+  history(state.history);
+  const nodes = [state.provenance];
+  while (nodes.length) {
+    const node = nodes.pop();
+    if (!node || typeof node !== 'object' || seen.has(node)) continue;
+    seen.add(node);
+    history(node.restore?.incomingHistory);
+    nodes.push(node.restore?.incomingProvenance);
+    for (let transfer = node.transferRoster; transfer; transfer = transfer.previous) {
+      if (seen.has(transfer)) break;
+      seen.add(transfer); history(transfer.history);
+    }
+  }
+  return ids;
+}
+
 // A roster epoch uses existing schema-1 members/History fields. The full frozen
 // preimage is retained as a Past map before this transition can be published.
 export function memberDeparture(state, memberId, departureId, at) {

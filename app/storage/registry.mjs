@@ -580,6 +580,8 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
     beginGroupJoin(secret, accountId, input) { return enqueue(() => { if (lifecycleCapture) throw error(409, 'A service backup is in progress. Retry joining after it finishes.'); return groupInvites.begin(secret, accountId, input); }); },
     finishGroupJoin(id) { return enqueue(() => groupInvites.finish(id)); },
     groupJoinTransactions() { usable(); return groupInvites.transactions(); },
+    groupJoinConflict(id) { usable(); return groupInvites.conflict(id); },
+    cancelConflictingGroupJoin(id) { return enqueue(() => groupInvites.cancelConflict(id)); },
     groupJoinEligible(accountId, characterId) { usable(); return groupInvites.eligible(accountId, characterId); },
     cleanGroupInvites() { return enqueue(() => groupInvites.clean()); },
     pickerJoining(id) { return (current.groupInvites ?? []).some(i => i.transaction?.source?.pickerId === id) || (current.departures ?? []).some(d => !d.completedAt && [d.source.pickerId, d.destination.pickerId].includes(id)); },

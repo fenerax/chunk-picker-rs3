@@ -2,7 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
@@ -11,11 +11,12 @@ import { inviteFixture } from './helpers/owner-invite-fixture.mjs';
 import { DEPARTURE_POINTS, validateDepartures } from '../app/storage/group-departures.mjs';
 import { registryRecoveryDocument } from '../app/storage/registry.mjs';
 import { validateState } from '../app/core/state.mjs';
+import { mapTransferRoster } from '../app/save-transfer.mjs';
 
 async function fixture(t, options) {
   const root = await mkdtemp(path.join(tmpdir(), 'group-departures-')); let f = await inviteFixture(root, options);
   t.after(async () => { await f.close(); await rm(root, { recursive: true }); });
-  return { root, get f() { return f; }, async restart(options) { await f.close(); f = await inviteFixture(root, options); return f; } };
+  return { root, get f() { return f; }, async restart(options, edit) { await f.close(); await edit?.(); f = await inviteFixture(root, options); return f; } };
 }
 const doc = f => readFile(path.join(f.options.registryDir, 'registry.json'), 'utf8').then(JSON.parse);
 test('recovery completes an older pending departure with an imported invalid actor label', async t => {
@@ -52,6 +53,102 @@ async function leave(f, actor, target, pickerId, requestId = randomUUID()) {
   const review = await f.departures.review(actor.account.id, actor.character.id, pickerId);
   return f.departures.depart(actor.account.id, actor.character.id, pickerId, { requestId, characterId: target.character.id, revision: review.revision });
 }
+
+test('a pending admission into a departure solo excludes another outgoing join inside the registry queue', async t => {
+  const { f } = await fixture(t), { owner, players: [player] } = await roster(f, 2);
+  await leave(f, player, player, owner.picker.id);
+  const solo = f.registry.getCharacter(player.character.id).placement.pickerId;
+  const newcomer = await f.registry.firstLogin('google', 'incoming'), incoming = await f.registry.createGroupInvite(player.account.id, solo);
+  const outgoing = await f.registry.createGroupInvite(owner.account.id, owner.picker.id);
+  await f.registry.beginGroupJoin(incoming.secret, newcomer.account.id, { characterId: newcomer.character.id });
+  const before = await doc(f);
+  assert.equal(f.registry.groupJoinEligible(player.account.id, player.character.id), false);
+  await assert.rejects(f.registry.beginGroupJoin(outgoing.secret, player.account.id, { characterId: player.character.id }), { status: 409 });
+  assert.deepEqual(await doc(f), before);
+  await f.service.recover();
+  assert.equal(f.registry.getCharacter(newcomer.character.id).placement.pickerId, solo);
+});
+
+for (const incomingFirst of [false, true]) test(`concurrent admission and rejoin have one registry winner (incoming first: ${incomingFirst})`, async t => {
+  const { f } = await fixture(t), { owner, players: [player] } = await roster(f, 2);
+  await leave(f, player, player, owner.picker.id);
+  const solo = f.registry.getCharacter(player.character.id).placement.pickerId;
+  const newcomer = await f.registry.firstLogin('google', 'incoming'), incoming = await f.registry.createGroupInvite(player.account.id, solo);
+  const outgoing = await f.registry.createGroupInvite(owner.account.id, owner.picker.id);
+  const admit = () => f.registry.beginGroupJoin(incoming.secret, newcomer.account.id, { characterId: newcomer.character.id });
+  const move = () => f.registry.beginGroupJoin(outgoing.secret, player.account.id, { characterId: player.character.id });
+  const attempts = await Promise.allSettled((incomingFirst ? [admit, move] : [move, admit]).map(work => work()));
+  assert.equal(attempts[0].status, 'fulfilled'); assert.equal(attempts[1].status, 'rejected');
+  assert.equal(f.registry.groupJoinTransactions().length, 1);
+  await f.service.recover();
+  assert.equal(f.registry.getCharacter(player.character.id).placement.pickerId, incomingFirst ? solo : owner.picker.id);
+  assert.equal(f.registry.getCharacter(newcomer.character.id).placement.pickerId, incomingFirst ? solo : newcomer.picker.id);
+  for (const p of (await doc(f)).pickers) assert.ok(p.seats.length + p.reservations.length <= 5);
+});
+
+for (const installed of [false, true]) for (const incomingComplete of [false, true]) for (const seam of [null, ...(installed ? ['departure-roster-prepared'] : []), 'invite-conflict-roster', 'departure-keys', 'departure-overlays', 'departure-sessions', 'invite-conflict-cancelled']) test(`recovery reconciles older overlapping intents (roster ${installed}, incoming complete ${incomingComplete}, interruption ${seam})`, async t => {
+  const h = await fixture(t), { owner, players: [player] } = await roster(h.f, 2), f = h.f;
+  await leave(f, player, player, owner.picker.id);
+  const solo = f.registry.getCharacter(player.character.id).placement.pickerId;
+  const newcomer = await f.registry.firstLogin('google', 'incoming'), incoming = await f.registry.createGroupInvite(player.account.id, solo);
+  const outgoing = await f.registry.createGroupInvite(owner.account.id, owner.picker.id);
+  await f.registry.beginGroupJoin(incoming.secret, newcomer.account.id, { characterId: newcomer.character.id });
+  // Reproduce the durable document an older build published without the guard.
+  if (installed) await f.registry.capturePastMap({ id: outgoing.id, accountId: player.account.id, characterId: player.character.id,
+    pickerId: solo, memberId: 'owner', reason: 'rejoined', createdAt: outgoing.createdAt }, await (await f.open(solo)).store.backup());
+  const old = await doc(f), i = old.groupInvites.find(i => i.id === outgoing.id), destination = old.pickers.find(p => p.id === i.pickerId);
+  i.status = 'accepted'; i.terminalAt = i.createdAt; i.acceptingAccountId = player.account.id; i.acceptingCharacterId = player.character.id;
+  i.transaction = { source: { pickerId: solo, memberId: 'owner' }, newCharacter: false, memberId: 'm_' + randomUUID().replaceAll('-', ''), runescapeName: null, pastMapId: i.id };
+  destination.memberIds.push(i.transaction.memberId);
+  if (installed) await (await f.open(destination.id)).store.installInvitedMember({ ...i.transaction, templateMemberId: 'owner' });
+  let armed = false;
+  await h.restart({ crashPoint(name) { if (armed && name === seam) { armed = false; throw new Error('Synthetic conflict recovery interruption'); } } },
+    () => writeFile(path.join(f.options.registryDir, 'registry.json'), JSON.stringify(old)));
+  if (incomingComplete) {
+    const incomingIntent = h.f.registry.groupJoinTransactions().find(i => i.id === incoming.id);
+    await (await h.f.open(solo)).store.installInvitedMember({ ...incomingIntent.transaction, templateMemberId: 'owner' });
+    await h.f.registry.finishGroupJoin(incoming.id);
+  }
+  if (seam) { armed = true; await assert.rejects(h.f.service.recover(), /Synthetic conflict recovery interruption/); await h.restart(); }
+  await h.f.service.recover();
+  assert.equal(h.f.registry.getCharacter(player.character.id).placement.pickerId, solo);
+  assert.equal(h.f.registry.getCharacter(newcomer.character.id).placement.pickerId, solo);
+  assert.equal(h.f.registry.getPicker(solo).ownerCharacterId, player.character.id);
+  assert.equal(h.f.registry.groupJoinTransactions().length, 0);
+  assert.equal((await doc(h.f)).groupInvites.find(i => i.id === outgoing.id).status, 'revoked');
+  const remaining = (await h.f.open(destination.id)).store;
+  assert.equal(remaining.getReadState().members.some(m => m.id === i.transaction.memberId), false);
+  if (installed) assert.ok((await remaining.listBackups()).length);
+  assert.equal(h.f.registry.listPastMaps(player.account.id).length, installed ? 2 : 1);
+  await assert.rejects(h.f.join(outgoing, player.account, { characterId: player.character.id }), /revoked/);
+  assert.equal((await h.f.join(incoming, newcomer.account, { characterId: newcomer.character.id })).message, 'Already joined');
+  await h.restart(); await h.f.service.recover();
+  assert.equal(h.f.registry.getPicker(solo).seats.length, 2);
+});
+
+for (const size of [2, 3, 4, 5]) test(`post-departure assigned tasks survive restore, import and roster remapping for roster ${size}`, async t => {
+  const h = await fixture(t, size % 2 ? { prepareState: state => validateState(state) } : undefined), { owner, players } = await roster(h.f, size), player = players.at(-1), pickerId = owner.picker.id;
+  const store = (await h.f.open(pickerId)).store, memberId = player.character.placement.memberId;
+  await store.command({ type: 'add-task', task: { id: 'custom:historical', label: 'Former assignment', category: 'Custom', memberIds: [memberId] } }, store.getInfo().revision);
+  await leave(h.f, player, player, pickerId);
+  const backup = await store.backup();
+  await store.replace(backup, store.getInfo().revision);
+  await store.replace(await store.backup(), store.getInfo().revision);
+  await store.command({ type: 'update-task', taskId: 'custom:historical', task: { label: 'Reassigned temporarily', memberIds: ['owner'] } }, store.getInfo().revision);
+  await store.command({ type: 'undo' }, store.getInfo().revision);
+  const restored = (await store.backup()).state;
+  assert.deepEqual(restored.tasks.find(t => t.id === 'custom:historical').memberIds, [memberId]);
+  assert.doesNotThrow(() => validateState(restored));
+  const collision = Object.fromEntries(restored.members.map((m, n) => [m.id, n ? 'new' + n : memberId]));
+  assert.throws(() => mapTransferRoster(restored, restored.members.map((m, n) => ({ id: n ? 'new' + n : memberId })), collision), /historical departed member/);
+  const mapping = Object.fromEntries(restored.members.map((m, n) => [m.id, 'new' + n]));
+  const mapped = mapTransferRoster(restored, restored.members.map((m, n) => ({ id: 'new' + n, name: m.name })), mapping);
+  assert.doesNotThrow(() => validateState(mapped));
+  const imported = await h.f.registry.firstLogin('google', 'import-target'), importedStore = (await h.f.open(imported.picker.id)).store;
+  await importedStore.replace(mapped, importedStore.getInfo().revision);
+  await h.restart();
+  assert.deepEqual((await h.f.open(imported.picker.id)).store.getReadState().tasks.find(t => t.id === 'custom:historical').memberIds, [memberId]);
+});
 
 test('handover and rejoin use canonical registry names while preserving imported display names', async t => {
   const { f } = await fixture(t, { prepareState: state => validateState(state) }), { owner, players: [player] } = await roster(f, 2), pickerId = owner.picker.id;

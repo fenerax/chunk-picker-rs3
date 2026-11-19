@@ -8,6 +8,21 @@ import { createRuleRegistry, partnerConnections } from '../app/core/rules.mjs';
 import { buildWorld } from '../app/data/world.mjs';
 import { createTaskEngine, taskId } from '../app/tasks/engine.mjs';
 const registry = createRuleRegistry(), at = '2026-01-01T00:00:00.000Z';
+test('historical declarations survive command validation without becoming current goal players or claims', () => {
+  let state = createGroupState([{ id: 'a', name: 'Remaining' }, { id: 'b', name: 'Departed' }]);
+  state = applyCommand(state, { type: 'add-task', task: { id: 'custom:former', category: 'Custom', label: 'Former', memberIds: ['a', 'b'] } }, { registry });
+  state = memberDeparture(state, 'b', 'left', at);
+  state = applyCommand(state, { type: 'complete-task', memberId: 'a', taskId: 'custom:former', completed: true }, { registry });
+  state = applyCommand(state, { type: 'undo' }, { registry });
+  assert.equal(state.members[0].completedTasks.includes('custom:former'), false);
+  const archived = structuredClone(state); archived.provenance = { restore: { incomingHistory: archived.history } }; archived.history = [];
+  state = applyCommand(archived, { type: 'add-group-goal', goalId: 'group-goal:current', text: 'Current players only', completion: 'players' }, { registry });
+  state = applyCommand(state, { type: 'set-group-goal-done', goalId: 'group-goal:current', done: true }, { registry });
+  assert.deepEqual(state.groupGoals[0].completedBy, ['a']);
+  assert.throws(() => applyCommand(state, { type: 'claim-task', taskId: 'custom:former', memberId: 'b' }, { registry }), /member|player/i);
+  const unrelated = structuredClone(archived); unrelated.provenance = { restore: { previousHistory: archived.provenance.restore.incomingHistory } };
+  assert.throws(() => validateState(unrelated, registry), /Task assignment references absent member/);
+});
 for (const size of [2, 3, 4, 5]) test(`per-player goal history validates each departure roster at size ${size}`, () => {
   let state = createGroupState(Array.from({ length: size }, (_, i) => ({ id: 'p' + i, name: 'Player ' + i })));
   const command = value => { state = applyCommand(state, value, { registry, now: () => at }); };

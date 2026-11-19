@@ -13,8 +13,24 @@ export function createGroupInviteService({ registry, acquire, release, point = a
     if (!c || p.lifecycle !== 'active') fail('The destination group is unavailable.');
     return c.placement.memberId;
   }
+  async function cancelConflict(i, context) {
+    // Older builds could admit another character into this source solo before
+    // retiring it. The admission wins; the owner stays, with no implicit
+    // handover. Remove only an unplaced destination projection, retaining its
+    // preimage in the store's ordinary backup and a non-Undo roster boundary.
+    if (context.store.getCalculationSnapshot().members.some(m => m.id === i.transaction.memberId)) {
+      await context.store.departMember({ memberId: i.transaction.memberId, id: i.id, createdAt: i.terminalAt });
+    }
+    await point('invite-conflict-roster', i.pickerId);
+    await context.revokeDepartedMember(i.transaction.memberId);
+    await registry.cancelConflictingGroupJoin(i.id);
+  }
   async function finish(i, context, source) {
     if (i.transaction) {
+      if (registry.groupJoinConflict(i.id)) {
+        await cancelConflict(i, context);
+        fail('A prior admission won the source group. This outgoing invitation was revoked; review the current group before trying again.');
+      }
       if (i.transaction.pastMapId) {
         const freeze = async source => {
           source.fenceRevokedSessions?.();
@@ -78,6 +94,12 @@ export function createGroupInviteService({ registry, acquire, release, point = a
       }));
     }); },
     recover() { return serialized(async () => {
+      // Reconcile conflicts before completing either transaction. Completing
+      // the incoming one first changes its source solo's roster, so the same
+      // conflict predicate also recognizes that older partial publication.
+      for (const i of registry.groupJoinTransactions()) if (registry.groupJoinConflict(i.id)) {
+        await using(i.pickerId, c => c.withGroupAdmission(() => cancelConflict(i, c)));
+      }
       for (const i of registry.groupJoinTransactions()) await using(i.pickerId, c => c.withGroupAdmission(() => finish(i, c)));
       await registry.cleanGroupInvites();
     }); },

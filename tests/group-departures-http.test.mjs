@@ -6,6 +6,7 @@ import { readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { groupHttpFixture } from './helpers/group-invite-http.mjs';
 import { fixtureDataset } from './helpers/server-dataset.mjs';
+import { usageEvents } from '../app/web/usage-catalogue.mjs';
 
 const scope = (pickerId, characterId) => ({ 'X-Picker-Id': pickerId, 'X-Character-Id': characterId });
 async function setup(t, options) {
@@ -23,6 +24,101 @@ async function depart({ f, player, ps, playerId }, actorCookie = player.cookie, 
   const left = await f.send('/api/group-departure', actorCookie, body, headers); assert.equal(left.status, 200, left.text);
   return { body, result: left.json() };
 }
+
+test('departed usage actors and per-member plugin sidecars survive a group reopen after restart', async t => {
+  const x = await setup(t), { f, owner, player, pickerId, memberId, os, ps } = x;
+  const directory = path.join(f.multiPicker.pickerRoot, pickerId), at = new Date().toISOString(), hash = value => createHash('sha256').update(value).digest('hex');
+  const players = ['owner', memberId], ids = players.map(() => randomUUID());
+  const item = { baselineAt: at, items: { 100: { name: 'Synthetic item', ownedAt: at, wornAt: null, first: true } }, handled: ['rs3:task:synthetic'],
+    journal: { id: 'a'.repeat(16), event: 1 }, bank: { snapshot: 'b'.repeat(16), seenAt: at, coins: 100 } };
+  const sidecars = {
+    'plugin-achievements.json': { v: 1, players: Object.fromEntries(players.map(p => [p, { handled: [1] }])) },
+    ...Object.fromEntries(['plugin-items.json', 'plugin-item-journal-beta.json', 'plugin-item-journal-unknown.json'].map(file => [file, { v: 1, players: Object.fromEntries(players.map(p => [p, item])) }])),
+    'plugin-item-journal-commits.json': { v: 1, players: Object.fromEntries(players.map(p => [p, { journals: [{ id: 'a'.repeat(16), committed: 0, pending: [[1, 100, 'Synthetic item', 'live']] }] }])) },
+    'plugin-keys.json': { schemaVersion: 1, keys: players.map((player, n) => ({ id: ids[n], player, label: 'Synthetic key', createdAt: at,
+      lastUsedAt: null, lastWorld: null, revoked: false, tokenHash: hash('key-' + n) })) },
+    'overlays.json': { schemaVersion: 1, links: players.map((player, n) => ({ id: ids[n], player, widget: 'count', label: 'Synthetic overlay', createdAt: at, revoked: false, tokenHash: hash('overlay-' + n) })) },
+    'invites.json': { schemaVersion: 1, invites: players.map((memberId, n) => ({ id: ids[n], memberId, label: 'Synthetic member', admin: false, viewer: false, createdAt: at, lastUsedAt: null, revoked: false, tokenHash: hash('invite-' + n) })),
+      sessions: ids.map((inviteId, n) => ({ inviteId, tokenHash: hash('session-' + n), expiresAt: new Date(Date.now() + 86400000).toISOString() })) },
+  };
+  await f.restart(async () => {
+    for (const [file, document] of Object.entries(sidecars)) await writeFile(path.join(directory, file), JSON.stringify(document));
+    const file = path.join(directory, 'state.json'), saved = JSON.parse(await readFile(file));
+    saved.pluginCurrency = { format: 2, keys: Object.fromEntries(ids.map(id => [id, { highSeq: 1, seq: 1, generation: 0, sentAt: at, receivedAt: at, epoch: null }])),
+      players: Object.fromEntries(players.map((p, n) => [p, { keyId: ids[n], receivedAt: at, recoverAfter: null, historyAt: null, historyRevision: null }])),
+      facts: Object.fromEntries(players.map(p => [p, { coins: 100, source: 'plugin' }])), origins: [] };
+    await writeFile(file, JSON.stringify(saved));
+  });
+  const row = { id: usageEvents[0].id, actor: memberId, device: 'phone', day: new Date().toISOString().slice(0, 10), count: 1 };
+  const used = await f.send('/api/usage', player.cookie, { counts: [row] }, ps); assert.equal(used.status, 200, used.text);
+  const { body } = await depart(x); await f.restart();
+  const state = await f.send('/api/state', owner.cookie, undefined, os); assert.equal(state.status, 200, state.text);
+  const usage = JSON.parse(await readFile(path.join(directory, 'usage.json')));
+  assert.ok(usage.counts.some(r => r.actor === memberId && r.count === 1));
+  for (const file of Object.keys(sidecars).filter(f => f.startsWith('plugin-') && f !== 'plugin-keys.json')) {
+    assert.deepEqual(JSON.parse(await readFile(path.join(directory, file))), sidecars[file], file);
+  }
+  const overlays = JSON.parse(await readFile(path.join(directory, 'overlays.json'))), invites = JSON.parse(await readFile(path.join(directory, 'invites.json')));
+  assert.equal(overlays.links[1].revoked, true); assert.equal(overlays.links[0].revoked, false);
+  assert.equal(invites.invites[1].revoked, true); assert.deepEqual(invites.sessions.map(s => s.inviteId), [ids[0]]);
+  const keys = JSON.parse(await readFile(path.join(directory, 'plugin-keys.json'))), saved = JSON.parse(await readFile(path.join(directory, 'state.json')));
+  assert.equal(keys.keys[1].revoked, true); assert.equal(keys.keys[0].revoked, false);
+  assert.ok(saved.pluginCurrency.players[memberId]);
+  const frozen = (await f.send('/api/past-maps/' + body.requestId, player.cookie)).json().document.state;
+  assert.deepEqual(frozen.provenance.pluginItemEvidence.players[memberId].records.live.bank, item.bank);
+  assert.equal(state.json().state.members.some(m => m.id === memberId), false);
+  assert.equal((await f.send('/api/state', player.cookie, undefined, ps)).status, 403);
+  const ownerUsage = await f.send('/api/usage', owner.cookie, { counts: [{ ...row, actor: 'owner' }] }, os); assert.equal(ownerUsage.status, 200, ownerUsage.text);
+});
+
+test('server startup reconciles two overlapping invitation intents published by an older build', async t => {
+  let armed = false;
+  const x = await setup(t, { crashPoint(name) { if (armed && name === 'invite-committed') { armed = false; throw Object.assign(new Error('Synthetic admission interruption'), { status: 503 }); } } });
+  const { f, owner, player, playerId, os } = x;
+  await depart(x);
+  const solo = (await f.document()).characters.find(c => c.id === playerId).placement.pickerId;
+  const newcomer = await f.login('103'), nc = (await f.send('/api/characters', newcomer.cookie)).json().characters[0];
+  const incoming = await f.send('/api/group-invites', player.cookie, {}, scope(solo, playerId)); assert.equal(incoming.status, 200, incoming.text);
+  const outgoing = await f.send('/api/group-invites', owner.cookie, {}, os); assert.equal(outgoing.status, 200, outgoing.text);
+  newcomer.cookie = f.cookies(await f.send(new URL(incoming.json().link).pathname, newcomer.cookie), newcomer.cookie);
+  const review = (await f.send('/auth/group-invite/review', newcomer.cookie)).json(); armed = true;
+  assert.equal((await f.send('/auth/group-invite/accept', newcomer.cookie, { confirmed: true, reviewToken: review.reviewToken, characterId: nc.id })).status, 503);
+  const old = await f.document(), i = old.groupInvites.find(i => i.id === outgoing.json().id);
+  i.status = 'accepted'; i.terminalAt = i.createdAt; i.acceptingAccountId = old.characters.find(c => c.id === playerId).accountId; i.acceptingCharacterId = playerId;
+  i.transaction = { source: { pickerId: solo, memberId: 'owner' }, newCharacter: false, memberId: 'm_' + randomUUID().replaceAll('-', ''), runescapeName: null, pastMapId: i.id };
+  old.pickers.find(p => p.id === i.pickerId).memberIds.push(i.transaction.memberId);
+  await f.restart(() => writeFile(path.join(f.multiPicker.registryDir, 'registry.json'), JSON.stringify(old)));
+  const recovered = await f.document();
+  assert.equal(recovered.groupInvites.some(i => i.transaction), false);
+  assert.equal(recovered.characters.find(c => c.id === playerId).placement.pickerId, solo);
+  assert.equal(recovered.characters.find(c => c.id === nc.id).placement.pickerId, solo);
+  for (const [cookie, headers] of [[owner.cookie, os], [player.cookie, scope(solo, playerId)], [newcomer.cookie, scope(solo, nc.id)]]) {
+    const r = await f.send('/api/state', cookie, undefined, headers); assert.equal(r.status, 200, r.text);
+  }
+});
+
+test('whole-save restore and import preserve post-departure assignments over HTTP and restart', async t => {
+  const x = await setup(t), { f, owner, memberId, os } = x;
+  const before = (await f.send('/api/state', owner.cookie, undefined, os)).json().state;
+  const command = await f.send('/api/command', owner.cookie, { expectedRevision: before.revision,
+    command: { type: 'add-task', task: { id: 'custom:historical', label: 'Former assignment', category: 'Custom', memberIds: [memberId] } } }, os); assert.equal(command.status, 200, command.text);
+  await depart(x);
+  let backup = (await f.send('/api/backup', owner.cookie, undefined, os)).json();
+  const restore = async (cookie, headers, backup, rosterMapping) => {
+    const preview = await f.send('/api/restore/preview', cookie, { backup, rosterMapping }, headers); assert.equal(preview.status, 200, preview.text);
+    const current = (await f.send('/api/state', cookie, undefined, headers)).json().state;
+    const result = await f.send('/api/restore', cookie, { backup, rosterMapping, expectedRevision: current.revision, previewToken: preview.json().previewToken }, headers); assert.equal(result.status, 200, result.text);
+  };
+  await restore(owner.cookie, os, backup);
+  backup = (await f.send('/api/backup', owner.cookie, undefined, os)).json();
+  const target = await f.login('104'), char = (await f.send('/api/characters', target.cookie)).json().characters[0], headers = scope(char.placement.pickerId, char.id);
+  await restore(target.cookie, headers, backup, { owner: 'owner' });
+  await f.restart();
+  for (const [cookie, scopeHeaders] of [[owner.cookie, os], [target.cookie, headers]]) {
+    const state = await f.send('/api/state', cookie, undefined, scopeHeaders); assert.equal(state.status, 200, state.text);
+    assert.deepEqual(state.json().state.tasks.find(t => t.id === 'custom:historical').memberIds, [memberId]);
+  }
+});
 
 test('a delayed preview for a remaining member cannot republish into a departed browser scope', async t => {
   const entered = Promise.withResolvers(), release = Promise.withResolvers(); t.after(() => release.resolve());
@@ -76,6 +172,8 @@ test('fresh owner invite rejoins with a new slot and keeps solo history as anoth
   const body = { confirmed: true, reviewToken: review.reviewToken, characterId: playerId };
   const joined = await f.send('/auth/group-invite/accept', player.cookie, body); assert.equal(joined.status, 200, joined.text);
   const c = (await f.document()).characters.find(c => c.id === playerId); assert.notEqual(c.placement.memberId, memberId);
+  const used = await f.send('/api/usage', player.cookie, { counts: [{ id: usageEvents[0].id, actor: c.placement.memberId, device: 'phone', day: new Date().toISOString().slice(0, 10), count: 1 }] }, ps);
+  assert.equal(used.status, 200, used.text);
   const state = await f.send('/api/state', player.cookie, undefined, ps); assert.equal(state.status, 200, state.text); assert.equal(state.json().state.members.find(m => m.id === c.placement.memberId).journal, undefined);
   const maps = (await f.send('/api/past-maps', player.cookie)).json().maps; assert.equal(maps.length, 2);
   const retained = (await f.send('/api/past-maps/' + invitation.json().id, player.cookie)).json(); assert.equal(retained.document.state.members[0].journal, 'Solo kept before rejoining');

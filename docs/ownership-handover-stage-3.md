@@ -202,7 +202,7 @@ unimplemented. The automated and browser evidence below uses synthetic data.
 
 Local focused checks use Node 24.20.0, each entry's complete `testRunPolicy`
 environment, one worker, BelowNormal priority and shared-PC leases under ten
-minutes. After review fixes, the second part's new files cover 57 storage cases,
+minutes. At `d569757`, the second part's new files covered 57 storage cases,
 11 HTTP cases, 13 gameplay cases, three browser cases and one capture/restore
 case. Storage process exits cover
 all thirteen leave/removal publication seams and ten rejoin seams. HTTP
@@ -276,5 +276,60 @@ destination and frozen Past map published, where the old build would fail while
 preparing the invalid actor. It retains the same receipt/destination, preserves
 the full saved name, and remains readable after another restart. These fixes
 add no durable fields or migration and leave registry 4, ledger 2 and gameplay
-schema 1 unchanged. Post-review focused checks cover 14 files: **307 passed,
+schema 1 unchanged. The first review-fix receipt at `d569757` covers 14 files: **307 passed,
 zero failures, no skips**. Hosted CI and fresh stability proof remain required.
+
+## Re-review recovery fixes
+
+Admission now checks pending transactions in both directions inside the registry
+queue. A solo with an incoming admission cannot rejoin elsewhere, and a group
+with an outgoing move cannot accept another member. Concurrent attempts have
+one winner before either second intent is published.
+
+For overlapping intents written by older builds, recovery keeps the incoming
+admission and the solo's designated owner. It removes only the outgoing move's
+unplaced destination projection through the normal backed-up departure boundary,
+revokes that slot's credentials, then publishes the invitation as revoked and
+releases its reservation. Issued IDs, retained backups and any frozen Past map
+remain. The original transaction remains the recovery intent until cancellation
+publishes. Restart can resume after projection removal, each credential sidecar,
+or terminal registry publication, including when an older recovery already
+finished the incoming admission. No successor is selected or credential revived.
+
+Usage reads validate against retained allocated member IDs; new usage submissions
+follow the current roster, including newly joined members. Restart fixtures also
+retain plugin achievement suppression, live/beta/unknown item and bank evidence,
+journal commit ledgers, currency metadata, plugin keys, overlays and invite sessions. Those other sidecar readers
+validate saved ID syntax independently of the current roster; live operations
+recheck membership. Progress-source observations and multipart assemblies are
+memory-only and are cleared by existing departure fencing.
+
+Task assignments remain historical. Restore and roster mapping read departed-ID
+declarations from existing incoming History/provenance archives, without replaying
+their inverses or interpreting unrelated previous-save History. Current claims
+and per-player goals remain restricted to the live roster. Command/Undo
+validation preserves that split. Roster mapping refuses a collision between a
+historical departed ID and a destination player, rather than silently giving
+that player the former assignment.
+
+These fixes add no durable fields or versions: cancellation uses existing
+revoked-invitation, backup and departure-History shapes; usage schema 1,
+gameplay schema 1, registry 4 and ledger 2 remain unchanged. The forward-repair
+rollback position above still applies. Reverting to the affected builds can
+reintroduce the overlap and reject historical usage/assignments; do not treat
+such a downgrade as a repair.
+
+The final re-review receipt is **304 passed, zero failures, no skips across 17
+affected files**. It includes 90 departure storage cases, 14 departure HTTP
+cases, 14 gameplay cases and six usage-storage cases, plus state, transfer,
+History, invitations, goals, server/module loading and browser checks. The 26
+older-conflict recovery combinations cover both destination projection states,
+both incoming placement states, pre-publication interruption and every following
+roster/credential/registry seam. Actual HTTP server startup completes recovery.
+Restore/import cases cover rosters 2–5, repeated restores, remapping, reassignment
+Undo and restart; another HTTP journey restores and imports the exported save.
+The existing desktop/phone refusal and same-request network-retry browser tests
+also pass. All three reviewed failures were reproduced before their fixes.
+Full hosted CI and a new 50-first-attempt stability receipt remain required.
+Launch-readiness stays **55 shipped / 37 partial / 17 missing**; these are fixes
+within the existing stage, not completion of the deferred lifecycle work.
