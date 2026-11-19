@@ -593,11 +593,16 @@ With that option:
 - `health` reads registry and resident/dormant counts without opening dormant games.
 - `backup` makes a private, consistent service checkpoint online; it never falls
   back to stopping. `backup --stopped` explicitly uses stopped ownership checks.
+  Stopped capture validates/reconciles disposable registry/ledger copies first;
+  a stale pair refuses without changing either authoritative file.
 - `list` and `inspect PICKER_ID` print picker IDs, status, counts and byte sizes.
 - `restore BACKUP` records progress and resumes the same backup/release/targets.
   It preflights legacy in scratch before changing live targets; incompatible
   legacy refuses the whole restore with a clear error and nonzero exit. Owned
   failures are quarantined while unrelated restores continue. Keep the external live tombstone ledger.
+- `restore-clean BACKUP` explicitly initializes a missing ledger from a v2
+  service capture. All service destination roots must be empty, with no legacy
+  binding. An existing ledger is retained and checked, never replaced.
 - `quarantine-release PICKER_ID` explicitly checks and reinstalls a quarantined
   picker while stopped; it cannot silently initialize a replacement game.
 - `deploy POINTER [VERIFIED_RECEIPT]` checks every initialized picker sequentially
@@ -605,24 +610,104 @@ With that option:
   recovery workflow and are refused by in-place deployment.
 
 Service restore and quarantine release reconcile MP5 tombstones against the
-**existing target ledger** before opening restored stores. Missing or invalid
-ledgers refuse recovery; never replace that ledger with backup data. Legacy is
+target ledger before opening restored stores. Normal restore refuses a missing
+ledger. A v2 restore also requires that the live ledger structurally covers the
+capture's document; missing records or changed values/version refuse before
+probing. Preserve both copies and obtain a verified covering replica or a fresh
+matching capture. The transport never merges documents or guesses which changed
+record is newer. The selected runtime validates ledger semantics. Legacy is
 preflighted before live purge or credential cleanup. Tombstoned owned pickers
 remain excluded, including on resume, and cannot be released from quarantine.
 Existing issuer sessions, claimed invitations and retired account rows are
 revoked through MP5's cleanup; no service-backup credentials are imported.
+Reconciliation locks and re-reads the authoritative ledger for each phase, then
+advances purge bookkeeping on a disposable ledger copy. This leaves the live
+ledger bytes unchanged across interrupted/resumed recovery. Native service
+startup can later advance its cleanup progress. Purges and revocations remain
+idempotent and newer independent deletion decisions still win.
 
-The single-source rehearsal still refuses service configuration: it copies only
-one store and binding. A service rehearsal needs independent copies and repinned
-paths for every service root, including the external ledger. Removing that guard
-would risk opening or purging live source roots.
+The single-source `rehearse.mjs` still refuses service configuration. Use the
+service rehearsal below for a downloaded complete capture.
 
 The service format excludes sign-in identities, sessions, invitations, tokens,
 plugin keys and capabilities. It preserves pseudonymous account membership rows,
 gameplay, bindings and complete selected pack payloads. Re-establish sign-in
 through private administration after recovery. The existing single-duo raw format
-still includes credentials; keep those recoveries private. No new off-host
-transfer is implemented.
+still includes credentials; keep those recoveries private. Ordinary service v2
+captures now use the existing off-host restic uploader, encryption, retention,
+deadline, free-space and status/deadman rules. Delivery restores the exact remote
+snapshot without cache, then verifies its full service inventory, ledger digest
+and rebuild inventory/payload closure before reporting success. An already
+delivered point gets the same read-back checks on retry. No credentials enter
+the gameplay capture; the encrypted rebuild still contains private configuration
+and operator secrets, just as for single-store delivery.
+
+### Clean-host service recovery and timed rehearsal
+
+Use the newest verified off-site point. Stop timers and the service throughout
+production recovery; preserve every existing ledger and uncertain payload. The
+embedded ledger covers decisions through its final queued capture read, never
+later decisions that were not delivered. If a newer independent ledger survives,
+retain it and use normal restore. A v1 service capture has no embedded ledger and
+cannot recover a lost host by itself.
+
+1. On a throwaway host, supply the operator's restic repository credential and
+   password through the existing private secret files. Restore a specific full
+   snapshot with `restic restore SNAPSHOT_ID --target /path/to/private-download
+   --verify`. Locate the sibling `snapshot/` and `rebuild/` directories below
+   the restored absolute staging path; do not mix points. Record the remote ID,
+   capture time and download elapsed time privately.
+2. Run the downloaded tools' `scripts/linux/rehearse.mjs --service-source` (or a reviewed
+   compatible installed copy) with an absent scratch directory:
+
+   ```sh
+   node /path/to/reviewed-tools/scripts/linux/rehearse.mjs --service-source /path/to/downloaded/stage --scratch /path/to/new-private-rehearsal
+   ```
+
+   It verifies the capture and rebuild release pointer, copies runtime code and
+   all input payloads, rebuilds the pack id/version layout, repins every service
+   root and binds listeners only to loopback on ephemeral ports. It exclusively
+   creates the scratch root and rejects overlap with the capture or source live
+   roots. It never controls systemd, opens original roots, or deletes scratch.
+   It restores with the real sequential decoders and journal, starts and closes
+   the isolated service, then exercises account reclaim with synthetic identities.
+3. Keep `restore-receipt.json` and its private scratch tree. The receipt names
+   source/ledger digests, verified picker IDs/member rosters, revisions and History
+   event counts, Past map count, input closure, excluded/quarantined scopes,
+   credential policy, fresh plugin-key authentication/revocation checks, native
+   tombstone reconciliation results, failures, gameplay elapsed time and separate local reclaim
+   time. A failure retains its journal and payloads. Any quarantine fails the
+   rehearsal. Synthetic local reclaim does not time an OAuth provider, human
+   identity checks, DNS/TLS, host installation or network download. Add those
+   elapsed times and fresh plugin-key issuance/revocation observations to the
+   private operator receipt before accepting the launch gate. Never promote the
+   rehearsal registry with its synthetic identities to production.
+4. For production recovery, verify the downloaded `rebuild-manifest.json` and
+   `snapshot/manifest.json` with the same verifier. Install `rebuild/release`,
+   `tools`, `units`, private `etc` files and each `pins[].file` at their reviewed
+   destinations. The rebuild manifest records the original selected release,
+   tools root and input paths; repin configuration/pointer bytes if paths change,
+   as described under configuration above. Keep all new service roots disjoint
+   and empty; restore no gameplay or ledger by hand. With the dedicated account,
+   units, operator settings and matching release in place, run:
+
+   ```sh
+   node /path/to/reviewed-tools/scripts/linux/operator.mjs restore-clean /path/to/downloaded/stage/snapshot
+   ```
+
+   The operator journals before exclusively installing the captured ledger,
+   validates/reconciles it, preflights legacy and restores each group. Retry the
+   same command/point/roots/release after an interruption. A missing, corrupt,
+   stale or mismatched ledger refuses; preserve the evidence and inspect the
+   reported path privately. Ownership repair hands restored files, the ledger
+   and its writable root back to the service account. Start only after the journal
+   is complete, then
+   verify private readiness, several groups and History. Use `relink-code` after
+   private identity verification, and issue fresh invites/plugin/overlay keys.
+
+This helper currently covers ordinary service storage. An owned Format 2 capture
+still requires explicit isolated catalogue roots and its existing closure workflow;
+the rehearsal refuses it rather than guessing live catalogue destinations.
 
 Service capture briefly queues global admission for the registry/account and
 roster checkpoint, then copies one picker at a time under its own barrier. New

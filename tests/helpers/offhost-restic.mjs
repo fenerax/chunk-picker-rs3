@@ -8,10 +8,10 @@ import { offhostBackup } from '../../scripts/linux/offhost-backup.mjs';
 import { executeRestic, guardedRestic, verifyRestic } from '../../scripts/linux/restic.mjs';
 
 export const realResticAvailable = process.platform === 'linux' || !!process.env.RS3_TEST_RESTIC_BINARY;
-export async function realOffhostFixture(t) {
+export async function realOffhostFixture(t, createFixture = offhostFixture) {
   const binary = process.env.RS3_TEST_RESTIC_BINARY ?? '/usr/local/bin/restic';
   await verifyRestic(binary);
-  const f = await offhostFixture(t), local = path.join(f.dir, 'local'); await mkdir(local);
+  const f = await createFixture(t), local = path.join(f.dir, 'local'); await mkdir(local);
   const repository = path.join(local, 'repository'), password = path.join(local, 'password');
   await writeFile(password, 'synthetic-local-only', { mode: 0o600 });
   const env = { PATH: process.env.PATH, ...(process.env.SystemRoot ? { SystemRoot: process.env.SystemRoot } : {}),

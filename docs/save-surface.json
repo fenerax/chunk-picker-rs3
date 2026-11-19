@@ -4,6 +4,7 @@
   "scope": "Per-picker state.json (including hydrated static fields), envelope and files below dataDir. Sibling dataset bindings, registry/tombstone roots, operator control roots and external snapshot roots are inventoried separately in storage-contract.md.",
   "features": [
     "initialize-static",
+    "dataset-evidence",
     "platform-progress",
     "plugin-progress",
     "plugin-testing-mode",
@@ -1351,6 +1352,13 @@
       "frozen": "preserved"
     },
     {
+      "path": "dataset-evidence.json",
+      "pattern": "^dataset-evidence\\.json$",
+      "root": "dataset-evidence.json",
+      "checkpoint": true,
+      "frozen": "preserved"
+    },
+    {
       "path": "plugin-achievements.json",
       "pattern": "^plugin-achievements\\.json$",
       "root": "plugin-achievements.json",
@@ -1506,7 +1514,7 @@
     },
     {
       "path": "<destination>.<nonce>.tmp",
-      "pattern": "^(?:state\\.json|access-token|action-acknowledgements\\.json|store\\.lock(?:\\.recovery)?|(?:accounts|invites|feedback|usage|overlays|plugin-keys|plugin-items|plugin-achievements|plugin-item-journal-(?:beta|unknown|commits))\\.json|static/static-[a-f0-9]{64}\\.json\\.gz|history/history-\\d{16}-\\d{16}-[a-f0-9]{16}\\.json\\.gz|backups/\\d{16}-[a-f0-9]{16}\\.json(?:\\.gz)?(?:\\.meta\\.json)?|backups/archives/archive-[a-f0-9]{16}\\.json\\.gz|receipt-quarantine/[a-f0-9]{64}\\.json)(?:\\.(?:\\d+\\.[a-f0-9]{16}|[a-f0-9-]{36})\\.tmp){1,2}$",
+      "pattern": "^(?:state\\.json|dataset-evidence\\.json|access-token|action-acknowledgements\\.json|store\\.lock(?:\\.recovery)?|(?:accounts|invites|feedback|usage|overlays|plugin-keys|plugin-items|plugin-achievements|plugin-item-journal-(?:beta|unknown|commits))\\.json|static/static-[a-f0-9]{64}\\.json\\.gz|history/history-\\d{16}-\\d{16}-[a-f0-9]{16}\\.json\\.gz|backups/\\d{16}-[a-f0-9]{16}\\.json(?:\\.gz)?(?:\\.meta\\.json)?|backups/archives/archive-[a-f0-9]{16}\\.json\\.gz|receipt-quarantine/[a-f0-9]{64}\\.json)(?:\\.(?:\\d+\\.[a-f0-9]{16}|[a-f0-9-]{36})\\.tmp){1,2}$",
       "root": "",
       "checkpoint": false,
       "frozen": "private-droppable",

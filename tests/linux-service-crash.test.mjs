@@ -169,7 +169,8 @@ test('capture sweep: every durable step, absent scope and pinned inputs', async 
     else await run();
     await intact(f);
     await retry(() => run());
-    assert.deepEqual(await verifyServiceBackup(output), expected);
+    const actual = await verifyServiceBackup(output);
+    assert.deepEqual({ ...actual, snapshotAt: expected.snapshotAt }, expected);
     assert.equal((await json(path.join(output, 'complete.json'))).id, id);
     if (inspected.has(output)) { await rm(inspected.get(output), { recursive: true, force: true }); inspected.delete(output); }
   }
@@ -190,7 +191,8 @@ test('capture failure cleanup sweep: interrupted error handling also refuses inc
     }), error => error === fault);
     await intact(f);
     await retry(() => run(undefined, false));
-    assert.deepEqual(await verifyServiceBackup(output), await verifyServiceBackup(f.backup));
+    const expected = await verifyServiceBackup(f.backup), actual = await verifyServiceBackup(output);
+    assert.deepEqual({ ...actual, snapshotAt: expected.snapshotAt }, expected);
     await rm(output, { recursive: true });
     if (inspected.has(output)) { await rm(inspected.get(output), { recursive: true, force: true }); inspected.delete(output); }
   }
@@ -200,6 +202,27 @@ test('capture failure cleanup sweep: interrupted error handling also refuses inc
 test('restore sweep: compatible, quarantined and tombstoned scopes', async t => {
   const f = await fixture(t);
   await sweep(t, f, async () => {}, (settings, step) => restoreServiceStopped({ ...f.restore(settings), step }), settings => finalState(f, settings));
+});
+
+test('clean-host ledger initialization resumes every prepared-journal interruption', async t => {
+  const f = await fixture(t), captured = await readFile(path.join(f.backup, 'ledger.json'));
+  for (const cut of ['restore.prepared', 'restore.ledger-directory', 'restore.ledger', 'reconcile.control']) {
+    const settings = await f.target(), ledger = path.join(settings.multiPicker.tombstoneDir, 'ledger.json');
+    await rm(ledger);
+    const options = { ...f.restore(settings), initializeLedger: true };
+    await assert.rejects(restoreServiceStopped({ ...options, step: async label => {
+      covered.add(label); if (label === cut) throw fault;
+    } }), error => error === fault);
+    if (await exists(ledger)) assert.deepEqual(await readFile(ledger), captured);
+    const result = await restoreServiceStopped(options);
+    assert.deepEqual(result, { restored: 2, quarantined: [f.incompatible.id], excluded: 0, credentialsRestored: 0 });
+    assert.deepEqual(await readFile(ledger), captured, 'authoritative ledger stays byte-identical after recovery');
+    for (const picker of f.pickers) {
+      const target = picker.id === f.incompatible.id ? path.join(settings.controlDir, 'quarantine', picker.id) : pickerPath(settings, picker);
+      assert.equal(await digest(target), await digest(path.join(f.backup, 'pickers', picker.id)));
+    }
+    await intact(f);
+  }
 });
 
 test('restore archive sweep: completed journal with recovered empty disks', async t => {
@@ -310,7 +333,7 @@ test('ownership sweep: repeat each interrupted chown with the same UID/GID', asy
       for (const root of [settings.dataDir, settings.multiPicker.registryDir, settings.multiPicker.pickerRoot]) {
         paths.push(root, ...(await inventory(root)).map(row => path.join(root, row.path)));
       }
-      paths.push(settings.dataDir + '.dataset.json', path.join(settings.multiPicker.tombstoneDir, 'ledger.json'));
+      paths.push(settings.dataDir + '.dataset.json', settings.multiPicker.tombstoneDir, path.join(settings.multiPicker.tombstoneDir, 'ledger.json'));
       const expected = paths.map(file => [path.relative(path.dirname(settings.dataDir), file), [1001, 1001]]).sort();
       assert.deepEqual([...owners.get(settings)].sort(), expected);
       return { state: await finalState(f, settings), owners: expected };
@@ -321,7 +344,7 @@ test('ownership native chown to another UID/GID', async t => {
   if (!process.getuid || process.getuid() !== 0) { t.skip('chown to another UID/GID requires root'); return; }
   const f = await fixture(t), settings = await f.target(); await f.prepareRelease(settings);
   await repairServiceOwnership({ settings, uid: 1001, gid: 1001 });
-  for (const file of [settings.dataDir, settings.dataDir + '.dataset.json', path.join(settings.multiPicker.tombstoneDir, 'ledger.json')]) {
+  for (const file of [settings.dataDir, settings.dataDir + '.dataset.json', settings.multiPicker.tombstoneDir, path.join(settings.multiPicker.tombstoneDir, 'ledger.json')]) {
     const { uid, gid } = await lstat(file); assert.deepEqual([uid, gid], [1001, 1001]);
   }
   await finalState(f, settings);

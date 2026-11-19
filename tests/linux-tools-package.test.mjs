@@ -64,7 +64,8 @@ test('package is the exact runtime closure, including unit and child entrypoints
   const scratch = await fixture(t), { source, closure } = await sourceCopy(scratch), output = path.join(scratch, 'package');
   const manifest = await buildTools(source, output);
   assert.deepEqual(manifest.files, closure.files);
-  for (const module of ['notify', 'monitor', 'offhost-backup', 'recovery-bundle', 'restic', 'ops-status', 'scratch-alerts', 'staging', 'bootstrap-alerts']) assert(manifest.files.some(row => row.path === 'scripts/linux/' + module + '.mjs'));
+  for (const module of ['notify', 'monitor', 'offhost-backup', 'recovery-bundle', 'restic', 'ops-status', 'scratch-alerts', 'staging', 'bootstrap-alerts', 'service-ledger', 'service-rehearsal', 'service-rehearsal-start']) assert(manifest.files.some(row => row.path === 'scripts/linux/' + module + '.mjs'));
+  assert(manifest.boundaries.some(row => row.owner === 'scripts/linux/service-rehearsal-start.mjs' && row.source === 'selected-release'));
   assert(!manifest.files.some(row => row.path === 'app/server.mjs'));
   assert(manifest.files.some(row => row.path === 'app/tasks/warm-store.mjs'));
   for (const unit of ['chunk-picker.service', 'chunk-picker-backup.service', 'chunk-picker-health.service', 'chunk-picker-monitor.service', 'chunk-picker-offhost.service', 'chunk-picker-notify@.service']) {
@@ -77,6 +78,9 @@ test('package is the exact runtime closure, including unit and child entrypoints
     for(const file of ${JSON.stringify(toolsEntrypoints.filter(name => !name.endsWith('/serve.mjs')))}) await import(pathToFileURL(path.join(root,file)));`;
   execFileSync(process.execPath, ['--input-type=module', '-e', script], { stdio: 'pipe', windowsHide: true,
     env: { ...process.env, NODE_OPTIONS: '', NODE_PATH: '', RS3_DATASET: 'open-starter' } });
+  assert.throws(() => execFileSync(process.execPath, [path.join(output, 'scripts/linux/rehearse.mjs'),
+    '--service-source', path.join(scratch, 'missing-capture'), '--scratch', path.join(scratch, 'unused-rehearsal')],
+  { stdio: 'pipe', windowsHide: true }), error => error.status === 1 && error.stderr.toString().includes('Service rehearsal refused:'));
   await writeFile(path.join(output, 'scripts/linux/unlisted.mjs'), 'export {};');
   await assert.rejects(verifyTools(output), /hashes differ/);
 });
