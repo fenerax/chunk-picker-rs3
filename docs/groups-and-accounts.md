@@ -26,8 +26,10 @@ For example, one login contains Character A, Character B and Character C. Each c
 
 The [stage 1 registry design](character-registry-stage-1.md) records the
 representation, migration, provisioning recovery and rollback for issue #301.
-The owner approved interim refusal of picker/account deletion affecting
-characters on 2026-11-16. Final character deletion remains stage 3.
+The interim deletion refusal approved on 2026-11-16 is replaced by the
+[stage 3 lifecycle](ownership-handover-stage-3.md): controlling-login character
+deletion, explicit final-group deletion and complete login deletion, with
+registry 5 and external retirement ledger 3.
 
 | Entity | Meaning and exact relationship |
 | --- | --- |

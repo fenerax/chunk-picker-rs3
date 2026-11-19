@@ -9,6 +9,8 @@ import { CHARACTER_ID, newCharacterId, bindCharacter, validateCharacters, migrat
 import { createGroupInvites, validateGroupInvites } from './group-invites.mjs';
 import { createGroupHandovers, validateHandovers } from './group-handovers.mjs';
 import { createGroupDepartures, validateDepartures, departureSoloEligible } from './group-departures.mjs';
+import { validateRetirements, migrateRetirements, registryV5, slotKey } from './registry-retirements.mjs';
+import { deletionPlan } from './character-deletions.mjs';
 
 const PICKER = /^p_[0-9a-f]{32}$/;
 const HASH = /^[0-9a-f]{64}$/;
@@ -22,13 +24,13 @@ const date = value => typeof value === 'string' && Number.isFinite(Date.parse(va
 const bad = () => { throw new TypeError('Invalid registry document.'); };
 export const DEFAULT_REGISTRY_CAPS = Object.freeze({ accounts: 3000, pickers: 3500, issuedPickerIds: 1000000,
   retiredAccounts: 1000000, membershipsPerAccount: 1000, membersPerPicker: 100, capabilities: 20000, capabilitiesPerPicker: 100,
-  characters: 3000, charactersPerAccount: 10, issuedCharacterIds: 1000000, retiredCharacters: 1000000 });
+  characters: 3000, charactersPerAccount: 10, issuedCharacterIds: 1000000, retiredCharacters: 1000000, retiredSlots: 1000000 });
 export const REGISTRY_PROVISION_POINTS = Object.freeze(['account-recorded', 'id-reserved', 'registry-reserved', 'directory-created', 'directory-synced', 'registry-ready']);
 
 function validateLedger(ledger) {
-  if (ledger?.schemaVersion > 2) throw new Error('Unsupported newer registry ledger version. Use a compatible release.');
-  if (!object(ledger, ['schemaVersion', 'issuedPickerIds', 'pickers', 'accounts', ...(ledger?.schemaVersion === 2 ? ['issuedCharacterIds', 'characters'] : [])]) || ![1, 2].includes(ledger.schemaVersion) || !Array.isArray(ledger.issuedPickerIds) || !Array.isArray(ledger.pickers) || !Array.isArray(ledger.accounts)) bad();
-  if (ledger.schemaVersion === 2 && (!Array.isArray(ledger.issuedCharacterIds) || ledger.issuedCharacterIds.some(id => !CHARACTER_ID.test(id)) || new Set(ledger.issuedCharacterIds).size !== ledger.issuedCharacterIds.length || !Array.isArray(ledger.characters) || ledger.characters.length)) bad();
+  if (ledger?.schemaVersion > 3) throw new Error('Unsupported newer registry ledger version. Use a compatible release.');
+  if (!object(ledger, ['schemaVersion', 'issuedPickerIds', 'pickers', 'accounts', ...(ledger?.schemaVersion >= 2 ? ['issuedCharacterIds', 'characters'] : []), ...(ledger?.schemaVersion === 3 ? ['slots', 'deletions'] : [])]) || ![1, 2, 3].includes(ledger.schemaVersion) || !Array.isArray(ledger.issuedPickerIds) || !Array.isArray(ledger.pickers) || !Array.isArray(ledger.accounts)) bad();
+  if (ledger.schemaVersion >= 2 && (!Array.isArray(ledger.issuedCharacterIds) || ledger.issuedCharacterIds.some(id => !CHARACTER_ID.test(id)) || new Set(ledger.issuedCharacterIds).size !== ledger.issuedCharacterIds.length || !Array.isArray(ledger.characters) || ledger.schemaVersion === 2 && ledger.characters.length)) bad();
   const issued = new Set(), deleted = new Set(), accounts = new Set();
   for (const id of ledger.issuedPickerIds) { if (typeof id !== 'string' || !PICKER.test(id) || issued.has(id)) bad(); issued.add(id); }
   for (const entry of ledger.pickers) {
@@ -41,13 +43,14 @@ function validateLedger(ledger) {
     if (entry.purgeProgress !== undefined && !['pending', 'complete'].includes(entry.purgeProgress)) bad();
     accounts.add(entry.accountId);
   }
-  return ledger;
+  validateRetirements(ledger); return ledger;
 }
 
 function validate(document, selection) {
-  if (document?.schemaVersion > 4) throw new Error('Unsupported newer registry version. Use a compatible release.');
+  if (document?.schemaVersion > 5) throw new Error('Unsupported newer registry version. Use a compatible release.');
   const v2 = document?.schemaVersion >= 2;
-  if (!object(document, ['schemaVersion', 'accounts', 'pickers', 'capabilities', 'relinkCodes', 'relinkRetirements', ...(v2 ? ['characters'] : []), ...(document?.schemaVersion >= 3 ? ['groupInvites'] : []), ...(document?.schemaVersion === 4 ? ['handovers', 'departures', 'pastMaps'] : [])]) || ![1, 2, 3, 4].includes(document.schemaVersion) || !Array.isArray(document.accounts) || !Array.isArray(document.pickers) || !Array.isArray(document.capabilities)) bad();
+  if (!object(document, ['schemaVersion', 'accounts', 'pickers', 'capabilities', 'relinkCodes', 'relinkRetirements', ...(v2 ? ['characters'] : []), ...(document?.schemaVersion >= 3 ? ['groupInvites'] : []), ...(document?.schemaVersion >= 4 ? ['handovers', 'departures', 'pastMaps'] : []), ...(document?.schemaVersion === 5 ? ['deletions'] : [])]) || ![1, 2, 3, 4, 5].includes(document.schemaVersion) || !Array.isArray(document.accounts) || !Array.isArray(document.pickers) || !Array.isArray(document.capabilities)) bad();
+  if (document.schemaVersion === 5 && !Array.isArray(document.deletions)) bad();
   if (document.relinkCodes !== undefined && (!selection || selection.relinkCodes)) {
     if (!Array.isArray(document.relinkCodes)) bad();
     const seen = new Set();
@@ -120,6 +123,38 @@ function validate(document, selection) {
 function reconcile(document, ledger, changes = { accounts: [], pickers: [], removedCapabilities: [] }) {
   const next = copy(document), blocked = new Map(ledger.pickers.map(entry => [entry.pickerId, entry]));
   const deletedAccounts = new Set(ledger.accounts.map(entry => entry.accountId));
+  if (ledger.schemaVersion === 3) {
+    if (next.schemaVersion >= 5) next.deletions = copy(ledger.deletions);
+    const deleted = new Set(ledger.characters.map(c => c.characterId));
+    const pending = new Set(ledger.deletions.filter(d => !d.completedAt).flatMap(d => d.targets.map(t => t.characterId)));
+    const provisionedAccounts = new Set(ledger.deletions.map(d => d.accountId));
+    for (const a of next.accounts) {
+      if (deletedAccounts.has(a.id)) continue;
+      const obsoleteCreation = a.pendingCreation && deleted.has(a.pendingCreation.characterId);
+      if (obsoleteCreation || !a.initialProvisioned && provisionedAccounts.has(a.id)) {
+        a.initialProvisioned = true;
+        if (obsoleteCreation) a.pendingCreation = null;
+        if (!changes.accounts.includes(a)) changes.accounts.push(a);
+      }
+    }
+    for (const c of next.characters ?? []) if (c.lifecycle === 'active') {
+      const retired = ledger.slots.some(s => slotKey(s) === slotKey(c.placement));
+      const moving = (next.departures ?? []).some(d => !d.completedAt && d.characterId === c.id)
+        || (next.groupInvites ?? []).some(i => i.transaction && i.acceptingCharacterId === c.id);
+      if (retired && !deleted.has(c.id) && !moving) throw new Error('Checkpoint predates a retired character binding. Restore the current character mapping; retired slots cannot be reactivated.');
+      if (deleted.has(c.id) && !pending.has(c.id)) {
+        const p = next.pickers.find(p => p.id === c.placement.pickerId);
+        if (p?.ownerCharacterId === c.id && !blocked.has(p.id)) throw new Error('Checkpoint predates ownership handover. Restore the current owner mapping before recovery.');
+        for (const a of next.accounts) {
+          const memberships = a.memberships.filter(m => m.pickerId !== c.placement.pickerId || m.memberId !== c.placement.memberId);
+          if (memberships.length !== a.memberships.length) { a.memberships = memberships; if (!changes.accounts.includes(a)) changes.accounts.push(a); }
+          if (a.lastCharacterId === c.id) a.lastCharacterId = null;
+        }
+        next.capabilities = next.capabilities.filter(k => { if (k.pickerId !== c.placement.pickerId || k.memberId !== c.placement.memberId) return true; changes.removedCapabilities.push(k); return false; });
+        c.lifecycle = 'retired'; c.placement = null; changes.characters = true;
+      }
+    }
+  }
   next.accounts = next.accounts.filter(account => {
     if (!deletedAccounts.has(account.id)) return true;
     changes.accounts.push({ id: account.id, deleted: true }); return false;
@@ -222,7 +257,24 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
     validateGroupInvites(next);
     validateHandovers(next);
     validateDepartures(next);
+    if (ledger.schemaVersion === 3) for (const c of next.characters) if (c.lifecycle === 'active' && ledger.slots.some(s => slotKey(s) === slotKey(c.placement))) {
+      const pending = ledger.deletions.some(d => !d.completedAt && d.targets.some(t => t.characterId === c.id))
+        || next.departures.some(d => !d.completedAt && d.characterId === c.id) || next.groupInvites.some(i => i.transaction && i.acceptingCharacterId === c.id);
+      if (!pending) throw error(409, 'Retired character bindings cannot be reactivated. Restore the current character mapping.');
+    }
     const commitCounts = enforceCaps(next, ledger, changes);
+    // Retirement publishes outside checkpoints before the new binding. A
+    // crash leaves a fenced existing intent, or refuses an obsolete mapping.
+    if (ledger.schemaVersion === 3 && changes.characters) {
+      const nextLedger = copy(ledger);
+      for (const c of current.characters ?? []) if (c.lifecycle === 'active') {
+        const after = next.characters.find(n => n.id === c.id);
+        if (after?.lifecycle === 'active' && JSON.stringify(after.placement) === JSON.stringify(c.placement)) continue;
+        if (!nextLedger.slots.some(s => slotKey(s) === slotKey(c.placement))) nextLedger.slots.push({ ...c.placement, characterId: c.id, retiredAt: timestamp() });
+        if (after?.lifecycle !== 'active' && !nextLedger.characters.some(t => t.characterId === c.id)) nextLedger.characters.push({ characterId: c.id, deletedAt: timestamp() });
+      }
+      if (JSON.stringify(nextLedger) !== JSON.stringify(ledger)) { await saveLedger(nextLedger); await point('retirement-slot'); }
+    }
     try {
       await writeRegistryJson(file, next); current = next; commitCounts();
       for (const account of accountRows) {
@@ -245,6 +297,7 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
   async function saveLedger(next) {
     validateLedger(next); enforceCaps(current, next);
     if ((next.issuedCharacterIds?.length ?? 0) > caps.issuedCharacterIds || (next.characters?.length ?? 0) > caps.retiredCharacters) throw characterError('The character ID history limit has been reached. Existing IDs cannot be reused.');
+    if ((next.slots?.length ?? 0) > caps.retiredSlots) throw characterError('The retired slot history limit has been reached. Historical bindings cannot be reused.');
     try { await writeRegistryJson(ledgerFile, next); ledger = next; rebuildLedgerIndexes(); }
     catch (failure) { failed = true; throw failure; }
   }
@@ -438,9 +491,21 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
     versionInvites: () => groupInvites.resumeVersion(),
     save: next => save(next, { accounts: next.accounts, pickers: next.pickers, characters: true }) });
   const departures = createGroupDepartures({ read: () => current, now, point, caps, allocate, pickerRoot, registryDir,
-    version: () => handovers.version(),
+    version: () => retirementVersion(),
     async saveLedgerId(id) { if (!issuedIds.has(id)) { const next = copy(ledger); next.issuedPickerIds.push(id); await saveLedger(next); } },
     save: (next, removedCapabilities = []) => save(next, { accounts: next.accounts, pickers: next.pickers, characters: true, removedCapabilities }) });
+  async function retirementVersion() {
+    if (current.schemaVersion === 5 && ledger.schemaVersion === 3) return;
+    await handovers.version();
+    try { [current, ledger] = await migrateRetirements(current, ledger, { registryDir, ledgerFile, point, start: true, validate: validateRetirementTarget }); }
+    catch (failure) { if (failure.status !== 409) failed = true; throw failure; }
+    capCounts = createRegistryCaps(current, caps, onCapCheck); rebuildIndexes(); rebuildLedgerIndexes();
+  }
+  function validateRetirementTarget(next, nextLedger) {
+    validate(next); validateLedger(nextLedger); validateCharacters(next, caps); validateGroupInvites(next); validateHandovers(next); validateDepartures(next);
+    createRegistryCaps(next, caps).checkInitial(nextLedger);
+    if (nextLedger.issuedCharacterIds.length > caps.issuedCharacterIds || nextLedger.characters.length > caps.retiredCharacters || nextLedger.slots.length > caps.retiredSlots) throw characterError('The retirement history limit has been reached. Existing IDs and bindings cannot be reused.');
+  }
   function visibleAccount(id) {
     if (retiredAccounts.has(id)) return null;
     const account = copy(accountIndex.get(id));
@@ -456,6 +521,12 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
   }
   function relinkTarget(accountId) {
     const account = visibleAccount(accountId);
+    // An explicitly emptied login is still a reclaimable account. Recovery
+    // restores its provider access without creating a replacement character.
+    if (current.schemaVersion >= 5 && account && !account.identities.length && account.initialProvisioned && !account.pendingCreation
+      && !current.characters.some(c => c.accountId === account.id && c.lifecycle === 'active')
+      && current.deletions.some(d => d.completedAt && d.accountId === account.id && d.kind !== 'account')
+      && !current.deletions.some(d => !d.completedAt && d.accountId === account.id)) return account;
     // A joined login can have no owned default after onboarding retirement.
     // Reclaim still restores its own character collection, never group ownership.
     if (current.schemaVersion >= 3 && account && !account.identities.length && current.characters.some(c => c.accountId === account.id && c.lifecycle === 'active'
@@ -493,6 +564,11 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
     if (current !== undefined && ledger === undefined) throw new Error('Registry ledger is missing.');
     if (ledger === undefined) ledger = { schemaVersion: 2, issuedPickerIds: [], pickers: [], accounts: [], issuedCharacterIds: [], characters: [] };
     validateLedger(ledger);
+    if (current?.schemaVersion === 1 && ledger.schemaVersion === 3) throw new Error('Checkpoint predates character mapping. Restore the current character registry while retaining the live retirement ledger.');
+    if (current) [current, ledger] = await migrateRetirements(current, ledger, { registryDir, ledgerFile, point, validate: validateRetirementTarget });
+    // Older checkpoints are disposable projections. The live ledger is never
+    // replaced by their history, and supplies the v5 retirement receipts.
+    if (current && ledger.schemaVersion === 3 && current.schemaVersion >= 2 && current.schemaVersion < 5) current = registryV5({ groupInvites: [], handovers: [], departures: [], pastMaps: [], ...current });
     if (current === undefined && ledger.schemaVersion === 1 && !ledger.issuedPickerIds.length && !ledger.pickers.length && !ledger.accounts.length) ledger = { ...ledger, schemaVersion: 2, issuedCharacterIds: [], characters: [] };
     const validateTarget = (next, nextLedger) => {
       validate(next); validateLedger(nextLedger); validateCharacters(next, caps); createRegistryCaps(next, caps).checkInitial(nextLedger);
@@ -508,8 +584,8 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
       [current, ledger] = await migrateCharacterDocuments(current, { document: ledger, file: ledgerFile }, { registryDir, pickerRoot, legacyDir, point, validateTarget });
     }
     validateLedger(ledger);
-    if (!deferred && current !== undefined && (![2, 3, 4].includes(current.schemaVersion) || ledger.schemaVersion !== 2)) {
-      if (current.schemaVersion > 4) validate(current);
+    if (!deferred && current !== undefined && (![2, 3, 4, 5].includes(current.schemaVersion) || ![2, 3].includes(ledger.schemaVersion) || current.schemaVersion === 5 && ledger.schemaVersion !== 3)) {
+      if (current.schemaVersion > 5) validate(current);
       throw new Error('Registry and ledger versions do not match. Restore the matching pair or character migration intent.');
     }
     if (current === undefined && (ledger.issuedPickerIds.length || ledger.pickers.length || ledger.accounts.length || ledger.issuedCharacterIds.length)) {
@@ -540,6 +616,7 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
       catch (failure) { if (failure.code !== 'ENOENT') throw failure; }
       if (backedUp) await handovers.version();
     }
+    if (!recoveryOnly && current.schemaVersion >= 3 && current.schemaVersion < 5) await retirementVersion();
     await finishRelinkRetirements();
     // Reconcile before recovery can create a directory or expose any index.
     await saveLedger(ledger); await save(current);
@@ -552,13 +629,58 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
     throw failure;
   }
   const api = {
+    deletionPlan(accountId, input) { usable(); return copy(deletionPlan(current, accountId, input)); },
+    deletionTransactions() { usable(); return copy(ledger.deletions ?? []); },
+    getDeletion(id) { usable(); return copy(ledger.deletions?.find(d => d.id === id)); },
+    beginCharacterDeletion(accountId, input, recheck = () => {}) { return enqueue(async () => {
+      await recheck();
+      if (lifecycleCapture) throw error(409, 'A service backup is in progress. Retry deletion after it finishes.');
+      if (!REGISTRY_ACCOUNT.test(input.requestId)) throw error(400, 'A deletion request ID is required.');
+      const old = ledger.deletions?.find(d => d.id === input.requestId);
+      if (old) {
+        if (old.accountId !== accountId || ['kind', 'characterId', 'pickerId', 'deleteGroup'].some(k => old[k] !== (input[k] ?? (k === 'deleteGroup' ? false : null)))) throw error(409, 'This deletion request ID was already used.');
+        return old;
+      }
+      const plan = deletionPlan(current, accountId, input);
+      if (plan.revision !== input.revision) throw error(409, 'The complete deletion target list changed. Review deletion again.');
+      await retirementVersion();
+      await recheck();
+      if (ledger.deletions.length >= 20000) throw error(409, 'The deletion receipt limit has been reached. Existing maps are unchanged.');
+      const d = { id: input.requestId, kind: plan.kind, accountId, characterId: plan.characterId, pickerId: plan.pickerId, deleteGroup: plan.deleteGroup,
+        targets: plan.targets, groups: plan.groups, createdAt: timestamp(), completedAt: null, receiptProof: input.receiptProof ?? null };
+      const nextLedger = copy(ledger); nextLedger.deletions.push(d);
+      for (const t of d.targets) {
+        if (!nextLedger.characters.some(c => c.characterId === t.characterId)) nextLedger.characters.push({ characterId: t.characterId, deletedAt: d.createdAt });
+        if (!nextLedger.slots.some(s => slotKey(s) === slotKey(t))) nextLedger.slots.push({ pickerId: t.pickerId, memberId: t.memberId, characterId: t.characterId, retiredAt: d.createdAt });
+      }
+      await saveLedger(nextLedger); await point('deletion-intent');
+      const next = copy(current); next.deletions = copy(ledger.deletions); await save(next); await point('deletion-registry-intent'); return d;
+    }); },
+    finishCharacterDeletion(id) { return enqueue(async () => {
+      const nextLedger = copy(ledger), d = nextLedger.deletions.find(d => d.id === id);
+      if (!d) throw error(409, 'Deletion intent required.');
+      if (!d.completedAt) d.completedAt = timestamp();
+      for (const pickerId of d.groups) deletion(nextLedger, pickerId);
+      if (d.kind === 'account' && !nextLedger.accounts.some(a => a.accountId === d.accountId)) nextLedger.accounts.push({ accountId: d.accountId, deletedAt: d.completedAt, purgeProgress: 'pending' });
+      await saveLedger(nextLedger); await point('deletion-retired');
+      const changes = { accounts: [], pickers: [], removedCapabilities: [] }, next = reconcile(current, ledger, changes);
+      for (const i of next.groupInvites) if (i.status === 'pending' && (d.groups.includes(i.pickerId) || d.targets.some(t => t.characterId === next.pickers.find(p => p.id === i.pickerId)?.ownerCharacterId))) {
+        i.status = 'revoked'; i.terminalAt = timestamp(); const p = next.pickers.find(p => p.id === i.pickerId); p.reservations = p.reservations.filter(r => r.inviteId !== i.id); if (!changes.pickers.includes(p)) changes.pickers.push(p);
+      }
+      for (const h of next.handovers) if (h.status === 'pending' && d.targets.some(t => [h.fromCharacterId, h.toCharacterId].includes(t.characterId))) { h.status = 'cancelled'; h.resolvedAt = timestamp(); }
+      await save(next, changes); await point('deletion-complete'); return d;
+    }); },
+    deletionCleanupMemberIds(pickerId) { return [...new Set((ledger.deletions ?? []).flatMap(d => d.targets.filter(t => t.pickerId === pickerId && !d.groups.includes(pickerId)).map(t => t.memberId)))]; },
     beginDeparture(accountId, characterId, pickerId, input) { return enqueue(() => { if (lifecycleCapture) throw error(409, 'A service backup is in progress. Retry departure after it finishes.'); return departures.begin(accountId, characterId, pickerId, input); }); },
     prepareDeparture(id) { return enqueue(() => departures.prepare(id)); },
     finishDeparture(id) { return enqueue(() => departures.finish(id)); },
     departureTransactions() { usable(); return departures.pending(); },
     getDeparture(id) { usable(); return departures.get(id); },
-    departingMemberIds(pickerId) { return (current.departures ?? []).filter(d => !d.completedAt && d.source.pickerId === pickerId).map(d => d.source.memberId); },
-    retiredMemberIds(pickerId) { return (current.departures ?? []).filter(d => d.completedAt && d.source.pickerId === pickerId).map(d => d.source.memberId); },
+    departingMemberIds(pickerId) { return [...(current.departures ?? []).filter(d => !d.completedAt && d.source.pickerId === pickerId).map(d => d.source.memberId), ...(ledger.deletions ?? []).filter(d => !d.completedAt).flatMap(d => d.targets.filter(t => t.pickerId === pickerId).map(t => t.memberId))]; },
+    retiredMemberIds(pickerId) { return [...new Set([...(current.departures ?? []).filter(d => d.completedAt && d.source.pickerId === pickerId).map(d => d.source.memberId), ...(ledger.slots ?? []).filter(s => s.pickerId === pickerId
+      && !(ledger.deletions ?? []).some(d => !d.completedAt && d.targets.some(t => slotKey(t) === slotKey(s)))
+      && !(current.departures ?? []).some(d => !d.completedAt && slotKey(d.source) === slotKey(s))
+      && !(current.groupInvites ?? []).some(i => i.transaction?.source && slotKey(i.transaction.source) === slotKey(s))).map(s => s.memberId)])]; },
     capturePastMap(meta, document) { return enqueue(() => departures.capture(meta, document)); },
     listPastMaps(accountId) { usable(); return departures.list(accountId); },
     readPastMap(accountId, id) { usable(); return departures.readMap(accountId, id); },
@@ -578,19 +700,22 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
       return groupInvites.revoke(accountId, pickerId, id);
     }); },
     beginGroupJoin(secret, accountId, input) { return enqueue(() => { if (lifecycleCapture) throw error(409, 'A service backup is in progress. Retry joining after it finishes.'); return groupInvites.begin(secret, accountId, input); }); },
-    finishGroupJoin(id) { return enqueue(() => groupInvites.finish(id)); },
+    finishGroupJoin(id) { return enqueue(async () => {
+      if (groupInvites.transactions().some(i => i.id === id && i.transaction.source)) await retirementVersion();
+      return groupInvites.finish(id);
+    }); },
     groupJoinTransactions() { usable(); return groupInvites.transactions(); },
     groupJoinConflict(id) { usable(); return groupInvites.conflict(id); },
     cancelConflictingGroupJoin(id) { return enqueue(() => groupInvites.cancelConflict(id)); },
     groupJoinEligible(accountId, characterId) { usable(); return groupInvites.eligible(accountId, characterId); },
     cleanGroupInvites() { return enqueue(() => groupInvites.clean()); },
     pickerJoining(id) { return (current.groupInvites ?? []).some(i => i.transaction?.source?.pickerId === id) || (current.departures ?? []).some(d => !d.completedAt && [d.source.pickerId, d.destination.pickerId].includes(id)); },
-    pickerAdmissionPending(id) { return (current.groupInvites ?? []).some(i => i.transaction && (i.pickerId === id || i.transaction.source?.pickerId === id)) || (current.departures ?? []).some(d => !d.completedAt && [d.source.pickerId, d.destination.pickerId].includes(id)); },
+    pickerAdmissionPending(id) { return (ledger.deletions ?? []).some(d => !d.completedAt && d.targets.some(t => t.pickerId === id)) || (current.groupInvites ?? []).some(i => i.transaction && (i.pickerId === id || i.transaction.source?.pickerId === id)) || (current.departures ?? []).some(d => !d.completedAt && [d.source.pickerId, d.destination.pickerId].includes(id)); },
     // Diagnostic read, never used by request admission. Tests compare a rescan.
     capCounts() { usable(); return capCounts.snapshot(); },
     // Queue-held read-only checkpoint. No provider subjects or capabilities may
     // leave the server; explicit account IDs and memberships survive recovery.
-    withRecoveryCheckpoint(work) { return enqueue(() => work(registryRecoveryDocument(current, caps))); },
+    withRecoveryCheckpoint(work) { return enqueue(() => work(registryRecoveryDocument(current, caps, { allowPendingDeletion: recoveryOnly }))); },
     async withLifecycleCapture(work) {
       usable(); if (lifecycleCapture) throw error(503, 'A service backup is already running.'); lifecycleCapture = true;
       try { return await work(); } finally { lifecycleCapture = false; }
@@ -610,7 +735,7 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
     selectCharacter(accountId, requested, pickerId) {
       usable(); const account = visibleAccount(accountId);
       const available = id => { const c = characterIndex.get(id), picker = pickerIndex.get(c?.placement?.pickerId);
-        return c?.lifecycle === 'active' && c.accountId === accountId && picker?.lifecycle === 'active' && !blockedPicker(picker.id) && !api.pickerJoining(picker.id) && picker.provisioning === 'ready'
+        return c?.lifecycle === 'active' && !(ledger.deletions ?? []).some(d => !d.completedAt && d.targets.some(t => t.characterId === id)) && c.accountId === accountId && picker?.lifecycle === 'active' && !blockedPicker(picker.id) && !api.pickerJoining(picker.id) && picker.provisioning === 'ready'
           && account?.memberships.some(m => m.pickerId === picker.id && m.memberId === c.placement.memberId && m.role !== 'viewer') ? copy(c) : null; };
       if (requested) { const character = available(requested); if (!character || pickerId && character.placement.pickerId !== pickerId) throw error(403, 'That character is unavailable or does not belong to this group. Open your character menu.'); return character; }
       if (account?.lastCharacterId) { const last = available(account.lastCharacterId); if (last && (!pickerId || last.placement.pickerId === pickerId)) return last; }
@@ -629,6 +754,7 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
     updateCharacterNames(pickerId, members) { return enqueue(async () => {
       if (pickerId === 'legacy') pickerId = current.pickers.find(p => p.kind === 'legacy-shared')?.id;
       const updates = current.characters.filter(c => c.lifecycle === 'active' && c.placement.pickerId === pickerId
+        && !(ledger.deletions ?? []).some(d => d.targets.some(t => t.characterId === c.id))
         && !(current.departures ?? []).some(d => !d.completedAt && d.characterId === c.id && d.source.pickerId === pickerId))
         .map(c => {
           const member = members.find(m => m.id === c.placement.memberId);
@@ -852,7 +978,7 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
     'deletionRecords', 'deletionDirectory', 'advanceDeletion', 'completePickerDeletion', 'close'].map(name => [name, api[name]])) : api;
 }
 
-export function registryRecoveryDocument(document, caps = { characters: Number.MAX_SAFE_INTEGER, charactersPerAccount: Number.MAX_SAFE_INTEGER }) {
+export function registryRecoveryDocument(document, caps = { characters: Number.MAX_SAFE_INTEGER, charactersPerAccount: Number.MAX_SAFE_INTEGER }, { allowPendingDeletion = false } = {}) {
   validate(document);
   // Standalone checkpoint inspection has no live configuration. Enforce its
   // bindings here; the configured writer enforces capacity when installing it.
@@ -863,9 +989,11 @@ export function registryRecoveryDocument(document, caps = { characters: Number.M
   if (document.departures?.some(d => !d.completedAt)) throw error(409, 'Departure is pending. Resume it before taking a checkpoint.');
   if (document.groupInvites?.some(i => i.transaction)) throw error(409, 'Group admission is pending. Resume it before taking a checkpoint.');
   if (document.relinkRetirements?.length) throw error(409, 'Account retirement is pending. Restart the service before taking a checkpoint.');
+  if (!allowPendingDeletion && document.deletions?.some(d => !d.completedAt)) throw error(409, 'Deletion is pending. Resume it before taking a checkpoint.');
   return { schemaVersion: document.schemaVersion,
     accounts: document.accounts.map(account => ({ ...copy(account), identities: [] })),
     pickers: copy(document.pickers).map(p => document.schemaVersion >= 3 ? { ...p, reservations: [] } : p), capabilities: [], ...(document.schemaVersion >= 2 ? { characters: copy(document.characters) } : {}),
     ...(document.schemaVersion >= 3 ? { groupInvites: document.groupInvites.map(i => ({ ...copy(i), secretHash: null, ...(i.status === 'pending' ? { status: 'revoked', terminalAt: i.createdAt } : {}) })) } : {}),
-    ...(document.schemaVersion === 4 ? { handovers: document.handovers.map(h => ({ ...copy(h), ...(h.status === 'pending' ? { status: 'cancelled', resolvedAt: h.createdAt } : {}) })), departures: copy(document.departures), pastMaps: copy(document.pastMaps) } : {}) };
+    ...(document.schemaVersion >= 4 ? { handovers: document.handovers.map(h => ({ ...copy(h), ...(h.status === 'pending' ? { status: 'cancelled', resolvedAt: h.createdAt } : {}) })), departures: copy(document.departures), pastMaps: copy(document.pastMaps) } : {}),
+    ...(document.schemaVersion === 5 ? { deletions: document.deletions.map(({ receiptProof, ...d }) => copy(d)) } : {}) };
 }

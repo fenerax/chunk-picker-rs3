@@ -568,6 +568,9 @@ dialog::backdrop{background:var(--color-fixed-0a0806b3);backdrop-filter:blur(3px
 .dialog-header .close-button{flex:none}
 #dialog-content{min-height:0;padding:var(--space-6) var(--space-6) var(--space-7);overflow:auto}
 .form-stack{display:flex;flex-direction:column;gap:var(--space-5)}
+.deletion-review{overflow-wrap:anywhere}
+.deletion-review label{display:flex;align-items:flex-start;gap:var(--space-4)}
+.deletion-review input[type=checkbox]{flex:0 0 auto}
 .form-stack>label{display:flex;flex-direction:column;align-items:stretch;gap:var(--space-2)}
 .form-stack>label:has(>input[type=checkbox]){flex-direction:row;align-items:center;gap:var(--space-4)}
 .form-field{display:flex;flex-direction:column;align-items:stretch;gap:var(--space-3);min-width:0}

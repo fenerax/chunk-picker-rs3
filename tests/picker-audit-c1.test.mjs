@@ -92,8 +92,7 @@ async function fixture(t) {
   const note = (cookie, text) => send('/api/command', cookie, { body: { expectedRevision: 0,
     command: { type: 'set-note', memberId: 'owner', chunkId: '12341', note: text } } });
   async function deleteAccount(cookie) {
-    const confirmation = await send('/api/session', cookie, { headers: { 'x-account-action': 'delete' } });
-    return send('/api/account/delete', cookie, { body: { accountDeletionToken: confirmation.json().accountDeletionToken } });
+    return send('/api/account/delete', cookie, { body: {} });
   }
   async function capture() {
     const id = randomUUID(), response = await privateSend('/api/operator/service-snapshot', { id });

@@ -1,3 +1,5 @@
+import { deletionControls } from './character-deletion.mjs';
+
 export const characterLabel = (character, index) => `${character.runescapeName ?? 'Unnamed character'} · Character ${index + 1}`;
 export const characterDetails = character => `${character.groupLabel} · ${character.playerCount} ${character.playerCount === 1 ? 'player' : 'players'} · ${character.role ?? 'unavailable'}`;
 
@@ -45,7 +47,7 @@ if (globalThis.document?.getElementById('characters')) {
       const response = await fetch('/api/characters', { credentials: 'same-origin', cache: 'no-store' });
       const value = await response.json(); if (!response.ok) throw new Error(value.message || 'Sign in again to open your characters.');
       rows.replaceChildren();
-      if (!value.characters.length) rows.append(el('p', 'No characters yet. Add a character to start a solo map.'));
+      if (!value.characters.length) rows.append(el('p', 'No characters yet. Your login remains available. Add a character to start a solo map.'));
       value.characters.forEach((character, index) => {
         const link = el(character.available ? 'a' : 'p', `${characterLabel(character, index)} — ${characterDetails(character)}${character.available ? '' : ' · unavailable'}`, 'signin-provider');
         if (character.available) link.href = character.href; rows.append(link);
@@ -60,6 +62,9 @@ if (globalThis.document?.getElementById('characters')) {
         });
       }
       document.getElementById('add-character').append(createCharacterForm({ el, accountId: value.accountId, onCreated: character => location.assign(character.href) }));
+      const deletion = el('details'), summary = el('summary', 'Delete login'); deletion.append(summary);
+      deletion.addEventListener('toggle', () => { if (deletion.open && deletion.children.length === 1) deletion.append(deletionControls({ el, kind: 'account' })); });
+      rows.append(deletion);
     } catch (failure) { rows.textContent = ''; document.getElementById('character-error').textContent = failure.message; }
   })();
 }

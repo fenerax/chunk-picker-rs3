@@ -98,7 +98,7 @@ const hash = value => createHash('sha256').update(value).digest('hex');
 const exists = async file => stat(file).then(() => true, error => { if (error.code === 'ENOENT') return false; throw error; });
 const settle = async () => { for (let i = 0; i < 10; i++) await new Promise(resolve => setImmediate(resolve)); };
 
-test('affected picker and account deletions refuse without changing maps, sessions or keys', async t => {
+test('unconfirmed picker and account deletions refuse without changing maps, sessions or keys', async t => {
   const f = await fixture(t), a = await f.login('101'), b = await f.login('102');
   await f.note(a, 'Player 1', 0); await f.note(b, 'Player 2', 0);
   const id = await f.picker('101'), directory = path.join(f.multiPicker.pickerRoot, id);
@@ -108,7 +108,7 @@ test('affected picker and account deletions refuse without changing maps, sessio
   const registryBefore = await f.registry();
   for (const route of ['/api/picker/delete', '/api/account/delete']) {
     const response = await f.send(route, a, { body: {} }); assert.equal(response.status, 409, response.text);
-    assert.match(response.json().message, /unavailable until character deletion/);
+    assert.match(response.json().message, /Review and explicitly confirm/);
   }
   assert.deepEqual(await f.registry(), registryBefore);
   assert.deepEqual(await Promise.all(['state.json', 'plugin-keys.json'].map(name => readFile(path.join(directory, name)))), before);
@@ -116,7 +116,7 @@ test('affected picker and account deletions refuse without changing maps, sessio
   assert.equal((await f.send('/api/state', a)).status, 200);
   assert.equal((await f.send('/api/plugin/v1/status', null, { headers: { Authorization: 'Bearer ' + key } })).status, 200);
   assert.equal((await f.send('/api/state', b)).json().state.members[0].notes['12341'], 'Player 2');
-  assert.equal((await f.send('/api/session', a)).json().ownerControls.deletionPaused, true);
+  assert.equal((await f.send('/api/session', a)).json().ownerControls.deletionPaused, false);
   await f.restart(); assert.equal((await f.send('/api/state', a)).json().state.members[0].notes['12341'], 'Player 1');
 });
 
@@ -128,7 +128,7 @@ test('deletion retains credential, origin and target validation before any mutat
   for (const route of ['/api/picker/delete', '/api/account/delete']) {
     assert.equal((await f.send(route + '?pickerId=' + id, a, { body: {} })).status, 403);
     assert.equal((await f.send(route, a, { body: { accountId: 102 } })).status, 400);
-    assert.equal((await f.send(route, a, { body: { pickerId: id } })).status, 403);
+    assert.equal((await f.send(route, a, { body: { pickerId: id } })).status, 400);
     assert.equal((await f.send(route, a, { body: {}, headers: { Origin: 'https://foreign.example' } })).status, 403);
   }
   assert.equal(await exists(path.join(f.multiPicker.pickerRoot, id, 'state.json')), false);

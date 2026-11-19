@@ -12,7 +12,7 @@ const fail = (message, status = 409) => { throw Object.assign(new Error(message)
 export const DEPARTURE_POINTS = ['departure-intent', 'departure-id', 'departure-directory', 'departure-destination', 'departure-snapshot-file', 'departure-snapshot', 'departure-roster-prepared', 'departure-roster', 'departure-keys', 'departure-overlays', 'departure-sessions', 'departure-credentials', 'departure-placed'];
 export const pastMapDigest = bytes => createHash('sha256').update(bytes).digest('hex');
 export const pickerHasPendingJoin = (doc, pickerId) => (doc.groupInvites ?? []).some(i => i.transaction
-  && (i.pickerId === pickerId || i.transaction.source?.pickerId === pickerId));
+  && (i.pickerId === pickerId || i.transaction.source?.pickerId === pickerId)) || (doc.deletions ?? []).some(d => !d.completedAt && d.targets.some(t => t.pickerId === pickerId));
 export function pastMapSlots(doc) {
   const saved = new Set((doc.pastMaps ?? []).map(m => m.id));
   return saved.size + (doc.departures ?? []).filter(d => !d.completedAt && !saved.has(d.id)).length
@@ -20,7 +20,7 @@ export function pastMapSlots(doc) {
 }
 
 export function validateDepartures(doc) {
-  if (doc.schemaVersion !== 4) return;
+  if (doc.schemaVersion < 4) return;
   const bad = () => { throw new TypeError('Invalid departure registry.'); };
   if (!Array.isArray(doc.departures) || !Array.isArray(doc.pastMaps) || doc.departures.length > 20000 || doc.pastMaps.length > 20000 || pastMapSlots(doc) > 20000) bad();
   const ids = new Set(), moving = new Set(), destinations = new Set();
@@ -66,6 +66,7 @@ export function createGroupDepartures({ read, save, saveLedgerId, allocate, vers
   const snapshotFile = id => path.join(registryDir, 'past-maps', id + '.json');
   function character(doc, id) { const c = doc.characters.find(c => c.id === id && c.lifecycle === 'active'); if (!c) fail('Character is unavailable.', 403); return c; }
   function check(doc, actorAccountId, actorCharacterId, targetId, expectedPicker) {
+    if ((doc.deletions ?? []).some(d => !d.completedAt && d.targets.some(t => t.pickerId === expectedPicker))) fail('Deletion is completing. Retry after recovery.');
     const c = character(doc, targetId), actor = character(doc, actorCharacterId), p = doc.pickers.find(p => p.id === c.placement.pickerId);
     if (actor.accountId !== actorAccountId || actor.placement.pickerId !== p?.id || p.id !== expectedPicker || p.kind !== 'default' || p.lifecycle !== 'active') fail('Select a current character in this group.', 403);
     const removing = actor.id !== c.id;

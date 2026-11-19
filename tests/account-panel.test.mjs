@@ -7,6 +7,7 @@ import { createCharacterForm } from '../app/web/character-menu.mjs';
 import { renderAcceptance, ownerInviteControls } from '../app/web/group-invites.mjs';
 import { handoverControls } from '../app/web/group-handover.mjs';
 import { departureControls } from '../app/web/group-departure.mjs';
+import { deletionControls } from '../app/web/character-deletion.mjs';
 
 class Node {
   constructor(tag, text = '', className = '') { this.tag = tag; this.textContent = text ?? ''; this.className = className; this.children = []; this.attributes = {}; this.listeners = {}; this.hidden = false; this.disabled = false; this.classList = { add: name => { this.className += ` ${name}`; } }; }
@@ -21,6 +22,24 @@ const el = (...args) => new Node(...args);
 const button = (text, click) => Object.assign(el('button', text), { click });
 const walk = node => [node, ...node.children.flatMap(walk)];
 const text = node => walk(node).map(item => item.textContent).join(' ');
+
+test('deletion review names all targets, requires final-group confirmation, and keeps uncertain request identity', async () => {
+  const sent = [], navigated = []; let offline = true, drained = 0, released = 0;
+  const root = deletionControls({ el, kind: 'character', characterId: 'own', pickerId: 'solo', randomId: () => 'retained-request',
+    beforeDeparture: async () => { drained++; return () => { released++; }; }, location: { assign: href => navigated.push(href) }, fetch: async (url, options) => {
+      sent.push({ url, ...options });
+      if (options.body) { if (offline) { offline = false; throw new Error('Connection lost'); } return { ok: true, json: async () => ({ href: '/characters' }) }; }
+      return { ok: true, json: async () => ({ reviewToken: 'review', characters: [{ characterId: 'own', runescapeName: 'Sample', pickerId: 'solo' }], keptCharacters: ['other'], groups: ['solo'], backups: { message: 'Configured retained backups' } }) };
+    } });
+  await walk(root).find(n => n.textContent === 'Refresh deletion review').listeners.click();
+  assert.match(text(root), /Sample.*own.*solo/); assert.match(text(root), /1 other character/); assert.match(text(root), /Configured retained backups/);
+  const confirm = walk(root).find(n => n.textContent === 'Confirm deletion'), checks = walk(root).filter(n => n.type === 'checkbox');
+  await confirm.listeners.click(); assert.equal(sent.some(r => r.body), false);
+  checks[0].checked = true; await confirm.listeners.click(); assert.equal(sent.some(r => r.body), false);
+  checks[1].checked = true; await confirm.listeners.click(); assert.equal(drained, 1); assert.equal(released, 0); assert.deepEqual(navigated, []);
+  await confirm.listeners.click(); assert.equal(drained, 1); assert.equal(released, 1); assert.deepEqual(navigated, ['/characters']);
+  const posts = sent.filter(r => r.body); assert.equal(posts[0].body, posts[1].body); assert.equal(JSON.parse(posts[0].body).finalGroupConfirmed, true);
+});
 
 test('departure review never allocates for a solo and clearly offers Join another group', async () => {
   const sent = [], root = departureControls({ el, characterId: 'solo', fetch: async (url, options) => { sent.push(options); return { ok: true, json: async () => ({ solo: true }) }; } });
@@ -124,7 +143,7 @@ test('character menu disambiguates, marks current and unavailable characters, an
   await buttons.find(n => n.textContent === 'Characters and groups').listeners.click();
   assert.deepEqual(scopes, ['drained', 'drained']); assert.deepEqual(moves, ['/characters/two', '/characters']);
   assert.ok(buttons.filter(n => n.textContent.startsWith('Delete ')).every(n => n.disabled));
-  assert.match(text(rows), /5 players/); assert.match(text(rows), /unavailable until character deletion/);
+  assert.match(text(rows), /5 players/); assert.match(text(rows), /legacy shared picker needs operator recovery/);
 });
 
 test('Add character preserves its request through uncertainty and duplicate review, including reload', async () => {

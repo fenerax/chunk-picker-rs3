@@ -10,7 +10,7 @@ const publicRow = ({ id, pickerId, fromCharacterId, toCharacterId, status }) => 
 export const HANDOVER_POINTS = ['handover-backed-up', 'handover-versioned', 'handover-before-proposal', 'handover-proposed', 'handover-before-resolution', 'handover-resolved'];
 
 export function validateHandovers(doc) {
-  if (doc.schemaVersion !== 4) return;
+  if (doc.schemaVersion < 4) return;
   const bad = () => { throw new TypeError('Invalid ownership handover registry.'); };
   if (!Array.isArray(doc.handovers) || doc.handovers.length > 20000) bad();
   const ids = new Set(), pending = new Set();
@@ -44,6 +44,7 @@ export function createGroupHandovers({ read, save, versionInvites, registryDir, 
     return p;
   }
   function ready(doc, pickerId) {
+    if ((doc.deletions ?? []).some(d => !d.completedAt && d.targets.some(t => t.pickerId === pickerId))) fail('Deletion is completing. Retry after recovery.');
     if ((doc.departures ?? []).some(d => !d.completedAt && [d.source.pickerId, d.destination.pickerId].includes(pickerId))) fail('A departure is completing. Retry handover after recovery.');
     if ((doc.groupInvites ?? []).some(i => i.transaction && (i.pickerId === pickerId || i.transaction.source?.pickerId === pickerId))) fail('Group admission is completing. Retry handover after it finishes.');
   }
@@ -65,7 +66,7 @@ export function createGroupHandovers({ read, save, versionInvites, registryDir, 
     h.status = 'accepted'; h.resolvedAt = stamp();
   }
   async function version() {
-    if (read().schemaVersion === 4) return;
+    if (read().schemaVersion >= 4) return;
     await versionInvites();
     const target = path.join(registryDir, 'registry.pre-handovers-v3.json');
     const bytes = await readFile(path.join(registryDir, 'registry.json')), temporary = `${target}.${randomUUID()}.tmp`;

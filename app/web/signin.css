@@ -7,6 +7,8 @@
 .signin-content h1{font-family:"Palatino Linotype","Book Antiqua",Palatino,Georgia,serif;font-size:2rem;font-weight:600;line-height:1.2;margin:0 0 1rem;overflow-wrap:anywhere}
 .signin-message{margin:0 0 1.5rem;overflow-wrap:anywhere}
 .signin-providers{display:flex;flex-direction:column;gap:.75rem}
+.signin-content .deletion-review{display:grid;gap:.75rem;overflow-wrap:anywhere}
+.signin-content .deletion-review label{display:flex;align-items:flex-start;gap:.5rem}
 .signin-provider,.signin-page button{display:flex;align-items:center;justify-content:center;min-height:46px;padding:.75rem 1rem;border:1px solid var(--border);border-radius:6px;color:var(--text);background:var(--surface);font:600 1rem/1.4 "Segoe UI",sans-serif;text-align:center;text-decoration:none;cursor:pointer}
 .signin-provider:hover,.signin-page button:hover{background:var(--border)}
 .signin-provider:focus-visible,.signin-page button:focus-visible{outline:2px solid var(--focus);outline-offset:3px}

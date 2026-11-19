@@ -169,7 +169,11 @@ test('signed-out deep links survive both providers and still enforce picker acce
       }
       const allowed = target.includes(own);
       assert.equal(returned.status, allowed ? 200 : 403, returned.text);
-      if (!allowed) assert.match(returned.text, /Picker access denied/);
+      if (!allowed) {
+        assert.match(returned.text, /Map unavailable/);
+        assert.match(returned.text, /no longer a member.*group was deleted/);
+        assert.match(returned.text, /href="\/characters">Open your character menu/);
+      }
     }
   }
   assert.equal((await f.send('/api/state')).status, 401, 'API requests keep their access refusal');

@@ -18,7 +18,7 @@ export async function reconcileServiceRecoveryTombstones({ settings, checkpoint,
   const before = async label => { try { await step(label); } catch (error) { interrupted = true; throw error; } };
   const change = async (label, work) => { await before(label); return work(); };
   validateServicePaths(settings);
-  const document = registryRecoveryDocument(checkpoint);
+  const document = registryRecoveryDocument(checkpoint, undefined, { allowPendingDeletion: true });
   async function reconcile(purge, effectiveDocument = document) {
     const ledger = path.join(settings.multiPicker.tombstoneDir, 'ledger.json');
     if (!await exists(ledger)) throw new Error('Live tombstone ledger is required for service recovery.');
