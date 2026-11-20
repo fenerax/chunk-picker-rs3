@@ -76,8 +76,8 @@ export async function openApplication(config, dataDir, { probe = false } = {}) {
   }
   return server.startServer(options);
 }
-export async function operatorSettings() {
-  const file = process.env.RS3_OPERATOR_CONFIG;
+export const DEFAULT_OPERATOR_CONFIG = '/etc/chunk-picker/operator.json';
+export async function operatorSettings(file = process.env.RS3_OPERATOR_CONFIG) {
   if (!file || !path.isAbsolute(file)) throw new Error('Set an absolute operator configuration path.');
   await noLinks(file);
   const settings = await json(file);
