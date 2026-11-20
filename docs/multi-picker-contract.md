@@ -2,16 +2,17 @@
 
 ## Retained storage admission
 
-Multi-picker registries enforce configurable retained byte and map-count limits
-per login, spanning controlled/owned picker directories (including retired solos),
-pending lifecycle allocations and registry-held Past maps. Shared picker bytes
-are charged in full once per controlling login. Admission serializes registry
-allocations with gameplay/import and sidecar publications, preserving existing
-records when an operation is refused. Lowered limits do not block deletion or
-completion of admitted lifecycle work. Single-picker and legacy-shared stores
-retain their existing behavior. See [storage budgets](storage-budgets.md#retained-storage-per-login)
-for defaults, bounded accounting, conservative pending reservations, exclusions
-and operational limits. No durable representation changes are required.
+Multi-picker registries enforce a configurable retained-map count per login,
+spanning controlled/owned picker directories (including retired solos), pending
+lifecycle allocations and registry-held Past maps. Shared pickers count once per
+controlling login. The default is 20 maps, with a derived 20 GiB save-payload
+allowance from the default group and frozen-snapshot bounds. Admission uses only
+registry records within the existing registry transaction queue. Ordinary saves,
+sidecars and imports into existing maps retain their per-group concurrency and
+budgets. Lowered limits preserve existing records, deletion and admitted recovery.
+Single-picker and legacy-shared behavior is unchanged. See [storage budgets](storage-budgets.md#retained-storage-per-login)
+for counting, byte-bound qualifications, pending slots and exclusions. No durable
+representation changes are required.
 
 ## Service off-site recovery update
 

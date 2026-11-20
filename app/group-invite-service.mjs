@@ -1,8 +1,7 @@
 import { MOVE_UNAVAILABLE } from './storage/group-invites.mjs';
 import { builtInRules } from './core/rules.mjs';
 import { taskRuleDefinitions } from './data/settings.mjs';
-import { withLoginStorageRelief } from './storage/login-storage-budget.mjs';
-import { storageBudget } from './storage/storage-budget.mjs';
+import { assertPastMapFits } from './storage/login-storage-budget.mjs';
 
 const fail = message => { throw Object.assign(new Error(message), { status: 409 }); };
 export function createGroupInviteService({ registry, acquire, release, point = async () => {} }) {
@@ -27,8 +26,7 @@ export function createGroupInviteService({ registry, acquire, release, point = a
     await context.revokeDepartedMember(i.transaction.memberId);
     await registry.cancelConflictingGroupJoin(i.id);
   }
-  const finish = (i, context, source) => withLoginStorageRelief(() => complete(i, context, source));
-  async function complete(i, context, source) {
+  async function finish(i, context, source) {
     if (i.transaction) {
       if (registry.groupJoinConflict(i.id)) {
         await cancelConflict(i, context);
@@ -90,7 +88,7 @@ export function createGroupInviteService({ registry, acquire, release, point = a
           if (c.placement.pickerId === preview.pickerId) fail('Choose a character outside this group.');
           return using(c.placement.pickerId, source => source.withGroupAdmission(async () => {
             if (!registry.rejoinEligible(accountId, input.characterId) && !source.untouchedOnboarding()) fail(MOVE_UNAVAILABLE);
-            if (registry.rejoinEligible(accountId, input.characterId) && Buffer.byteLength(JSON.stringify(await source.store.backup())) + 1 > storageBudget().maxBytes) fail('This Past map would exceed the retained save storage limit. Contact the server operator. Existing maps are unchanged.');
+            if (registry.rejoinEligible(accountId, input.characterId)) assertPastMapFits(await source.store.backup());
             return commit(source);
           }));
         }

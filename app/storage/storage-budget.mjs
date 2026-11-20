@@ -1,8 +1,7 @@
 import path from 'node:path';
 import { AsyncLocalStorage } from 'node:async_hooks';
-import { lstat, opendir, statfs } from 'node:fs/promises';
+import { lstat, readdir, statfs } from 'node:fs/promises';
 import { SNAPSHOT_EXCLUSIONS } from './store-identity-policy.mjs';
-import { withLoginStorageGate, withLoginStoragePublication, loginStorageEntryBudget } from './login-storage-budget.mjs';
 
 export const CAPTURE_FILE_BUDGET = 4096;
 export const DEFAULT_STORAGE_BUDGET = Object.freeze({ maxBytes: 1024 ** 3, maxFiles: 3584, minFreeBytes: 5 * 1024 ** 3 });
@@ -21,14 +20,13 @@ export function storageBudget(options = {}, env = process.env) {
 
 // Metadata only: never decode backups or open gameplay, registry or ledger writers.
 // Count exactly the tree capture visits, plus its sibling dataset binding.
-export async function storageUsage(dataDir, { maxEntries = Infinity } = {}) {
-  let bytes = 0, files = 0, entries = 0;
+export async function storageUsage(dataDir) {
+  let bytes = 0, files = 0;
   async function visit(file, root = false) {
-    if (++entries > maxEntries) throw refused('Storage accounting reached its file and directory scan limit.');
     let info;
     try { info = await lstat(file); } catch (error) { if (error.code === 'ENOENT') return; throw error; }
     if (info.isDirectory()) {
-      for await (const { name } of await opendir(file)) {
+      for (const name of await readdir(file)) {
         if (root && SNAPSHOT_EXCLUSIONS.includes(name)) continue;
         await visit(path.join(file, name));
       }
@@ -60,9 +58,6 @@ const refused = reason => Object.assign(new Error(reason + ' Ask the group owner
 // reserve their entire peak output on the same filesystem before writing.
 // Reservations are process-local: the service already owns all gameplay writers.
 export async function withStorageBudget(dataDir, publications, limits, work, { maintenance = false } = {}) {
-  return withLoginStorageGate(dataDir, () => withGroupStorageBudget(dataDir, publications, limits, work, { maintenance }));
-}
-async function withGroupStorageBudget(dataDir, publications, limits, work, { maintenance }) {
   const directory = path.resolve(dataDir), parent = context.getStore();
   if (parent?.directory === directory && parent.active) return work();
   const previous = queues.get(directory) ?? Promise.resolve();
@@ -88,18 +83,16 @@ async function withGroupStorageBudget(dataDir, publications, limits, work, { mai
       outputSizes.push(size);
     }
     // Maintenance (packing) only reduces the group, so it skips the walk.
-    let measured;
     if (!maintenance) {
       const over = usage => usage.bytes + growth > limits.maxBytes || usage.files + addedFiles + 8 > limits.maxFiles;
       const recent = refusedUsage.get(directory);
       let usage = recent && process.hrtime.bigint() - recent.at < REFUSAL_RESCAN_NS ? recent.usage : undefined;
       // A cached refusal can only refuse; anything that might fit is rescanned.
-      if (!usage || !over(usage)) usage = await storageUsage(directory, { maxEntries: loginStorageEntryBudget(directory) });
+      if (!usage || !over(usage)) usage = await storageUsage(directory);
       if (over(usage)) {
         if (usage !== recent?.usage) refusedUsage.set(directory, { usage, at: process.hrtime.bigint() });
         throw refused('This group has reached its retained save storage limit.');
       }
-      measured = { directory, usage };
     }
     refusedUsage.delete(directory);
     device = String((await lstat(directory)).dev);
@@ -115,7 +108,7 @@ async function withGroupStorageBudget(dataDir, publications, limits, work, { mai
       throw refused('The server needs more free disk space before it can save this change.');
     }
     reservations.set(device, active + reserved);
-    return await withLoginStoragePublication(publications, () => context.run(owner, work), { maintenance, measured });
+    return await context.run(owner, work);
   } finally {
     owner.active = false;
     if (reserved) {

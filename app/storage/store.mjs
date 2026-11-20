@@ -1300,7 +1300,7 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
           });
         } catch (error) {
           // A daily observation must not make an over-budget save unreadable.
-          if (!['STORAGE_BUDGET_EXCEEDED', 'LOGIN_STORAGE_BUDGET_EXCEEDED'].includes(error.code)) throw error;
+          if (error.code !== 'STORAGE_BUDGET_EXCEEDED') throw error;
         }
       }
     }

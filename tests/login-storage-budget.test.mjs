@@ -1,24 +1,19 @@
 // @test dataset=open-f2p
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { AsyncLocalStorage } from 'node:async_hooks';
-import { loginStorageBudget, DEFAULT_LOGIN_STORAGE_BUDGET, createLoginStorageBudget, withLoginStorageRelief } from '../app/storage/login-storage-budget.mjs';
-import { atomicWrite } from '../app/storage/atomic-write.mjs';
-import { withStorageBudget, storageBudget, storageUsage } from '../app/storage/storage-budget.mjs';
-import { replaceSidecar } from '../app/plugin-achievements.mjs';
+import { loginStorageBudget, DEFAULT_LOGIN_STORAGE_BUDGET, createLoginStorageBudget, assertPastMapFits } from '../app/storage/login-storage-budget.mjs';
+import { storageBudget } from '../app/storage/storage-budget.mjs';
+import { openStore } from '../app/storage/store.mjs';
+import { createGroupState } from '../app/core/state.mjs';
 import { inviteFixture } from './helpers/owner-invite-fixture.mjs';
 import { createCharacterDeletionService } from '../app/character-deletion-service.mjs';
 import { runtimeEnvironment } from '../scripts/linux/runtime.mjs';
 
 const refusal = { status: 507, code: 'LOGIN_STORAGE_BUDGET_EXCEEDED' };
-async function root(t) {
-  const directory = await mkdtemp(path.join(tmpdir(), 'login-storage-'));
-  t.after(() => rm(directory, { recursive: true })); return directory;
-}
 async function fixture(t, options) {
   const directory = await mkdtemp(path.join(tmpdir(), 'login-storage-')); let f = await inviteFixture(directory, options);
   t.after(async () => { await f.close(); await rm(directory, { recursive: true }); });
@@ -33,62 +28,38 @@ async function group(f) {
   return { owner, player };
 }
 
-test('login limits validate config independently of traffic and group budgets', () => {
+test('login map limit validates configuration and reaches Linux serving children', t => {
   assert.deepEqual(loginStorageBudget({}, {}), DEFAULT_LOGIN_STORAGE_BUDGET);
-  assert.deepEqual(loginStorageBudget({}, { RS3_LOGIN_MAX_BYTES: '42', RS3_LOGIN_MAX_MAPS: '3' }), { maxBytes: 42, maxMaps: 3 });
-  for (const value of [0, -1, 1.5, Infinity, Number.MAX_SAFE_INTEGER + 1]) assert.throws(() => loginStorageBudget({ maxBytes: value }, {}), /Invalid/);
-  assert.throws(() => loginStorageBudget({ maxMaps: 129 }, {}), /128/);
+  assert.deepEqual(loginStorageBudget({}, { RS3_LOGIN_MAX_MAPS: '3' }), { maxMaps: 3 });
+  assert.deepEqual(loginStorageBudget({ maxMaps: 4 }, { RS3_LOGIN_MAX_MAPS: '3' }), { maxMaps: 4 });
+  for (const maxMaps of [0, -1, 1.5, Infinity, Number.MAX_SAFE_INTEGER + 1]) assert.throws(() => loginStorageBudget({ maxMaps }, {}), /Invalid/);
   assert.throws(() => loginStorageBudget({ unknown: 1 }, {}), /Invalid/);
+  const previous = process.env.RS3_LOGIN_MAX_MAPS; process.env.RS3_LOGIN_MAX_MAPS = '7';
+  t.after(() => { if (previous === undefined) delete process.env.RS3_LOGIN_MAX_MAPS; else process.env.RS3_LOGIN_MAX_MAPS = previous; });
+  assert.deepEqual(loginStorageBudget({}, runtimeEnvironment({ datasetId: 'open-f2p' })), { maxMaps: 7 });
 });
 
-test('Linux serving children receive the configured login budgets', t => {
-  const values = { RS3_LOGIN_MAX_BYTES: '123456', RS3_LOGIN_MAX_MAPS: '7' };
-  for (const [key, value] of Object.entries(values)) {
-    const previous = process.env[key]; process.env[key] = value;
-    t.after(() => { if (previous === undefined) delete process.env[key]; else process.env[key] = previous; });
-  }
-  assert.deepEqual(loginStorageBudget({}, runtimeEnvironment({ datasetId: 'open-f2p' })), { maxBytes: 123456, maxMaps: 7 });
-});
-
-for (const loginStorage of [{ maxMaps: 2 }, { maxBytes: 2 * 1024 ** 3 }]) test(`concurrent character creation has one winner at ${JSON.stringify(loginStorage)}`, async t => {
-  const h = await fixture(t, { loginStorage }), f = h.f;
+test('concurrent admissions which each fit alone cannot both spend the last map slot', async t => {
+  const h = await fixture(t, { loginStorage: { maxMaps: 2 } }), f = h.f;
   const p = await f.registry.firstLogin('google', 'owner');
   const attempts = await Promise.allSettled(['second', 'third'].map(requestId => f.registry.addCharacter(p.account.id, { requestId })));
   assert.equal(attempts.filter(r => r.status === 'fulfilled').length, 1);
   assert.equal(attempts.find(r => r.status === 'rejected').reason.code, refusal.code);
   const ledger = JSON.parse(await readFile(path.join(f.options.tombstoneDir, 'ledger.json')));
   assert.equal(ledger.issuedPickerIds.length, 2); assert.equal(ledger.issuedCharacterIds.length, 2);
-  await h.restart({ loginStorage: { maxBytes: 1 } });
+  await h.restart({ loginStorage: { maxMaps: 1 } });
   const before = await document(h.f);
-  await assert.rejects(h.f.registry.firstLogin('google', 'new-login'), refusal);
   await assert.rejects(h.f.registry.addCharacter(p.account.id, { requestId: 'extra' }), refusal);
   assert.deepEqual(await document(h.f), before);
   assert.ok((await h.f.registry.firstLogin('google', 'owner')).picker);
 });
 
-test('an import that fits its group but exceeds the login is refused before any preimage publication', async t => {
-  const h = await fixture(t), p = await h.f.registry.firstLogin('google', 'owner');
-  const store = (await h.f.open(p.picker.id)).store, save = await store.backup();
-  const directory = h.f.registry.pickerDirectory(p.picker.id), before = await storageUsage(directory);
-  await h.restart({ loginStorage: { maxBytes: before.bytes + 1024 } });
-  const reopened = (await h.f.open(p.picker.id)).store;
-  const originalNotes = save.state.members[0].notes;
-  save.state.members[0].notes = { '12341': 'Synthetic note '.repeat(2000) };
-  await assert.rejects(reopened.replace(save, reopened.getInfo().revision), refusal);
-  assert.deepEqual(await storageUsage(directory), before);
-  assert.deepEqual((await reopened.backup()).state.members[0].notes, originalNotes);
-});
-
-test('an invite adding a character to an already controlled picker still reserves its retained growth', async t => {
-  const h = await fixture(t), p = await h.f.registry.firstLogin('google', 'owner');
-  await h.f.open(p.picker.id);
-  const invitation = await h.f.registry.createGroupInvite(p.account.id, p.picker.id);
-  const usage = await storageUsage(h.f.registry.pickerDirectory(p.picker.id));
-  await h.restart({ loginStorage: { maxBytes: usage.bytes + 1024 } });
-  const before = await document(h.f), ledger = await readFile(path.join(h.f.options.tombstoneDir, 'ledger.json'));
-  await assert.rejects(h.f.registry.beginGroupJoin(invitation.secret, p.account.id, {}), refusal);
-  assert.deepEqual(await document(h.f), before);
-  assert.deepEqual(await readFile(path.join(h.f.options.tombstoneDir, 'ledger.json')), ledger);
+test('joining an already controlled picker uses its existing map slot', async t => {
+  const { f } = await fixture(t, { loginStorage: { maxMaps: 1 } }), p = await f.registry.firstLogin('google', 'owner');
+  const invitation = await f.registry.createGroupInvite(p.account.id, p.picker.id);
+  await f.join(invitation, p.account, {});
+  assert.equal(f.registry.listCharacters(p.account.id).length, 2);
+  assert.equal((await document(f)).pickers.length, 1);
 });
 
 test('retired onboarding maps, pending departure solo and Past map all consume map slots', async t => {
@@ -100,11 +71,11 @@ test('retired onboarding maps, pending departure solo and Past map all consume m
   assert.deepEqual(await readFile(path.join(f.options.tombstoneDir, 'ledger.json')), ledger);
 });
 
-test('pending departure reserves bytes across restart and completes after limits are lowered', async t => {
+test('pending departure reservations survive restart and finish after the map limit is lowered', async t => {
   const h = await fixture(t), { owner, player } = await group(h.f), f = h.f;
   const input = { requestId: randomUUID(), characterId: player.character.id };
   const intent = await f.registry.beginDeparture(player.account.id, player.character.id, owner.picker.id, input);
-  await h.restart({ loginStorage: { maxMaps: 1, maxBytes: 1 } });
+  await h.restart({ loginStorage: { maxMaps: 1 } });
   await assert.rejects(h.f.registry.addCharacter(player.account.id, { requestId: 'extra' }), refusal);
   await h.f.departures.recover();
   assert.ok(h.f.registry.getDeparture(intent.id).completedAt);
@@ -112,7 +83,7 @@ test('pending departure reserves bytes across restart and completes after limits
   assert.equal(h.f.registry.getCharacter(player.character.id).placement.pickerId, intent.destination.pickerId);
 });
 
-test('new invite character and rejoin include their retained maps before irreversible allocation', async t => {
+test('new invite character and rejoin include retained maps before irreversible allocation', async t => {
   const h = await fixture(t), { owner, player } = await group(h.f);
   const store = (await h.f.open(owner.picker.id)).store;
   await h.f.departures.depart(player.account.id, player.character.id, owner.picker.id, { requestId: randomUUID(), characterId: player.character.id, revision: store.getInfo().revision });
@@ -128,12 +99,15 @@ test('new invite character and rejoin include their retained maps before irrever
   assert.deepEqual(await readFile(path.join(h.f.options.tombstoneDir, 'ledger.json')), ledger);
 });
 
-test('over-limit login keeps readable maps and can delete a character from a surviving group', async t => {
+test('an over-limit login can read, save, import into its existing map and delete a character', async t => {
   const h = await fixture(t), { owner, player } = await group(h.f);
-  await h.restart({ loginStorage: { maxMaps: 1, maxBytes: 1 } });
+  await h.restart({ loginStorage: { maxMaps: 1 } });
   const f = h.f, store = (await f.open(owner.picker.id)).store, saved = await store.backup();
-  await assert.rejects(store.replace(saved, store.getInfo().revision), refusal);
-  assert.deepEqual((await store.backup()).state.members, saved.state.members);
+  saved.state.members[0].notes = { '12341': 'Synthetic imported note' };
+  await store.replace(saved, store.getInfo().revision);
+  await store.command({ type: 'set-journal', memberId: 'owner', note: 'Synthetic saved note' }, store.getInfo().revision);
+  assert.equal((await store.backup()).state.members[0].notes['12341'], 'Synthetic imported note');
+  await assert.rejects(f.registry.addCharacter(player.account.id, { requestId: 'extra' }), refusal);
   const service = createCharacterDeletionService({ registry: f.registry, using: async (id, work) => work(await f.open(id)), purge: async () => {} });
   const selection = { kind: 'character', characterId: player.character.id, pickerId: owner.picker.id, deleteGroup: false };
   const review = await service.review(player.account.id, selection);
@@ -142,83 +116,74 @@ test('over-limit login keeps readable maps and can delete a character from a sur
   assert.equal(store.getReadState().members.length, 1);
 });
 
-async function accountingFixture(t, limits) {
-  const directory = await root(t), pickerRoot = path.join(directory, 'pickers'), registryDir = path.join(directory, 'registry');
-  const ids = ['p_' + 'a'.repeat(32), 'p_' + 'b'.repeat(32)];
-  const doc = { accounts: [{ id: 'synthetic-login', memberships: [] }], pickers: ids.map(id => ({ id, kind: 'default', lifecycle: 'active', ownerAccountId: 'synthetic-login' })), characters: [] };
-  for (const id of ids) { await mkdir(path.join(pickerRoot, id), { recursive: true }); await writeFile(path.join(pickerRoot, id, 'state.json'), '12345'); }
-  const guard = createLoginStorageBudget({ read: () => doc, pickerRoot, registryDir, limits, groupMaxBytes: 100 });
-  t.after(() => guard.close());
-  return { doc, guard, dirs: ids.map(id => path.join(pickerRoot, id)), registryDir };
-}
-
-test('concurrent publications to different pickers share the login byte allowance', async t => {
-  const f = await accountingFixture(t, { maxMaps: 20, maxBytes: 18 });
-  const attempts = await Promise.allSettled(f.dirs.map(dir => {
-    const file = path.join(dir, 'private-evidence.json');
-    return withStorageBudget(dir, [{ file, bytes: '123456' }], storageBudget({ minFreeBytes: 1 }), () => atomicWrite(file, '123456'));
-  }));
-  assert.equal(attempts.filter(r => r.status === 'fulfilled').length, 1);
-  assert.equal(attempts.find(r => r.status === 'rejected').reason.code, refusal.code);
-  assert.equal((await readFile(path.join(f.dirs[0], 'state.json'), 'utf8')), '12345');
+test('ordinary saves in two groups of one login progress independently while one publication is held', { timeout: 30000 }, async t => {
+  const entered = Promise.withResolvers(), release = Promise.withResolvers(); let heldPicker;
+  t.after(() => release.resolve());
+  const { f } = await fixture(t, { loginStorage: { maxMaps: 2 }, async beforeCommit(change, { pickerId }) {
+    if (change.operation === 'command' && pickerId === heldPicker) { entered.resolve(); await release.promise; }
+  } });
+  const p = await f.registry.firstLogin('google', 'owner'), other = await f.registry.addCharacter(p.account.id, { requestId: 'second' });
+  const a = (await f.open(p.picker.id)).store, b = (await f.open(other.picker.id)).store;
+  heldPicker = p.picker.id;
+  const first = a.command({ type: 'set-journal', memberId: 'owner', note: 'Synthetic held save' }, a.getInfo().revision);
+  await entered.promise;
+  const second = b.command({ type: 'set-journal', memberId: 'owner', note: 'Synthetic independent save' }, b.getInfo().revision);
+  let timer;
+  try {
+    await Promise.race([second, new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('Another group was blocked by the held save.')), 15000); })]);
+    assert.equal(b.getInfo().revision, 1);
+    assert.equal(a.getInfo().revision, 0);
+  } finally { clearTimeout(timer); release.resolve(); await Promise.all([first, second]); }
+  assert.equal(a.getInfo().revision, 1);
 });
 
-test('Past map bytes and sibling binding count; shrink is allowed after limits fall', async t => {
-  const f = await accountingFixture(t, { maxMaps: 20, maxBytes: 20 });
-  await writeFile(f.dirs[0] + '.dataset.json', '1234');
-  await mkdir(path.join(f.registryDir, 'past-maps'), { recursive: true });
-  f.doc.pastMaps = [{ id: 'snapshot', accountId: 'synthetic-login' }];
-  await writeFile(path.join(f.registryDir, 'past-maps', 'snapshot.json'), '12345');
-  await assert.rejects(atomicWrite(path.join(f.dirs[1], 'state.json'), '1234567'), refusal);
-  await writeFile(path.join(f.dirs[0], 'existing.json'), '1234567890');
-  await atomicWrite(path.join(f.dirs[0], 'existing.json'), '1');
-  await assert.rejects(atomicWrite(path.join(f.dirs[1], 'new.json'), '1'), refusal);
+test('shared placements deduplicate; viewers and deleted pickers do not add retained maps', () => {
+  const picker = 'synthetic-picker', account = 'synthetic-login';
+  const doc = { accounts: [{ id: account, memberships: [{ pickerId: picker, role: 'player' }] }], pickers: [{ id: picker, kind: 'default', lifecycle: 'active', ownerAccountId: account }],
+    characters: ['synthetic-one', 'synthetic-two'].map(id => ({ id, accountId: account, lifecycle: 'active', placement: { pickerId: picker } })) };
+  const guard = createLoginStorageBudget({ read: () => doc, limits: { maxMaps: 1 } });
+  const proposal = structuredClone(doc);
+  proposal.accounts[0].memberships.push({ pickerId: 'synthetic-viewed-picker', role: 'viewer' });
+  proposal.pickers.push({ id: 'synthetic-deleted-picker', kind: 'default', lifecycle: 'deleted', ownerAccountId: account });
+  assert.doesNotThrow(() => guard.admit(proposal));
+  proposal.pastMaps = [{ id: 'synthetic-snapshot', accountId: account }];
+  assert.throws(() => guard.admit(proposal), refusal);
 });
 
-test('corrupt plugin evidence archives its old bytes only when the full replacement fits', async t => {
-  const f = await accountingFixture(t, { maxMaps: 20, maxBytes: 20 }), file = path.join(f.dirs[0], 'plugin-items.json');
-  await writeFile(file, 'broken');
-  await assert.rejects(replaceSidecar(file, '12345', true, () => 0), refusal);
-  assert.equal(await readFile(file, 'utf8'), 'broken');
+test('frozen snapshots have a byte bound separate from map-count admission', () => {
+  const snapshot = { note: 'Synthetic snapshot' }, bytes = Buffer.byteLength(JSON.stringify(snapshot)) + 1;
+  assert.doesNotThrow(() => assertPastMapFits(snapshot, bytes));
+  assert.throws(() => assertPastMapFits(snapshot, bytes - 1), { status: 507, code: 'STORAGE_BUDGET_EXCEEDED' });
+  assert.equal(DEFAULT_LOGIN_STORAGE_BUDGET.maxMaps * storageBudget({}, {}).maxBytes, 20 * 1024 ** 3);
 });
 
-test('several characters in one picker are charged once and viewer grants add no map', async t => {
-  const f = await accountingFixture(t, { maxMaps: 2, maxBytes: 20 });
-  f.doc.characters = ['one', 'two'].map(id => ({ id, accountId: 'synthetic-login', lifecycle: 'active', placement: { pickerId: f.doc.pickers[0].id } }));
-  const proposal = structuredClone(f.doc);
-  proposal.accounts[0].memberships.push({ pickerId: 'uncontrolled', role: 'viewer' });
-  await f.guard.run(() => f.guard.admit(proposal));
-  await atomicWrite(path.join(f.dirs[0], 'state.json'), '123456');
+test('capture refuses an oversized frozen copy without changing its source or writing a Past map', async t => {
+  const { f } = await fixture(t), { owner, player } = await group(f);
+  const store = (await f.open(owner.picker.id)).store, snapshot = await store.backup();
+  const intent = await f.registry.beginDeparture(player.account.id, player.character.id, owner.picker.id, { requestId: randomUUID(), characterId: player.character.id });
+  const previous = process.env.RS3_STORE_MAX_BYTES;
+  process.env.RS3_STORE_MAX_BYTES = String(Buffer.byteLength(JSON.stringify(snapshot)));
+  try {
+    await assert.rejects(f.registry.capturePastMap({ id: intent.id, accountId: intent.accountId, characterId: intent.characterId,
+      pickerId: intent.source.pickerId, memberId: intent.source.memberId, reason: intent.reason, createdAt: intent.createdAt }, snapshot), { status: 507, code: 'STORAGE_BUDGET_EXCEEDED' });
+  } finally { if (previous === undefined) delete process.env.RS3_STORE_MAX_BYTES; else process.env.RS3_STORE_MAX_BYTES = previous; }
+  assert.deepEqual((await store.backup()).state, snapshot.state);
+  assert.deepEqual(f.registry.listPastMaps(player.account.id), []);
+  await assert.rejects(readFile(path.join(f.options.registryDir, 'past-maps', intent.id + '.json')), { code: 'ENOENT' });
+  await f.departures.recover();
+  assert.ok(f.registry.getDeparture(intent.id).completedAt);
 });
 
-test('deferred callbacks cannot retain deletion or publication quota exemptions', async t => {
-  const f = await accountingFixture(t, { maxMaps: 20, maxBytes: 11 });
-  let afterRelief, afterPublication;
-  await withLoginStorageRelief(() => { afterRelief = AsyncLocalStorage.snapshot(); });
-  await atomicWrite(path.join(f.dirs[0], 'state.json'), '123456', { beforeRename() { afterPublication = AsyncLocalStorage.snapshot(); } });
-  for (const later of [afterRelief, afterPublication]) await assert.rejects(later(() => atomicWrite(path.join(f.dirs[1], 'extra.json'), '1')), refusal);
-});
-
-test('an unplanned nested sidecar must fit alongside every pending gameplay output', async t => {
-  const f = await accountingFixture(t, { maxMaps: 20, maxBytes: 12 });
-  const file = path.join(f.dirs[0], 'state.json'), sidecar = path.join(f.dirs[0], 'extra.json');
-  await assert.rejects(atomicWrite(file, '123456', { beforeRename: () => atomicWrite(sidecar, '12') }), refusal);
-  assert.equal(await readFile(file, 'utf8'), '12345');
-  await assert.rejects(readFile(sidecar), { code: 'ENOENT' });
-  await atomicWrite(file, '123456', { beforeRename: () => atomicWrite(sidecar, '1') });
-  assert.equal(await readFile(sidecar, 'utf8'), '1');
-});
-
-test('malformed unbounded directory trees fail closed at the accounting ceiling', async t => {
-  const f = await accountingFixture(t, { maxMaps: 20, maxBytes: 1000 });
-  for (let n = 0; n < 4097; n++) await mkdir(path.join(f.dirs[0], String(n)));
-  await assert.rejects(atomicWrite(path.join(f.dirs[1], 'new.json'), '1'), refusal);
-});
-
-test('single-picker writes ignore login limits without a multi-picker registry', async t => {
-  const dir = await root(t), file = path.join(dir, 'state.json');
-  const previous = process.env.RS3_LOGIN_MAX_BYTES; process.env.RS3_LOGIN_MAX_BYTES = 'invalid';
-  try { await withStorageBudget(dir, [{ file, bytes: '12345' }], storageBudget({ minFreeBytes: 1 }), () => atomicWrite(file, '12345')); }
-  finally { if (previous === undefined) delete process.env.RS3_LOGIN_MAX_BYTES; else process.env.RS3_LOGIN_MAX_BYTES = previous; }
-  assert.equal(await readFile(file, 'utf8'), '12345');
+test('single-picker saves ignore login settings without a multi-picker registry', async t => {
+  const dir = await mkdtemp(path.join(tmpdir(), 'login-storage-legacy-'));
+  const previous = process.env.RS3_LOGIN_MAX_MAPS; process.env.RS3_LOGIN_MAX_MAPS = 'invalid';
+  let store;
+  try {
+    store = await openStore({ dataDir: dir, initialState: createGroupState([{ id: 'owner', name: 'Synthetic player' }]) });
+    await store.command({ type: 'set-journal', memberId: 'owner', note: 'Synthetic legacy save' }, store.getInfo().revision);
+    assert.equal(store.getInfo().revision, 1);
+  } finally {
+    if (previous === undefined) delete process.env.RS3_LOGIN_MAX_MAPS; else process.env.RS3_LOGIN_MAX_MAPS = previous;
+    await store?.close(); await rm(dir, { recursive: true });
+  }
 });

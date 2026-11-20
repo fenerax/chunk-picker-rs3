@@ -11,12 +11,13 @@ Only source and documentation were inspected. No credential files, account recor
 ### Retained storage admission
 
 Retained storage admission is now implemented independently of traffic quotas:
-multi-picker defaults are 10 GiB and 20 retained maps per login, including
+multi-picker defaults are 20 retained maps per login, including
 controlled shared maps, owned retired solos and frozen Past maps. Admission
-uses bounded metadata accounting and serialized publication; lower limits keep
+uses registry records in the existing admission transaction; lower limits keep
 existing records, deletion and admitted recovery available. See the current
 [storage budget contract](storage-budgets.md#retained-storage-per-login) for the
-exact scope, conservative pending reservations and operator settings. This adds
+exact scope, pending slots, derived 20 GiB default save-payload allowance and
+operator settings. Ordinary saves keep per-group concurrency. This adds
 no durable fields or registry/ledger versions and does not change single-picker
 mode or establish deployed capacity.
 

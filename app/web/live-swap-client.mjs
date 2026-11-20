@@ -158,7 +158,7 @@ export function createLiveSwapCommandClient({ storage = sessionStorage(), fetch 
     'ACTION_SESSION_FULL', 'REQUEST_ACKNOWLEDGED', 'REQUEST_ID_MISMATCH', 'REQUEST_SEQUENCE',
     'RECEIPT_CAPACITY', 'ACTION_SESSION_CAPACITY']);
   const fatal = (status, code) => status === 401 || recoveryCodes.has(code);
-  const definitive = (status, code) => status === 507 && ['STORAGE_BUDGET_EXCEEDED', 'LOGIN_STORAGE_BUDGET_EXCEEDED'].includes(code);
+  const definitive = (status, code) => status === 507 && code === 'STORAGE_BUDGET_EXCEEDED';
   function pausedError(record) {
     const delay = Math.max(0, (record?.retryAt ?? 0) - now());
     const advice = delay > 0 ? `Use Retry save in ${Math.ceil(delay / 1000)} seconds.` : 'Use Retry save to try again.';
@@ -348,7 +348,7 @@ export function requestError(response, value, delay = retryAfterMs(response)) {
       ? 'Saved tasks are not ready yet. Wait for a player to calculate them, then try again.'
       : 'The saved map changed. Review the latest view and try again.'
     : status === 413 ? 'This request is too large. Use a smaller file or make a smaller change, then try again.'
-    : status >= 500 && !(status === 507 && ['STORAGE_BUDGET_EXCEEDED', 'LOGIN_STORAGE_BUDGET_EXCEEDED'].includes(value?.code)) ? 'The picker could not complete this request. Try again in a moment.' : null;
+    : status >= 500 && !(status === 507 && value?.code === 'STORAGE_BUDGET_EXCEEDED') ? 'The picker could not complete this request. Try again in a moment.' : null;
   // Keep ordinary validation guidance, but never display an exception or HTML.
   const detail = value?.message;
   message ??= typeof detail === 'string' && detail.length <= 400 && !/[\r\n<>]|(?:Error:|\bat \w+.*\()|ECONN|\bstack\b/i.test(detail)

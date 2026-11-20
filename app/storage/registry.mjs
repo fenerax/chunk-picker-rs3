@@ -12,7 +12,6 @@ import { createGroupDepartures, validateDepartures, departureSoloEligible } from
 import { validateRetirements, migrateRetirements, registryV5, slotKey, reservedRetirementSlots, reservedRetiredCharacters } from './registry-retirements.mjs';
 import { deletionPlan, requireLoginDeletionReady } from './character-deletions.mjs';
 import { createLoginStorageBudget, loginStorageBudget } from './login-storage-budget.mjs';
-import { storageBudget } from './storage-budget.mjs';
 
 const PICKER = /^p_[0-9a-f]{32}$/;
 const HASH = /^[0-9a-f]{64}$/;
@@ -201,7 +200,6 @@ async function load(file) {
 export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, legacyDir, caps: overrides = {}, now = Date.now,
   crashPoint, pickerRandomBytes = randomBytes, betaPickerCap, onCapCheck, recoveryOnly = false, loginStorage: storageOptions = {} } = {}) {
   const loginLimits = loginStorageBudget(storageOptions);
-  const groupMaxBytes = storageBudget().maxBytes;
   if (typeof recoveryOnly !== 'boolean') throw new TypeError('Invalid registry recovery mode.');
   if ([registryDir, pickerRoot, tombstoneDir].some(dir => typeof dir !== 'string' || !dir)) throw new TypeError('Registry, picker and tombstone roots are required.');
   const caps = { ...DEFAULT_REGISTRY_CAPS, ...overrides };
@@ -254,7 +252,6 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
     return capCounts.prepare(next, nextLedger, changes);
   }
   async function save(next, changes = {}) {
-    await retained?.admit(next);
     if (changes.characters) requireCharacterAllocations(next);
     if (changes.characters || changes.relinkRetirements) checkRetirementCapacity(next, ledger);
     const accountRows = changes.accounts ?? [], pickerRows = changes.pickers ?? [];
@@ -331,7 +328,7 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
   }
   function enqueue(operation) {
     try { usable(); } catch (failure) { return Promise.reject(failure); }
-    const pending = queue.then(() => (retained?.run ?? (work => work()))(async () => { if (failed) throw new Error('Registry requires restart.'); return copy(await operation()); }));
+    const pending = queue.then(async () => { if (failed) throw new Error('Registry requires restart.'); return copy(await operation()); });
     queue = pending.catch(() => {}); return pending;
   }
   const requireAccount = (next, id) => { const account = next.accounts.find(a => a.id === id); if (!account) throw error(404, 'Account not found.'); return account; };
@@ -444,6 +441,7 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
       let characterId; do { characterId = newCharacterId(); } while (ledger.issuedCharacterIds.includes(characterId));
       const next = copy(current), owner = requireAccount(next, accountId);
       owner.pendingCreation = { requestId, pickerId, characterId, runescapeName, createdAt: timestamp() };
+      retained?.admit(next);
       await save(next, { accounts: [owner], characters: true }); await point('account-recorded', pickerId);
     }
     account = requireAccount(current, accountId);
@@ -663,8 +661,7 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
     for (const release of releases.reverse()) await release().catch(() => {});
     throw failure;
   }
-  if (!recoveryOnly) retained = createLoginStorageBudget({ read: () => current, pickerRoot, registryDir,
-    limits: loginLimits, groupMaxBytes });
+  if (!recoveryOnly) retained = createLoginStorageBudget({ read: () => current, limits: loginLimits });
   const api = {
     deletionPlan(accountId, input) { usable(); return copy(deletionPlan(current, accountId, input)); },
     deletionTransactions() { usable(); return copy(ledger.deletions ?? []); },
@@ -874,12 +871,7 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
       if (!existing || !existing.initialProvisioned && !existing.pendingCreation) checkPickerAllocation();
       if (!existing && current.characters.filter(c => c.lifecycle === 'active').length >= caps.characters) throw characterError('The service character limit has been reached. Existing maps are unchanged.');
       if (!existing && ledger.issuedCharacterIds.length >= caps.issuedCharacterIds) throw characterError('The character ID history limit has been reached. Existing IDs cannot be reused.');
-      const next = copy(current), account = ensureIdentity(next, provider, subject);
-      if (!existing) {
-        const proposal = copy(next); proposal.accounts.find(a => a.id === account.id).pendingCreation = { pickerId: 'new-picker' };
-        await retained.admit(proposal);
-      }
-      await save(next, { accounts: [account] });
+      const next = copy(current), account = ensureIdentity(next, provider, subject); await save(next, { accounts: [account] });
       const picker = await ensureDefault(account.id); return { account: requireAccount(current, account.id), picker };
     }); },
     // Reserve gameplay slots before a replacement commit. This only grows the
@@ -905,6 +897,7 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
       if (!existing) account.memberships.push(copy(membership));
       if (membership.role !== 'viewer') {
         bindCharacter(next, account, picker, membership.memberId, { requestId: `slot-${picker.id}-${membership.memberId}` });
+        retained.admit(next);
         await saveCharacterBindings(next, { accounts: [account], pickers: [picker] });
       } else await save(next, { accounts: [account] });
       return account;
@@ -1040,7 +1033,6 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
     reconcileTombstones() { return enqueue(applyTombstones); },
     close() { return closing ??= (async () => {
       closed = true; await queue;
-      retained?.close();
       const results = await Promise.allSettled(releases.reverse().map(release => release()));
       const failure = results.find(result => result.status === 'rejected');
       if (failure) throw failure.reason;

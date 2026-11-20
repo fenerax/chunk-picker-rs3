@@ -3,7 +3,6 @@ import { readFile, mkdir, writeFile, link, unlink, rename, lstat } from 'node:fs
 import { randomUUID } from 'node:crypto';
 import { safeArtFile } from './packs.mjs';
 import { datasetEvidenceRecord, provesEvidenceOnly, readDatasetEvidence } from './dataset-evidence.mjs';
-import { withLoginStoragePublication } from './storage/login-storage-budget.mjs';
 
 export const bindingPath = dataDir => `${path.resolve(dataDir)}.dataset.json`;
 function mismatch() { const error = new Error('This storage directory needs its bound data pack.'); error.code = 'DATASET_BINDING_MISMATCH'; return error; }
@@ -51,20 +50,17 @@ export async function bindDatasetStorage(dataDir, dataset) {
   const checked = await verifyDatasetBinding(dataDir, dataset);
   const promote = checked.bound && dataset.packed === true && checked.requiresPack !== true;
   if (checked.bound && !promote) return checked;
-  const bytes = `${JSON.stringify(expected(dataset), null, 2)}\n`;
   const target = bindingPath(dataDir), temporary = `${target}.${randomUUID()}.tmp`;
-  return withLoginStoragePublication([{ file: target, bytes }], async () => {
-    await safeParent(path.dirname(target));
-    try {
-      await writeFile(temporary, bytes, { flag: 'wx' });
-      if (promote) {
-        // Explicit binding may strengthen a matching tracked receipt. Verify
-        // again before replacing the sibling; gameplay storage stays unopened.
-        const latest = await verifyDatasetBinding(dataDir, dataset);
-        if (latest.bound && latest.requiresPack !== true) await rename(temporary, target);
-        else if (!latest.bound) { try { await link(temporary, target); } catch (error) { if (error.code !== 'EEXIST') throw error; } }
-      } else { try { await link(temporary, target); } catch (error) { if (error.code !== 'EEXIST') throw error; } }
-      return await verifyDatasetBinding(dataDir, dataset);
-    } finally { await unlink(temporary).catch(error => { if (error.code !== 'ENOENT') throw error; }); }
-  });
+  await safeParent(path.dirname(target));
+  try {
+    await writeFile(temporary, `${JSON.stringify(expected(dataset), null, 2)}\n`, { flag: 'wx' });
+    if (promote) {
+      // Explicit binding may strengthen a matching tracked receipt. Verify
+      // again before replacing the sibling; gameplay storage stays unopened.
+      const latest = await verifyDatasetBinding(dataDir, dataset);
+      if (latest.bound && latest.requiresPack !== true) await rename(temporary, target);
+      else if (!latest.bound) { try { await link(temporary, target); } catch (error) { if (error.code !== 'EEXIST') throw error; } }
+    } else { try { await link(temporary, target); } catch (error) { if (error.code !== 'EEXIST') throw error; } }
+    return await verifyDatasetBinding(dataDir, dataset);
+  } finally { await unlink(temporary).catch(error => { if (error.code !== 'ENOENT') throw error; }); }
 }

@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { mkdir, readFile, lstat } from 'node:fs/promises';
 import path from 'node:path';
 import { durableDirectory, writeRegistryJson, syncDirectory } from './registry-lock.mjs';
+import { assertPastMapFits } from './login-storage-budget.mjs';
 
 const uuid = v => typeof v === 'string' && /^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/.test(v);
 const cid = v => typeof v === 'string' && /^c_[0-9a-f]{32}$/.test(v);
@@ -98,7 +99,7 @@ export function createGroupDepartures({ read, save, saveLedgerId, allocate, vers
       await version();
       const doc = structuredClone(read()), d = { id: requestId, characterId: c.id, accountId: c.accountId, actorAccountId, actorCharacterId,
         source: structuredClone(c.placement), destination: { pickerId: picker, memberId: 'owner' }, reason: removing ? 'removed' : 'left', createdAt: stamp(), completedAt: null };
-      doc.departures.push(d); await save(doc); await point('departure-intent', pickerId); return structuredClone(d);
+      doc.departures.push(d); await admit(doc); await save(doc); await point('departure-intent', pickerId); return structuredClone(d);
     },
     async prepare(id) {
       const d = read().departures.find(d => d.id === id); if (!d || d.completedAt) return;
@@ -122,7 +123,7 @@ export function createGroupDepartures({ read, save, saveLedgerId, allocate, vers
       const file = snapshotFile(meta.id);
       let bytes;
       try { bytes = await readFile(file); }
-      catch (e) { if (e.code !== 'ENOENT') throw e; await writeRegistryJson(file, document); bytes = await readFile(file); }
+      catch (e) { if (e.code !== 'ENOENT') throw e; assertPastMapFits(document); await writeRegistryJson(file, document); bytes = await readFile(file); }
       // An interrupted capture is immutable: retry uses the frozen file, never
       // resnapshots a source whose roster may already have changed.
       const m = { ...meta, digest: pastMapDigest(bytes) };

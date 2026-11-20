@@ -1,7 +1,6 @@
 import * as fs from 'node:fs/promises';
 import path from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
-import { withLoginStoragePublication } from './login-storage-budget.mjs';
 
 export async function syncDirectory(directory, { filesystem = fs, platform = process.platform } = {}) {
   let handle;
@@ -16,28 +15,24 @@ export async function syncDirectory(directory, { filesystem = fs, platform = pro
 export async function publishFile(temporary, file, { filesystem = fs, platform = process.platform, wait = delay,
   onPostPublishSyncError = 'throw', afterRename, afterDirectorySync } = {}) {
   if (!['warn', 'throw'].includes(onPostPublishSyncError)) throw new TypeError('Invalid post-publication sync error policy.');
-  // All sidecar publishers share the same login admission as gameplay plans.
-  // A plan already admitted by withStorageBudget covers its nested publications.
-  return withLoginStoragePublication([{ file, temporary }], async () => {
-    // Windows scanners can briefly hold the destination without delete-sharing.
-    // Retry the same synchronized replacement; never remove the old file.
-    for (let attempt = 0; ; attempt++) {
-      try { await filesystem.rename(temporary, file); break; }
-      catch (failure) {
-        if (platform !== 'win32' || !['EPERM', 'EACCES', 'EBUSY'].includes(failure.code) || attempt >= 6) throw failure;
-        await wait(20 * 2 ** attempt);
-      }
+  // Windows scanners can briefly hold the destination without delete-sharing.
+  // Retry the same synchronized replacement; never remove the old file.
+  for (let attempt = 0; ; attempt++) {
+    try { await filesystem.rename(temporary, file); break; }
+    catch (failure) {
+      if (platform !== 'win32' || !['EPERM', 'EACCES', 'EBUSY'].includes(failure.code) || attempt >= 6) throw failure;
+      await wait(20 * 2 ** attempt);
     }
-    await afterRename?.();
-    try {
-      await syncDirectory(path.dirname(file), { filesystem, platform });
-    } catch (error) {
-      if (onPostPublishSyncError === 'throw') throw error;
-      return { durable: false, error };
-    }
-    await afterDirectorySync?.();
-    return { durable: true };
-  }, { ignore: [temporary] });
+  }
+  await afterRename?.();
+  try {
+    await syncDirectory(path.dirname(file), { filesystem, platform });
+  } catch (error) {
+    if (onPostPublishSyncError === 'throw') throw error;
+    return { durable: false, error };
+  }
+  await afterDirectorySync?.();
+  return { durable: true };
 }
 
 /** Never include file contents, credentials, paths or arbitrary error messages. */
