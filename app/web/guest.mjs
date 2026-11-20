@@ -1,12 +1,16 @@
 import { createGuestTransport } from './guest-transport.mjs';
+import { chooseOlderGuestSave, downloadRawText, showGuestStartupRecovery } from './guest-save.mjs';
 import { configurePickerStorage } from './screen-save-status.mjs';
 
 try {
   let screen;
-  const guest = await createGuestTransport({ changed: () => {
-    screen?.notice('This save changed in another tab. Reload before making another change.', true);
-    const badge = document.getElementById('save-status'); badge.textContent = 'Reload browser save'; badge.dataset.status = 'failed';
-  } });
+  const guest = await createGuestTransport({
+    onOlderSave: olderSaves => chooseOlderGuestSave({ olderSaves }),
+    changed: () => {
+      screen?.notice('This save changed in another tab. Reload before making another change.', true);
+      const badge = document.getElementById('save-status'); badge.textContent = 'Reload browser save'; badge.dataset.status = 'failed';
+    },
+  });
   // Dataset/bootstrap and optional presentation loaders share this document's
   // guest-only transport. Member documents never import this entrypoint.
   globalThis.fetch = guest.fetch;
@@ -66,7 +70,7 @@ try {
       c.backupDialog = () => {
         const box = c.el('div', undefined, 'form-stack');
         const status = c.el('p', 'Cloud backups need an account. Download your browser save to keep or move it.', 'status-detail'); status.setAttribute('role', 'status');
-        const download = c.button('Download save', () => c.download(JSON.parse(guest.save.exportText()), 'chunk-picker-guest.json'));
+        const download = c.button('Download save', () => downloadRawText(guest.save.exportText(), 'chunk-picker-guest.json'));
         const file = c.input('file'); file.accept = '.json,application/json'; file.id = 'guest-import-file';
         const label = c.field('Import a portable solo save', file);
         const restore = c.button('Import save', async () => {
@@ -101,5 +105,7 @@ try {
   window.addEventListener('storage', event => { if (event.key === guest.save.key || event.key === null) guest.markStale(); });
   await screen.start();
 } catch (error) {
-  const { showStartupError } = await import('./startup-read.mjs'); showStartupError(error);
+  const { showStartupError } = await import('./startup-read.mjs');
+  showStartupError(error);
+  showGuestStartupRecovery({ error });
 }

@@ -3,7 +3,7 @@ import { createGuestSave } from './guest-save.mjs';
 // The picker sees its usual read/command contract. Only this adapter owns the
 // portable browser save; it never uses authenticated routes or a command outbox.
 export async function createGuestTransport({ fetch: network = globalThis.fetch.bind(globalThis), storage = localStorage,
-  tabStorage = sessionStorage, locks = navigator.locks, changed = () => {} } = {}) {
+  tabStorage = sessionStorage, locks = navigator.locks, changed = () => {}, onOlderSave } = {}) {
   const post = async (route, body, token, signal) => {
     const response = await network(route, { method: 'POST', credentials: 'omit', cache: 'no-store',
       headers: { 'Content-Type': 'application/json', ...(token ? { 'X-Guest-Token': token } : {}) },
@@ -18,7 +18,14 @@ export async function createGuestTransport({ fetch: network = globalThis.fetch.b
   const session = await post('/guest/api/session', {}, previousToken);
   try { tabStorage.setItem('rs3:guest-admission', session.token); } catch { /* Browser save has its own error path. */ }
   const save = createGuestSave(storage, session.dataset);
-  let backup = save.load(), queue = Promise.resolve(), taskRead, stale = false;
+  let backup;
+  try { backup = save.load(); }
+  catch (error) {
+    const raw = save.raw();
+    if (raw !== null) error.guestRecovery = { kind: 'corrupt', key: save.key, raw, save, locks };
+    throw error;
+  }
+  let queue = Promise.resolve(), taskRead, stale = false;
   const check = () => { if (stale || save.changed()) throw Object.assign(new Error('This save changed in another tab. Reload before making another change.'), { status: 409 }); };
   const run = (operation, extra = {}, signal) => {
     const work = queue.then(() => {
@@ -33,8 +40,19 @@ export async function createGuestTransport({ fetch: network = globalThis.fetch.b
     await locks.request(save.key, () => { check(); save.commit(value); });
     backup = value; taskRead = undefined;
   }
-  const loaded = await run(backup ? 'load' : 'new');
-  if (!backup) await commit(loaded.backup);
+  let loaded;
+  if (backup) {
+    loaded = await run('load');
+  } else {
+    const older = save.findOlderSaves();
+    const choice = older.length && typeof onOlderSave === 'function' ? await onOlderSave(older) : null;
+    if (choice?.action === 'upgrade' && choice.save?.backup) {
+      loaded = await run('upgrade', { backup: choice.save.backup });
+    } else {
+      loaded = await run('new');
+    }
+    await commit(loaded.backup);
+  }
   const bootstrap = loaded.bootstrap;
   let pool = loaded.pool;
   let coordination = loaded.coordination;

@@ -301,3 +301,92 @@ test('guest unlock predictions include derived collection tasks', async t => {
   const added = (await run({ operation: 'predict', backup, chunkId: '12851' })).prediction.delta.tasksAdded;
   assert.ok(added.some(task => /Goblin/.test(task.label) && /Bones/.test(task.label)), JSON.stringify(added));
 });
+
+test('a slow or stalled guest upload does not block another visitor from completing a guest action', async t => {
+  const clock = createManualClock();
+  let workersStarted = 0;
+  const runtime = { parsedDefinitions: definitions, dataset: selectedDataset, requestContextFor: requestContext };
+  const mode = createGuestMode({ runtime, host: '127.0.0.1', clock, now: clock.now,
+    limits: { uploadIdleMs: 2000, uploadMaxMs: 5000, requestsPerIP: 20, requestsGlobal: 20 },
+    workerFactory() {
+      workersStarted++;
+      const worker = new EventEmitter(); worker.stdout = new PassThrough(); worker.stderr = new PassThrough();
+      worker.terminate = () => Promise.resolve();
+      queueMicrotask(() => worker.emit('message', { backup: { ok: true } }));
+      return worker;
+    } });
+  const server = http.createServer((request, response) => mode.handle(request, response));
+  server.listen(0, '127.0.0.1'); await new Promise(resolve => server.once('listening', resolve));
+  t.after(async () => { await mode.close(); server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); });
+  const origin = `http://127.0.0.1:${server.address().port}`;
+  const openSession = async () => (await (await fetch(origin + '/guest/api/session', { method: 'POST',
+    headers: { Origin: origin, 'Content-Type': 'application/json' }, body: '{}' })).json()).token;
+  const slowToken = await openSession(), fastToken = await openSession();
+  const slowDone = Promise.withResolvers();
+  const slowReq = http.request({ host: '127.0.0.1', port: server.address().port, path: '/guest/api/run', method: 'POST',
+    headers: { Origin: origin, 'Content-Type': 'application/json', 'X-Guest-Token': slowToken } }, response => {
+    response.resume();
+    response.once('end', () => slowDone.resolve(response.statusCode));
+  });
+  slowReq.once('error', () => slowDone.resolve('destroyed'));
+  // Send a partial JSON body and stall before finishing.
+  slowReq.write('{"operation":"new"');
+  await new Promise(resolve => setTimeout(resolve, 30));
+  assert.equal(workersStarted, 0, 'a stalled upload must not start a worker');
+  // Another visitor completes a full guest action while the slow upload is still pending.
+  const fastResponse = await fetch(origin + '/guest/api/run', { method: 'POST',
+    headers: { Origin: origin, 'Content-Type': 'application/json', 'X-Guest-Token': fastToken },
+    body: JSON.stringify({ operation: 'new' }) });
+  assert.equal(fastResponse.status, 200);
+  assert.equal(workersStarted, 1);
+  // Advancing past the short upload idle deadline terminates the stalled upload.
+  await clock.advance(2000);
+  const outcome = await slowDone.promise;
+  assert.ok(outcome === 408 || outcome === 'destroyed', `unexpected stalled upload outcome: ${outcome}`);
+});
+
+test('repeated invalid guest uploads consume the request rate budget before body buffering', async t => {
+  const clock = createManualClock();
+  const runtime = { parsedDefinitions: definitions, dataset: selectedDataset, requestContextFor: requestContext };
+  const mode = createGuestMode({ runtime, host: '127.0.0.1', clock, now: clock.now,
+    limits: { requestsPerIP: 1, requestsGlobal: 1 },
+    workerFactory() { throw new Error('Invalid operations must never spawn a worker'); } });
+  const server = http.createServer((request, response) => mode.handle(request, response));
+  server.listen(0, '127.0.0.1'); await new Promise(resolve => server.once('listening', resolve));
+  t.after(async () => { await mode.close(); server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); });
+  const origin = `http://127.0.0.1:${server.address().port}`;
+  const { token } = await (await fetch(origin + '/guest/api/session', { method: 'POST',
+    headers: { Origin: origin, 'Content-Type': 'application/json' }, body: '{}' })).json();
+  const invalid = () => fetch(origin + '/guest/api/run', { method: 'POST',
+    headers: { Origin: origin, 'Content-Type': 'application/json', 'X-Guest-Token': token },
+    body: JSON.stringify({ operation: 'invalid-op' }) });
+  assert.equal((await invalid()).status, 400);
+  assert.equal((await invalid()).status, 429, 'second invalid upload is rate-limited before parsing');
+});
+
+test('guest upgrade operation re-stamps an older-digest solo save from the same dataset', async t => {
+  guestFlag(t, '1');
+  const root = await mkdtemp(path.join(tmpdir(), 'guest-upgrade-'));
+  let app;
+  t.after(async () => { try { await app?.close(); } finally { await rm(root, { recursive: true, force: true }); } });
+  app = await createServer({ dataDir: path.join(root, 'legacy'), definitions, taskMap: {}, port: 0,
+    initialState: createGroupState([{ id: 'one', name: 'Player 1' }]),
+    backupRetentionMs: 90 * 86400000, predictionPrewarm: false, liveTimingOptions: { enabled: false },
+    taskWorkerOptions: { warmStoreDirectory: undefined }, guestOptions: { limits: { requestsPerIP: 100, requestsGlobal: 100 } } });
+  await app.listen();
+  const origin = `http://127.0.0.1:${app.address().port}`;
+  const post = (route, body, token) => fetch(origin + route, { method: 'POST',
+    headers: { Origin: origin, 'Content-Type': 'application/json', ...(token ? { 'X-Guest-Token': token } : {}) }, body: JSON.stringify(body) });
+  const session = await (await post('/guest/api/session', {})).json();
+  let backup = (await (await post('/guest/api/run', { operation: 'new' }, session.token)).json()).backup;
+  backup = (await (await post('/guest/api/run', { operation: 'command', backup, command: { type: 'set-chunk', memberId: 'guest', chunkId: '12850', status: 'unlocked' } }, session.token)).json()).backup;
+  const older = structuredClone(backup);
+  older.state.provenance.dataset.digest = '0'.repeat(64);
+  assert.equal((await post('/guest/api/run', { operation: 'load', backup: older }, session.token)).status, 422);
+  const upgradedResponse = await post('/guest/api/run', { operation: 'upgrade', backup: older }, session.token);
+  assert.equal(upgradedResponse.status, 200);
+  const upgraded = await upgradedResponse.json();
+  assert.equal(upgraded.backup.state.provenance.dataset.digest, session.dataset.digest);
+  assert.deepEqual(upgraded.backup.state.members[0].unlocked, ['12850']);
+  assert.ok(upgraded.bootstrap?.world);
+});
