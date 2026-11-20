@@ -27,7 +27,7 @@ const objectHas = (access, name) => access?.objects instanceof Set ? access.obje
  * A built historical flatpack is deliberately not current furniture evidence.
  */
 export function evaluateHouseStorage({ rules, f2p, rows, items, sourceList, access, ownAccess, levels, caps,
-  member, completed, challengeSatisfied }, catalogue = houseStorageCatalogue) {
+  member, completed, challengeSatisfied, rosterSize = 2 }, catalogue = houseStorageCatalogue) {
   const coverage = { version: catalogue.version, exhaustive: false, furnitureCount: catalogue.furniture.length,
     slotCount: catalogue.slots.length, supportedObjectiveCount: catalogue.slots.filter(slot => slot.generateTasks !== false && slot.active !== false && slot.historical !== true).length,
     referenceOnlyCount: catalogue.slots.filter(slot => slot.generateTasks === false).length, automaticBookcasesGenerateTasks: false };
@@ -72,7 +72,11 @@ export function evaluateHouseStorage({ rules, f2p, rows, items, sourceList, acce
     const blockers = backlogged ? [{ kind: 'backlog', detail: 'This house-storage task is backlogged by the current member.' }] : [];
     const sources = [...new Set([...parts, ...Object.keys(furniture.materials)])].flatMap(item => sourceList(item).map(source => ({ ...source, item })));
     const obligation = objectHas(ownAccess, catalogue.housing.workbench) && objectHas(ownAccess, catalogue.housing.storage) && housingQuest.obligation !== false;
-    const hiddenReasons = obligation ? [] : ['This task is outside the member’s own reachable map; partner access is a convenience.'];
+    const sharedReachable = !obligation && rosterSize > 1 && rules['access.shared'] !== false;
+    const outsideReason = !sharedReachable ? 'Outside your unlocked chunks.'
+      : rosterSize === 2 ? "Outside your own chunks — only reachable through your partner's map, so it isn't required."
+        : "Outside your own chunks — only reachable through another group member's map, so it isn't required.";
+    const hiddenReasons = obligation ? [] : [outsideReason];
     const label = visibleLabel(slot, catalogue);
     result.tasks.push({ ...identity, label, rawLabel: label, generated: true, level: furniture.construction, primary: false, primaryMethod: false,
       status: blockers.length ? 'blocked' : 'available', blockers, sources, obligation, hidden: !obligation, hiddenReasons,

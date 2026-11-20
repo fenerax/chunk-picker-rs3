@@ -209,7 +209,11 @@ export function analyzeAreaCheck(state, memberId, draft, { engine, definitions =
       'Can\'t start warnings identify an unestablished route to a needed method or task requirement in the current engine, not proof that no game method exists. Without a task requirement there is no warning. Missing-source or missing-supply methods are excluded. Conditional methods remain in details but never close training gaps.',
       'The task engine models an available primary method as training to the allowed skill cap. It does not verify renewable supplies, zero-XP exceptions, finite rewards or a continuous XP route for every retained method.',
       'Saved manual primary/passive/max controls remain capability declarations. They can change reachable levels or suppress Can\'t start warnings without supplying a training location.',
-      'Alone keeps personal progress and rules, clears other ownership, and uses only selected chunks. Combined adds selected chunks to the current personal map and retains normal connected-partner access.',
+      state.members.length === 1
+        ? 'Alone checks only the chunks you selected. Combined adds the selected chunks to your current map.'
+        : state.members.length === 2
+          ? "Alone checks only the chunks you selected (without your partner's map). Combined adds them to your current map and keeps your partner's connected chunks."
+          : "Alone checks only the chunks you selected (without your group's chunks). Combined adds them to your current map and keeps your group's connected chunks.",
       'Can\'t start warnings using an F2P reference level in a members draft start from the reviewed F2P trial cap when personal level evidence is absent. They do not assert that the player has reached that level.',
       'Members methods rely on retained tasks and the reviewed Divination supplement. Wider Havenhythe coverage remains incomplete, so the members-start research may contain methods and gaps absent from this result.',
       'Retained primary flags may differ from researched XP behaviour, including zero-XP shortcuts. Treat the members-start research as a separate evidence check, not a catalogue guarantee.',

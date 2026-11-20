@@ -125,13 +125,20 @@ const fingerprint = value => createHash('sha256').update(JSON.stringify(value, (
 // map" reason. A complete leaf diff against main 2a76bfd changes only explanation,
 // hiddenReasons[0] and the new sourcePolicyRejections on those rows (9/9/6/0/9/0
 // leaves by mode); no status, item, access or prediction value changes.
+// Roster-aware engine wording 2026-11-20 (#324): plain-English wording replaces
+// the legacy hidden non-own reason. A complete leaf diff against main 9b46bb38
+// across all six modes changes 95 leaves (15/15/11/21/15/18), every single one
+// on hiddenReasons[0] from "This task is outside the member’s own reachable map;
+// partner access is a convenience." to "Outside your unlocked chunks.". Zero
+// status, item, access, counter or prediction values change; hashes match Linux
+// CI run 44835678252 and Windows.
 const expected = {
-  shared: 'f71e3d3a6d761c8832b5f3fcadf65fb76a42d673eb3fc6d8ae6f79e6bd61c2a9',
-  unshared: 'c08526cd3dd27d691c46071f70d8b2bf6e13862a7d6135fc12dfa1d6c5e45a7b',
-  'member-inclusive': 'fb997d6e41ac374bcf35e2046adb44014b2d16370690432127ea3047bf8c3f87',
-  backlogs: '4d09fe2e1557df80de0fda2007e64c215ed4852782fe744c1f2b896f3c08d816',
-  personal: 'bdaecf3fb234784e1821b651240b204fbc0579661cfdb8d66984b39991507c70',
-  'legacy-all': '69ce853874effbb7da38a1c557c03318e1a9d96ca147394ae18d7f2dbbf0fa07',
+  shared: '57ebc399f3b4d8f3690ea34879f9e2d169cfc766baad6da09e2a9c3e3a43b1ee',
+  unshared: '91e74cc15a8b3e9bc48f75501fd0e5cdadca91c7d01075cd00b09a5a949ad383',
+  'member-inclusive': '1f0ce8ec92f040db3bc4dbbccac1596d144dc8c4d4476d445ae2359d68cbc29e',
+  backlogs: 'cb28152d16618df30b63c5a9315c7a5fadf9f48634d79cfbb03f4604bd1cfcc9',
+  personal: 'a517d24198e625be5c614f4630c98b3eff4e9daaeabba949dccc00760bfcd884',
+  'legacy-all': '0c4898a435f25e0c37ba9901070a229b661a847d40841e89a701f1505b78dda7',
 };
 
 for (const [mode, golden] of Object.entries(expected)) test(`full prediction output retains baseline behavior: ${mode}`, () => {

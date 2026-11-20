@@ -3,9 +3,12 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createGroupState, applyCommand, exportBackup, importBackup, previewRestore, validateState } from '../app/core/state.mjs';
 import { createRuleRegistry, evaluateRollPool, partnerConnections } from '../app/core/rules.mjs';
+import { computeRollStats } from '../app/core/roll-stats.mjs';
 import { createTaskFactsIndex } from '../app/core/progress-index.mjs';
 import { buildWorld } from '../app/data/world.mjs';
 import { createTaskEngine, taskId } from '../app/tasks/engine.mjs';
+import { evaluateEquipment, buildCurrentBiS } from '../app/tasks/equipment.mjs';
+import { analyzeAreaCheck } from '../app/tasks/area-check.mjs';
 import { selectPresentedTasks } from '../app/tasks/presentation.mjs';
 import { buildPartnerSupplyModel } from '../app/web/partner-supply-model.mjs';
 import { selectDuoTasks } from '../app/web/duo-tasks.mjs';
@@ -84,25 +87,47 @@ for (const size of [1, 2, 3, 4, 5]) {
     for (const [i, member] of state.members.entries()) {
       const result = results.get(member.id);
       assert.equal(result.tasks.find(task => task.id === taskId('Extra', `Personal ${i + 1}`)).obligation, true);
-      // Computed explanations keep baseline wording for every roster; UI copy is separate.
+      const expectedOutside = size === 1 ? 'Outside your unlocked chunks.'
+        : size === 2 ? "Outside your own chunks — only reachable through your partner's map, so it isn't required."
+          : "Outside your own chunks — only reachable through another group member's map, so it isn't required.";
+      const expectedOwner = size === 2 ? "your partner's" : "another group member's";
       for (let j = 0; j < size; j++) if (j !== i) {
         const otherTask = result.tasks.find(task => task.id === taskId('Extra', `Personal ${j + 1}`));
         assert.equal(otherTask.obligation, false);
-        assert.ok(otherTask.hiddenReasons.includes('This task is outside the member’s own reachable map; partner access is a convenience.'));
+        assert.ok(otherTask.hiddenReasons.includes(expectedOutside));
       }
       if (i !== size - 1) {
         const ownTask = result.tasks.find(task => task.id === taskId('Extra', `Personal ${i + 1}`));
-        assert.ok(ownTask.explanation.includes(`Token ${size} supplies available via connected partner chunks.`));
+        assert.ok(ownTask.explanation.includes(`Token ${size} comes from ${expectedOwner} connected chunks.`));
         const proof = f.engine.how(state, member.id, ownTask.id);
-        assert.ok(proof.gaps.some(gap => gap.detail === 'This supply uses partner access.'));
+        assert.ok(proof.gaps.some(gap => gap.detail === `This item comes from ${expectedOwner} map.`));
       }
       assert.ok(result.items.some(item => item.name === `Token ${size}`));
       const connections = partnerConnections(f.world, state, member.id, registry);
       assert.equal(connections.regions.length, size - 1);
       assert.ok(connections.regions.every(region => region.connected));
       const roll = evaluateRollPool(f.world, state, member.id, registry);
+      const selectedState = { ...state, members: state.members.map(m => m.id === member.id ? { ...m, selected: [chunks[i]] } : m) };
+      const selectedRoll = evaluateRollPool(f.world, selectedState, member.id, registry);
+      const expectedUnlockedBlocker = size === 1 ? 'Already unlocked on your map.'
+        : size === 2 ? 'Already unlocked on your map. Chunks only your partner unlocked can still be rolled.'
+          : 'Already unlocked on your map. Chunks only other group members unlocked can still be rolled.';
+      assert.ok(selectedRoll.excluded.find(row => row.id === chunks[i])?.reasons.some(r => r.ruleId === 'state.unlocked' && r.detail === expectedUnlockedBlocker));
       if (i === 0 && size > 1) assert.ok(!roll.eligible.some(row => row.id === chunks[size]), 'the far edge of another map cannot widen a personal roll');
     }
+    const rollStats = computeRollStats(state, { now: now() });
+    assert.equal(rollStats.duo.name, size === 1 ? 'Solo' : size === 2 ? 'Duo' : 'Group');
+    const firstResult = results.get(state.members[0].id);
+    const bis = buildCurrentBiS(firstResult, evaluateEquipment(firstResult, state, state.members[0].id, f.data), state, state.members[0].id, f.data);
+    const expectedBisNote = size === 1 ? 'Uses only items you marked as obtained and can currently get and equip. Ammo must be marked separately. Ticking a task does not add its gear to your account.'
+      : size === 2 ? "Uses only items you marked as obtained and can currently get and equip. Ammo must be marked separately. Ticking tasks and your partner's gear don't count for you."
+        : "Uses only items you marked as obtained and can currently get and equip. Ammo must be marked separately. Ticking tasks and other group members' gear don't count for you.";
+    assert.ok(bis.owned.recordedBest.coverage.limitations.includes(expectedBisNote));
+    const areaCheck = analyzeAreaCheck(state, state.members[0].id, { chunkIds: [chunks[0]], asMembers: false }, { engine: f.engine, definitions: f.data, world: f.world });
+    const expectedAreaNote = size === 1 ? 'Alone checks only the chunks you selected. Combined adds the selected chunks to your current map.'
+      : size === 2 ? "Alone checks only the chunks you selected (without your partner's map). Combined adds them to your current map and keeps your partner's connected chunks."
+        : "Alone checks only the chunks you selected (without your group's chunks). Combined adds them to your current map and keeps your group's connected chunks.";
+    assert.ok(areaCheck.limitations.includes(expectedAreaNote));
     const supplies = buildPartnerSupplyModel(state, results, registry);
     if (size > 1) assert.ok(supplies.members[0].requests.some(request => request.items.some(item => item.sources.some(source => source.memberId === last.id))));
     else assert.deepEqual(supplies.members[0].requests, []);
@@ -147,6 +172,21 @@ test('five-player travel refuses unclaimed gaps and one-way routes without copyi
   const oneWay = partnerConnections(world, state, state.members[0].id, registry);
   assert.ok(oneWay.regions.some(region => region.ownerId === state.members[4].id && region.reason === 'no route back'));
   assert.deepEqual(state.members[4].teleports, []);
+});
+
+test('unclaimed blocked tasks and personal-access mode use neutral outside-your-map hidden reason', () => {
+  const f = fixture(2, true);
+  f.state.members[1].unlocked = [];
+  const unclaimed = f.engine.evaluate(f.state, f.state.members[0].id);
+  const blockedTask = unclaimed.tasks.find(task => task.id === taskId('Extra', 'Personal 2'));
+  assert.equal(blockedTask.status, 'blocked');
+  assert.ok(blockedTask.hiddenReasons.includes('Outside your unlocked chunks.'));
+  assert.equal(blockedTask.hiddenReasons.some(reason => /partner's map/.test(reason)), false);
+  const personal = fixture(2, true);
+  personal.state.rules['access.shared'] = false;
+  const personalResult = personal.engine.evaluate(personal.state, personal.state.members[0].id);
+  const personalOther = personalResult.tasks.find(task => task.id === taskId('Extra', 'Personal 2'));
+  assert.ok(personalOther.hiddenReasons.includes('Outside your unlocked chunks.'));
 });
 
 test('replacement summaries use the preview roster without requiring current screen state', () => {
