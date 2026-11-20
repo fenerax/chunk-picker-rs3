@@ -93,6 +93,13 @@ test('percentile bounds and incomplete evidence never claims acceptance', () => 
   const g = gates({ steady: phaseMetrics() }, [], { passed: true }, 0, { logicalCpus: 1, physicalRAMBytes: 1e9 }, parse([]));
   assert.equal(g.phases.steady.resourceHeadroom, 'unmeasured'); assert.equal(g.acceptance, 'unproven');
 });
+test('failed cold readiness reads fail the cold gate even when quick', () => {
+  const row = phaseMetrics(), fast = new Histogram(); fast.add(100); row.operations['cold:readiness'] = fast;
+  const hardware = { logicalCpus: 1, physicalRAMBytes: 1e9 };
+  assert.equal(gates({ cold: row }, [], { passed: true }, 0, hardware, parse([])).phases.cold.cold, 'pass');
+  row.coldReadinessFailures = 50;
+  assert.equal(gates({ cold: row }, [], { passed: true }, 0, hardware, parse([])).phases.cold.cold, 'fail');
+});
 test('unverified SSE cannot satisfy or precede an acknowledgement and fails isolation', () => {
   const client = { pickerId: 'synthetic-picker', characterId: 'observer' }, isolation = [], seenEvents = new Map();
   const acknowledgements = new Map(), metrics = { steady: phaseMetrics() }, key = 'synthetic-picker:1';

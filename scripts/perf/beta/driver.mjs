@@ -350,9 +350,10 @@ export async function drive({ c, identity, base, control, log }) {
             const ready = [...new Map(active.map(client => [client.group, client])).values()];
             await Promise.all(ready.map(async client => {
               const context = { ...ctx, action: 'cold:readiness' };
-              try { await state(client, context); await call(client, `/api/tasks?memberId=${client.memberId}`, undefined, context); }
-              catch (error) { log({ type: 'cold-readiness-error', phase: phase.name, error: error.message }); }
-              finally { (row.operations['cold:readiness'] ??= new Histogram()).add(performance.now() - ctx.scheduledAt); }
+              // Only a group whose state and tasks reads both succeed is ready; failures keep the cold gate from passing.
+              try { await state(client, context); await call(client, `/api/tasks?memberId=${client.memberId}`, undefined, context);
+                (row.operations['cold:readiness'] ??= new Histogram()).add(performance.now() - ctx.scheduledAt); }
+              catch (error) { row.coldReadinessFailures = (row.coldReadinessFailures ?? 0) + 1; log({ type: 'cold-readiness-error', phase: phase.name, error: error.message }); }
             }));
             return result;
           }).catch(error => { restarting = false; throw error; });

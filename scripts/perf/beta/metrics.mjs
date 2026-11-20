@@ -38,7 +38,7 @@ export function gates(phases, isolation, audit, pendingEvents, hardware, c) {
     }
     result[name] = {
       cheapWarm: timing(warm.json(), 1000, 2000), expensive: timing(expensive.json(), 3000, 8000),
-      cold: timing(cold.json(), 15000, 30000), switch: timing(switches.json(), 2000, 5000),
+      cold: row.coldReadinessFailures ? 'fail' : timing(cold.json(), 15000, 30000), switch: timing(switches.json(), 2000, 5000),
       acknowledgement: timing(row.acknowledgement.json(), 1000, 2000), propagation: timing(row.propagation.json(), 1000, 2000),
       nominalAdmission: ['overload', 'cold', 'restart'].includes(name) ? 'not-applicable' : row.requests && (row.refusals - (row.intentionalRefusals ?? 0) + row.timeouts + row.failures + row.drops + row.streamRefused + row.streamFailures + (row.actionFailures ?? 0)) / (row.requests - (row.intentionalRequests ?? 0) + row.streamAttempts) < .001 ? 'pass' : 'fail',
       healthyStreams: row.capacityStreamEvictions || row.streamEnds ? 'fail' : row.streamOpened || row.observedStreams ? 'pass' : 'unmeasured',
