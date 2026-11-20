@@ -57,7 +57,8 @@ test('the 3000th active login persists and the next login leaves records and led
 });
 
 test('3500 non-deleted pickers include deleting and reserved records; overflow is atomic across restart', async t => {
-  const f = await fixture(t), owner = account(1);
+  // This fixture fills the service ceiling with one synthetic login's maps.
+  const f = await fixture(t, { loginStorage: { maxMaps: DEFAULT_REGISTRY_CAPS.pickers } }), owner = account(1);
   const pickers = Array.from({ length: 3499 }, (_, n) => ({ id: pickerId(n + 1), kind: 'default', ownerAccountId: owner.id,
     lifecycle: 'deleting', provisioning: 'reserved', memberIds: ['owner'], createdAt: at }));
   const tombstones = pickers.map(p => ({ pickerId: p.id, lifecycle: 'deleting', deletingAt: at, deletedAt: null }));
