@@ -25,7 +25,12 @@ test('authenticated task UI serves its modules, dependencies and theme styles', 
     assert.ok((await response.text()).length > 20, `${route} supplies an authored module or stylesheet`);
   }
   const html = await (await fetch(origin, { headers })).text();
-  assert.match(html, /href="\/task-ui\.css"/); assert.match(html, /href="\/bis-panel\.css"/);
+  assert.match(html, /href="\/app\.css"/);
+  const bundledCss = await (await fetch(`${origin}/app.css`, { headers })).text();
+  const taskUiCss = await (await fetch(`${origin}/task-ui.css`, { headers })).text();
+  const bisPanelCss = await (await fetch(`${origin}/bis-panel.css`, { headers })).text();
+  assert.ok(bundledCss.includes(taskUiCss), 'Bundled stylesheet includes task-ui.css');
+  assert.ok(bundledCss.includes(bisPanelCss), 'Bundled stylesheet includes bis-panel.css');
   assert.equal((await fetch(`${origin}/task-hover.mjs`)).status, 401);
 });
 

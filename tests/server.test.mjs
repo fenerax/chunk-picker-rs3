@@ -252,6 +252,22 @@ test('browser entry point and its module dependencies are served through exact a
   assert.equal((await fetch(`${origin}/tasks/migration.mjs`)).status, 401);
   assert.equal((await api('/tasks/worker.mjs')).status, 404);
   assert.equal((await api('/tasks/engine.mjs')).status, 404);
+  const shellHtml = await (await api('/')).text();
+  const sheetLinks = [...shellHtml.matchAll(/<link\s+rel="stylesheet"\s+href="([^"]+)"/g)].map(match => match[1]);
+  assert.deepEqual(sheetLinks, ['/app.css'], 'Served shell bundles startup stylesheets into one request');
+  const bundled = await api('/app.css', undefined, { headers: { 'Accept-Encoding': 'gzip' } });
+  assert.equal(bundled.status, 200);
+  assert.match(bundled.headers.get('content-type'), /^text\/css/);
+  assert.equal(bundled.headers.get('content-encoding'), 'gzip');
+  assert.ok(bundled.headers.get('etag'));
+  assert.equal((await api('/app.css', undefined, { headers: { 'If-None-Match': bundled.headers.get('etag') } })).status, 304);
+  const bundledCss = await bundled.text();
+  const firstSheet = await readFile(new URL('../app/web/style.css', import.meta.url), 'utf8');
+  const lastSheet = await readFile(new URL('../app/web/signin.css', import.meta.url), 'utf8');
+  assert.ok(bundledCss.startsWith(firstSheet), 'Bundle begins with style.css');
+  assert.ok(bundledCss.endsWith(lastSheet), 'Bundle preserves cascade order through signin.css');
+  assert.equal((await api('/style.css')).status, 200, 'Individual stylesheet routes remain served');
+  assert.equal((await fetch(`${origin}/app.css`)).status, 401, 'Bundled stylesheet requires authentication');
 });
 
 test('retained snapshot routes require authentication and download validated JSON for reviewed restore', async t => {

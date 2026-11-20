@@ -18,6 +18,7 @@ import { reportActivationTiming } from './live-swap-timing.mjs';
 import { prepareGameStorage, datasetFeature, unavailableDatasetFeature, preserveGameIdentity } from './game-profile.mjs';
 import { datasetCatalogueKey, datasetLocalMetadataBytes } from './dataset-catalogues.mjs';
 import { serveGallery } from './gallery-route.mjs';
+import { extractBundledStylesheets, rewriteHtmlStylesheets } from './stylesheet-bundle.mjs';
 import { readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -2023,6 +2024,27 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
           catalogue.complete && catalogue.manifest.available ? PRIVATE_REVALIDATE : PRIVATE_NO_STORE });
         await sendRepresentation(request, response, catalogue.response, { conditional: catalogue.complete && catalogue.manifest.available }); return;
       }
+      if (route === '/app.css') {
+        const indexFile = await containedFile(webRoot, 'index.html');
+        const indexMeta = await stat(indexFile);
+        const hrefs = extractBundledStylesheets(await readFile(indexFile, 'utf8'));
+        const resolved = await Promise.all(hrefs.map(async href => {
+          const sheetFile = await containedFile(webRoot, href.slice(1));
+          return { href, file: sheetFile, meta: await stat(sheetFile) };
+        }));
+        const key = `app-css:${guest}:${indexFile}:${indexMeta.size}:${indexMeta.mtimeMs}:${resolved.map(item => `${item.href}:${item.meta.size}:${item.meta.mtimeMs}:${item.meta.ctimeMs}`).join('|')}`;
+        let cached = runtime.staticCache.get(key);
+        if (!cached) {
+          let css = (await Promise.all(resolved.map(item => readFile(item.file, 'utf8')))).join('\n');
+          if (guest) css = css.replace(/url\((['"]?)\/(?!\/)/g, 'url($1/guest/');
+          cached = runtime.staticCache.set(key, createRepresentation(Buffer.from(css), {
+            type: MIME['.css'],
+            cacheControl: guest ? PRIVATE_NO_STORE : PRIVATE_REVALIDATE,
+            compress: true,
+          }));
+        }
+        await sendRepresentation(request, response, cached); return;
+      }
       if (['/asset-url.mjs', '/guest-transport.mjs'].includes(route)) file = await containedFile(webRoot, route.slice(1));
       else if (route === '/') file = await containedFile(webRoot, 'index.html');
       else if (['/overlay-panel.mjs', '/overlay-panel.css', '/game-plugin.mjs', '/game-plugin.css', '/signin.css', '/account-panel.mjs', '/accounts-panel.mjs'].includes(route)) file = await containedFile(webRoot, route.slice(1));
@@ -2165,6 +2187,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
         let bytes = await readFile(file);
         if (expected && (bytes.length !== expected.bytes || createHash('sha256').update(bytes).digest('hex') !== expected.sha256)) throw httpError(404, `${iconFile ? 'Icon' : terrainFile ? 'Terrain asset' : 'Interior tile'} does not match its manifest.`);
         const extension = path.extname(file).toLowerCase();
+        if (route === '/' && extension === '.html') bytes = Buffer.from(rewriteHtmlStylesheets(bytes.toString('utf8'), '/app.css'));
         // Preserve the member module graph inside the guest namespace, including
         // web modules whose ../ imports normally resolve at the site root.
         if (guest && extension === '.mjs') bytes = Buffer.from(bytes.toString('utf8').replace(
