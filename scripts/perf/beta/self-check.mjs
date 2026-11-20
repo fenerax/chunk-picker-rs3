@@ -1,12 +1,16 @@
 // Explicit tiny logic checks, deliberately outside the default CI inventory.
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { mkdtemp, mkdir, writeFile, unlink, rmdir } from 'node:fs/promises';
+import path from 'node:path';
+import { tmpdir } from 'node:os';
 import { parse, plan, stages, actionAt } from './config.mjs';
 import { Histogram, phaseMetrics, gates } from './metrics.mjs';
 import { arrivals, dispatch } from '../capacity/scheduler.mjs';
 import { schedule, dispatchSchedule } from './schedule.mjs';
 import { journalFor, reportPacket, observeAck } from './plugin.mjs';
-import { noteEvent, phaseClients, population, switchTarget } from './driver.mjs';
+import { noteEvent, phaseClients, population, switchTarget, pruneAcknowledgementObservers } from './driver.mjs';
+import { audit } from './fixture.mjs';
 import { scopedCgroup } from './resources.mjs';
 import { validatePluginReport } from '../../../app/integrations/game-plugin.mjs';
 
@@ -99,6 +103,66 @@ test('failed cold readiness reads fail the cold gate even when quick', () => {
   assert.equal(gates({ cold: row }, [], { passed: true }, 0, hardware, parse([])).phases.cold.cold, 'pass');
   row.coldReadinessFailures = 50;
   assert.equal(gates({ cold: row }, [], { passed: true }, 0, hardware, parse([])).phases.cold.cold, 'fail');
+});
+test('shrinking headroom or extra-tab cohorts cannot turn undelivered acknowledgements into a pass', () => {
+  for (const [phase, removed] of [['headroom', 'expanded:0'], ['extra-tabs', 'observer:1']]) {
+    const metrics = { [phase]: phaseMetrics(), steady: phaseMetrics() }, acknowledgements = new Map([
+      ['synthetic-picker:1', { at: 10, phase, receivers: [removed] }],
+      ['synthetic-picker:2', { at: 10, phase, receivers: [removed, 'observer:0'] }],
+    ]);
+    pruneAcknowledgementObservers(acknowledgements, new Set(['observer:0']), metrics);
+    assert.equal(acknowledgements.has('synthetic-picker:1'), false);
+    assert.deepEqual(acknowledgements.get('synthetic-picker:2').receivers, ['observer:0']);
+    assert.equal(metrics[phase].unobservedAcknowledgements, 1);
+    assert.equal(metrics[phase].propagation.count, 0);
+    noteEvent({ client: { pickerId: 'synthetic-picker', characterId: 'observer' }, id: 'revision',
+      value: { revision: 2, _trialOrigin: 'synthetic-picker' }, receivedAt: 20, phase: 'steady',
+      isolation: [], seenEvents: new Map(), acknowledgements, metrics, maxSeenEvents: 8 });
+    assert.equal(acknowledgements.size, 0); assert.equal(metrics[phase].propagation.count, 1);
+    assert.equal(gates(metrics, [], { passed: true, acknowledgedWrites: 2 }, 0, {}, parse([])).isolationAndDurability, 'fail');
+  }
+});
+test('overload verdict requires delivered scheduled traffic and rejects generator drops', () => {
+  const verdict = row => gates({ overload: row }, [], { passed: true }, 0, {}, parse([])).phases.overload.overloadRefusals;
+  const row = Object.assign(phaseMetrics(), { offered: 100, drops: 100 });
+  assert.equal(verdict(row), 'fail');
+  Object.assign(row, { dispatched: 99, completed: 99, drops: 1, requests: 125 });
+  assert.equal(verdict(row), 'fail');
+  row.drops = 0;
+  assert.equal(verdict(row), 'unmeasured');
+  Object.assign(row, { dispatched: 100, completed: 99 });
+  assert.equal(verdict(row), 'unmeasured');
+  row.completed = 100; row.refusals = 25;
+  assert.equal(verdict(row), 'pass'); // Bounded HTTP refusals with Retry-After are allowed.
+  row.missingRetryAfter = 1; assert.equal(verdict(row), 'fail');
+  row.missingRetryAfter = 0; row.requests = 0; assert.equal(verdict(row), 'unmeasured');
+  assert.equal(verdict(phaseMetrics()), 'unmeasured');
+});
+test('audit fails missing or inactive fixture groups while exempting separately deleted lifecycle groups', async () => {
+  const root = await mkdtemp(path.join(tmpdir(), 'beta-audit-self-check-'));
+  const registry = path.join(root, 'registry', 'registry.json'), ledger = path.join(root, 'ledger', 'ledger.json');
+  await mkdir(path.dirname(registry)); await mkdir(path.dirname(ledger));
+  const deletedCharacter = 'synthetic-deleted-character', deletedPicker = 'synthetic-deleted-picker';
+  const fixture = { groups: [{ pickerId: 'synthetic-normal' }], retiredPickerIds: [] };
+  const writes = [{ pickerId: 'synthetic-normal', count: 1, revision: 7, tokens: [1], memberId: 'member', chunkId: 'chunk' }];
+  const journals = [{ pickerId: 'synthetic-normal', memberId: 'member', id: 'journal', acknowledged: 2 }];
+  try {
+    await writeFile(ledger, JSON.stringify({ pickers: [{ pickerId: deletedPicker, lifecycle: 'deleted' }],
+      deletions: [{ completedAt: '2026-01-01T00:00:00Z', targets: [{ characterId: deletedCharacter }] }] }));
+    for (const lifecycle of [undefined, 'retired', 'deleted']) {
+      await writeFile(registry, JSON.stringify({ pickers: [{ id: deletedPicker, lifecycle: 'deleted' },
+        ...(lifecycle ? [{ id: 'synthetic-normal', lifecycle }] : [])], characters: [] }));
+      const result = await audit(root, fixture, writes, [deletedCharacter], journals, [deletedPicker], { 'synthetic-normal': [7] });
+      assert.equal(result.passed, false);
+      assert.deepEqual(result.findings, [{ kind: lifecycle ? 'inactive-fixture-group' : 'missing-fixture-group', pickerId: 'synthetic-normal' }]);
+      assert.equal(result.acknowledgedWrites, 1); assert.equal(result.pluginAcknowledgedEvents, 2);
+      const controls = await audit(root, { ...fixture, groups: [] }, [], [deletedCharacter], [], [deletedPicker]);
+      assert.equal(controls.passed, true); assert.deepEqual(controls.findings, []);
+    }
+  } finally {
+    await unlink(registry); await unlink(ledger);
+    await rmdir(path.dirname(registry)); await rmdir(path.dirname(ledger)); await rmdir(root);
+  }
 });
 test('unverified SSE cannot satisfy or precede an acknowledgement and fails isolation', () => {
   const client = { pickerId: 'synthetic-picker', characterId: 'observer' }, isolation = [], seenEvents = new Map();

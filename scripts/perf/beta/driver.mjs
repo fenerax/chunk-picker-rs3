@@ -36,6 +36,15 @@ export function population(clients) {
   for (const client of [...groupFirst, ...clients]) if (!logins.has(client.login)) logins.set(client.login, client);
   return [...logins.values()];
 }
+export function pruneAcknowledgementObservers(acknowledgements, wanted, metrics) {
+  for (const [key, ack] of acknowledgements) {
+    ack.receivers = ack.receivers.filter(id => wanted.has(id));
+    if (!ack.receivers.length) {
+      acknowledgements.delete(key);
+      metrics[ack.phase].unobservedAcknowledgements = (metrics[ack.phase].unobservedAcknowledgements ?? 0) + 1;
+    }
+  }
+}
 const cookies = (response, previous) => {
   const values = new Map(previous.split('; ').filter(Boolean).map(v => v.split('=')));
   for (const value of response.headers.getSetCookie()) { const [k, v] = value.split(';')[0].split('='); values.set(k, v); }
@@ -166,10 +175,7 @@ export async function drive({ c, identity, base, control, log }) {
     for (const client of eligible) if (logins.has(client.login) && !covered.has(client.group)) { selected.push(client); covered.add(client.group); }
     const wanted = new Set(selected.flatMap(client => Array.from({ length: tabs }, (_, tab) => `${client.characterId}:${tab}`)));
     for (const [id, stream] of streams) if (!wanted.has(id)) { stream.controller.abort(); streams.delete(id); }
-    for (const [key, ack] of acknowledgements) {
-      ack.receivers = ack.receivers.filter(id => wanted.has(id));
-      if (!ack.receivers.length) { acknowledgements.delete(key); metrics[ack.phase].unobservedAcknowledgements = (metrics[ack.phase].unobservedAcknowledgements ?? 0) + 1; }
-    }
+    pruneAcknowledgementObservers(acknowledgements, wanted, metrics);
     for (const client of selected) for (let tab = 0; tab < tabs; tab++) openStream({ ...client, tab });
     return selected;
   };
@@ -366,7 +372,7 @@ export async function drive({ c, identity, base, control, log }) {
         if (phase.name === 'lifecycle') { lifecyclePromise = controlWork = controlWork.then(() => lifecycleTrial(ctx)).catch(error => ({ passed: false, error: error.message })); }
         log({ type: 'phase', name: phase.name, users: active.length, offeredActionsPerSecond: phase.actions, pluginRequestsPerSecond: phase.plugins }); return;
       }
-      row.offered++;
+      row.offered++; row.dispatched++;
       const client = { ...(event.kind === 'session' ? cohorts[event.stage][event.clientIndex] : active[Math.floor(rng() * active.length)]) }, ordinal = seq++, arrival = performance.now();
       if (event.kind === 'product') ctx.action = actionAt(productOrdinal++, c.seed);
       try {

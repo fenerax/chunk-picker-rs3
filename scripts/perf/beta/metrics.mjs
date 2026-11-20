@@ -11,7 +11,7 @@ export class Histogram {
   }
 }
 export function phaseMetrics() {
-  return { offered: 0, completed: 0, drops: 0, requests: 0, refusals: 0, timeouts: 0, failures: 0, conflicts: 0,
+  return { offered: 0, dispatched: 0, completed: 0, drops: 0, requests: 0, refusals: 0, timeouts: 0, failures: 0, conflicts: 0,
     missingRetryAfter: 0, streamAttempts: 0, streamOpened: 0, streamRefused: 0, streamFailures: 0, streamEnds: 0, capacityStreamEvictions: 0,
     actions: {}, operations: {}, http: new Histogram(), arrival: new Histogram(), queue: new Histogram(),
     acknowledgement: new Histogram(), propagation: new Histogram(), samples: 0, loopMaxP99Ms: 0, rssPeak: 0, swapPeak: 0, cpuSeconds: 0, sampledSeconds: 0,
@@ -45,10 +45,14 @@ export function gates(phases, isolation, audit, pendingEvents, hardware, c) {
       resourceHeadroom: !row.samples || !row.sampledSeconds || !row.treeSupported || row.sampleErrors ? 'unmeasured' :
         row.cpuSeconds / Math.max(.001, row.sampledSeconds) / cpuLimit <= .65 && row.loopMaxP99Ms <= 50 &&
         row.rssPeak < .8 * Math.max(0, (row.memoryCapacity ?? hardware.physicalRAMBytes) - c['os-reserve-mib'] * 1024 * 1024) && row.swapPeak === 0 ? 'pass' : 'fail',
-      overloadRefusals: name === 'overload' ? row.missingRetryAfter === 0 && !row.timeouts && !row.failures ? 'pass' : 'fail' : 'not-applicable',
+      overloadRefusals: name !== 'overload' ? 'not-applicable' :
+        row.drops || row.missingRetryAfter || row.timeouts || row.failures || row.actionFailures ? 'fail' :
+        row.offered > 0 && row.dispatched === row.offered && row.completed === row.dispatched && row.requests > 0 ? 'pass' : 'unmeasured',
     };
   }
-  return { phases: result, isolationAndDurability: isolation.length || !audit.passed || pendingEvents ? 'fail' : audit.acknowledgedWrites || audit.pluginAcknowledgedEvents ? 'pass' : 'unmeasured',
+  // Losing the final observer is missing propagation evidence, never delivery.
+  const unobserved = Object.values(phases).some(row => row.unobservedAcknowledgements > 0);
+  return { phases: result, isolationAndDurability: isolation.length || !audit.passed || pendingEvents || unobserved ? 'fail' : audit.acknowledgedWrites || audit.pluginAcknowledgedEvents ? 'pass' : 'unmeasured',
     acceptance: 'unproven',
     unmeasured: ['usable-screen/render time', 'wrong-dataset restore', 'off-site RPO and clean-host/group restore',
       'five-minute overload recovery unless a full recovery interval is run', 'fairness/disk-growth/OOM analysis',

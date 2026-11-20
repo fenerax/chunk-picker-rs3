@@ -181,6 +181,9 @@ Propagation measures acknowledgement through the first other authorized
 character's connected stream. Events received before the HTTP response count
 as zero; missing expected events fail the isolation/durability gate. Solo
 documents without another character stream do not provide propagation samples.
+If a cohort shrinks before a pending acknowledgement reaches any remaining
+observer, `unobservedAcknowledgements` also fails isolation/durability; removing
+an observer never counts as event delivery.
 No HTTP value is presented as usable-screen/render latency.
 
 The in-process `testEventTransform` option adds the actual emitting context's
@@ -193,15 +196,22 @@ hook sits at the context emitter. Events without an emitter tag are counted as
 untagged and fail the isolation gate. Untagged and foreign emissions cannot
 provide propagation evidence or satisfy a pending acknowledgement.
 State markers and rosters check response isolation. Final audit closes the app
-and reopens durable stores to check every acknowledged revision and note token;
-deleted characters must retain completed tombstones. The lifecycle phase checks stale
+and reopens durable stores to check every acknowledged revision and note token.
+Missing or inactive fixture groups fail the audit. The lifecycle trial's separately
+created and deleted group is outside that expected population and is checked
+through its tombstones instead. Deleted characters must retain completed
+tombstones. The lifecycle phase checks stale
 access immediately; restart tests retained authority. It does not claim a full
 wrong-dataset restore or off-site recovery drill.
 
 Per-phase histograms are bounded and report conservative upper percentiles
 (approximately 1% buckets), counts and maxima. Requests, failures, 409 races,
 429/503 refusals, missing Retry-After, timeouts, stream admission refusals and
-generator drops have separate counters. Every unplanned established-stream
+generator drops have separate counters.
+The overload refusal gate fails on any generator drop. Without nonzero offered
+traffic, dispatch and completion of every offered arrival, and HTTP requests,
+it is unmeasured rather than passing from an empty or incomplete load.
+Every unplanned established-stream
 termination outside restart is conservatively counted as a possible capacity
 eviction. The JSONL records request amplification, queue delays, admission
 transitions, samples and generator CPU/RSS without cookies or keys.

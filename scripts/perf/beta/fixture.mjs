@@ -202,7 +202,11 @@ export async function audit(root, fixture, writes, tombstones, journals = [], pi
   const document = JSON.parse(await readFile(path.join(root, 'registry', 'registry.json'), 'utf8'));
   const findings = [], revisions = {}; let historyAcknowledgements = 0;
   for (const group of fixture.groups) {
-    if (document.pickers.find(p => p.id === group.pickerId)?.lifecycle !== 'active') continue;
+    const picker = document.pickers.find(p => p.id === group.pickerId);
+    if (picker?.lifecycle !== 'active') {
+      findings.push({ kind: picker ? 'inactive-fixture-group' : 'missing-fixture-group', pickerId: group.pickerId });
+      continue;
+    }
     const store = await openStore({ dataDir: path.join(root, 'pickers', group.pickerId) });
     try {
       const state = store.getState(); revisions[group.pickerId] = state.revision;
