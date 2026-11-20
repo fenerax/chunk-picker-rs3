@@ -86,14 +86,14 @@ export function createScreenMap(c) {
     void c.activityLayers.refresh();
     c.mapAvailability.refresh();
     const chunkWord = value => value === 1 ? 'chunk' : 'chunks';
-    const count = (value, label) => { const node = c.el('span', undefined, 'map-count'); node.append(c.el('strong', value.toLocaleString()), ` ${label}`); return node; };
+    const count = (value, label, kind) => { const node = c.el('span', undefined, 'map-count'); if (kind && node.dataset) node.dataset.count = kind; node.append(c.el('strong', value.toLocaleString()), ` ${label}`); return node; };
     const uniqueUnlocked = new Set(projected.members.flatMap(item => item.unlocked)).size;
     const rollCandidates = c.preferences().randomStartAlways ? c.rollCandidateCount() : 0;
     c.$('map-counts').replaceChildren(
-      count(owner.unlocked.length, `${chunkWord(owner.unlocked.length)} unlocked by ${owner.name}`),
-      ...(projected.members.length > 1 ? [count(uniqueUnlocked, `unique ${chunkWord(uniqueUnlocked)} unlocked by group`)] : []),
-      count(c.pool.eligible.length, `${chunkWord(c.pool.eligible.length)} in ${owner.name}’s ordinary roll pool`),
-      ...(c.preferences().randomStartAlways ? [count(rollCandidates, `roll-anywhere candidate ${chunkWord(rollCandidates)} for ${owner.name}`)] : []));
+      count(owner.unlocked.length, `${chunkWord(owner.unlocked.length)} unlocked by ${owner.name}`, 'unlocked'),
+      ...(projected.members.length > 1 ? [count(uniqueUnlocked, `unique ${chunkWord(uniqueUnlocked)} unlocked by group`, 'group-unlocked')] : []),
+      count(c.pool.eligible.length, `${chunkWord(c.pool.eligible.length)} in ${owner.name}’s ordinary roll pool`, 'pool'),
+      ...(c.preferences().randomStartAlways ? [count(rollCandidates, `roll-anywhere candidate ${chunkWord(rollCandidates)} for ${owner.name}`, 'roll-anywhere')] : []));
     c.copyLists?.map(owner, c.pool);
     c.$('empty-map').hidden = owner.unlocked.length > 0 || owner.pendingRoll.length > 0;
     c.renderLegend();
