@@ -150,7 +150,11 @@ export function buildCurrentBiS(result, planning, state, memberId, definitions =
     diagnostics: [...recordedPlanning.diagnostics, ...excludedRecordedItems.map(item => ({ kind: 'recorded-equipment-currently-ineligible', item: item.name, detail: item.reason }))],
     coverage: { ...recordedPlanning.coverage, eligibleRecordedItems: recordedEquipment.length, excludedRecordedItems,
       scope: 'Best among personally recorded obtainable gear; current possession, equipped slots and current levels are unconfirmed.',
-      limitations: [...recordedPlanning.coverage.limitations, 'Comparisons use items you recorded obtaining and can currently obtain and equip. Ammunition needs its own obtain record. Challenge ticks and your partner’s records do not add gear to your account.'] } };
+      limitations: [...recordedPlanning.coverage.limitations, state.members.length === 1
+        ? 'Uses only items you marked as obtained and can currently get and equip. Ammo must be marked separately. Ticking a task does not add its gear to your account.'
+        : state.members.length === 2
+          ? "Uses only items you marked as obtained and can currently get and equip. Ammo must be marked separately. Ticking tasks and your partner's gear don't count for you."
+          : "Uses only items you marked as obtained and can currently get and equip. Ammo must be marked separately. Ticking tasks and other group members' gear don't count for you."] } };
   return { memberId, accessPolicy: state.rules?.['access.shared'] === false ? 'personal' : 'shared', completionScope: state.rules?.['tasks.completion'] ?? 'any',
     obtainable: { loadouts: planning.loadouts, recommendations, specialist: contextualizeSpecialists(planning.specialist) },
     owned: { known: false, items: [], recordedObtained, recordedBest, explanation: 'No current equipment or inventory has been recorded. Obtainable BiS is a recommendation, not the gear this character wears.' },

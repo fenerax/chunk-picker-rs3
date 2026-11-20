@@ -175,5 +175,6 @@ export function computeRollStats(state, { history = state.history, now = Date.no
   for (const [id, entries] of owners) if (entries.every(Boolean)) {
     duoDates.set(id, entries.reduce((first, entry) => Date.parse(entry.at) < Date.parse(first.at) ? entry : first));
   }
-  return { revision: state.revision, asOf: new Date(time).toISOString(), members, duo: summarize('duo', 'Duo', union, duoDates, time) };
+  const aggregateName = state.members.length === 1 ? 'Solo' : state.members.length === 2 ? 'Duo' : 'Group';
+  return { revision: state.revision, asOf: new Date(time).toISOString(), members, duo: summarize('duo', aggregateName, union, duoDates, time) };
 }

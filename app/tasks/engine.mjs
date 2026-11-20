@@ -1590,19 +1590,23 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
       }
       const filters = [];
       const own = obligation(task);
+      const rosterSize = state.members.length;
       if (!own) filters.push(sourcePolicyRejections.some(reason => reason.local)
         ? 'Local supplies do not meet this task’s source conditions.'
-        : 'This task is outside the member’s own reachable map; partner access is a convenience.');
+        : rosterSize <= 1 ? 'Outside your unlocked chunks.'
+          : rosterSize === 2 ? "Outside your own chunks — only reachable through your partner's map, so it isn't required."
+            : "Outside your own chunks — only reachable through another group member's map, so it isn't required.");
       if (caps[task.category] && hideSkills) filters.push('Skills are hidden by the task rule.');
       if (task.category === 'Quest' && hideQuests) filters.push('Quests are hidden by the task rule.');
       if (task.category === 'Quest' && wholeQuests && record.QuestPoints === undefined && !record.ManualShow) filters.push('Quest tasks are configured to show whole completion tasks.');
       if (task.category === 'Diary' && hideDiaries) filters.push('Achievement tasks are hidden by the task rule.');
       const partnerTraining = [], partnerSupplies = [], partnerItemNeeds = [];
+      const sharedOwner = rosterSize === 2 ? "your partner's" : "another group member's";
       for (const [skill, level] of task.presentationNeeds) if (level > passive[skill] && trained.has(skill) && !ownTraining.has(skill)) {
         partnerTraining.push(`${skill} training available via ${[...(trainingVia.get(skill) ?? [])].join(' and ')}'s connected chunks.`);
       }
       for (const requirement of task.itemRequirements) if (!ownRequirement(requirement, task, new Set(), false) && requirementAvailable(requirement, task)) {
-        partnerSupplies.push(`${requirement.displayLabel} supplies available via connected partner chunks.`);
+        partnerSupplies.push(`${requirement.displayLabel} comes from ${sharedOwner} connected chunks.`);
         // Share the proof already used above. An alias counts distinct choices,
         // never units; consumers need not recalculate task source policies.
         const names = requirement.alternatives ?? [requirement.clean];
@@ -1647,7 +1651,7 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
     if (proofSubject && projectionFast) { obligationCache.release(); ownRootProofs.clear(); }
     if (proofSubject) return { howProof: proof.finish(howRequest.taskId, { tasks: rows }, howRequest.context) };
     const equipment = [];
-    const houseStorage = evaluateHouseStorage({ rules, f2p, rows, items, sourceList, access, ownAccess, levels, caps, member, completed, challengeSatisfied });
+    const houseStorage = evaluateHouseStorage({ rules, f2p, rows, items, sourceList, access, ownAccess, levels, caps, member, completed, challengeSatisfied, rosterSize: state.members.length });
     rows.push(...houseStorage.tasks);
     for (const [name, record] of Object.entries(definitions.equipment ?? {})) if (items.has(name) && !itemMembershipBlocker(name, f2p, definitions) && (!f2p || record.members !== true) && sourceList(name).some(source => source.processingMode !== 'multi' && (on(rules, 'Wield Crafted Items', false) || !(sourceType(source) === 'task' && PROCESSING.has(source.category)))) && Object.entries(record.requirements ?? {}).every(([skill, level]) => (levels[skill] ?? 1) >= level && (!f2p || level <= f2pCap(skill)))) equipment.push({ name, obligation: sourceList(name).some(source => source.processingMode !== 'multi' && ownSource(source) && (on(rules, 'Wield Crafted Items', false) || !(sourceType(source) === 'task' && PROCESSING.has(source.category)))), slot: record.slot, class: record.class, tier: Number(record.tier ?? 0), armour: Number(record.armour ?? 0), prayer: Number(record.prayer ?? 0), damage: Number(record.ability_damage ?? 0), accuracy: Number(record.accuracy ?? 0), sources: sourceList(name) });
     equipment.sort((a, b) => b.tier - a.tier || b.armour - a.armour || b.damage - a.damage || a.name.localeCompare(b.name));

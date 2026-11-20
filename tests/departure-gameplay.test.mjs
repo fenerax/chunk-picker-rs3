@@ -66,8 +66,9 @@ for (const size of [2, 3, 4, 5]) test(`departure removes current access, supplie
   const before = engine.evaluate(history, ids[0]), after = engine.evaluate(next, ids[0]);
   const beforeTask = before.tasks.find(t => t.id === taskId('Extra', 'Personal')), afterTask = after.tasks.find(t => t.id === taskId('Extra', 'Personal'));
   assert.equal(beforeTask.obligation, true); assert.equal(afterTask.obligation, true);
-  assert.ok(beforeTask.explanation.includes('Token supplies available via connected partner chunks.'));
-  assert.equal(afterTask.explanation.includes('Token supplies available via connected partner chunks.'), false);
+  const expectedOwner = size === 2 ? "your partner's" : "another group member's";
+  assert.ok(beforeTask.explanation.includes(`Token comes from ${expectedOwner} connected chunks.`));
+  assert.equal(afterTask.explanation.includes('connected chunks.'), false);
   assert.equal(next.members.some(m => m.unlocked.includes(chunks.at(-1))), false);
   assert.deepEqual(next.groupGoals[0].completedBy, []); assert.deepEqual(next.history[0], history.history[0]);
   assert.doesNotThrow(() => validateState(next, registry)); assert.equal(getUndoEligibility(next, 1, { registry }).canUndo, false);

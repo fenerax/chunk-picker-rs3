@@ -205,7 +205,7 @@ test('current own and genuine partner producers retain their access evidence', (
   const { state: shared, engine } = duoFixture();
   const partner = engine.how(shared, 'player1', taskId('Extra', 'Own'));
   assert.equal(partner.availability, 'available'); assert.equal(partner.proofStatus, 'partial');
-  assert.ok(partner.gaps.some(gap => gap.detail === 'This supply uses partner access.'));
+  assert.ok(partner.gaps.some(gap => gap.detail === "This item comes from your partner's map."));
   assert.ok(!partner.gaps.some(gap => gap.kind === 'historical-source-access')); graph(partner);
 });
 test('personal obtain records remain complete supply roots without current producer access', () => {

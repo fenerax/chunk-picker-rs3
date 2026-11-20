@@ -74,7 +74,7 @@ test('How HTTP transports conjunctive witnesses and a neutral historical gap wit
     else {
       assert.equal(proof.proofStatus, 'partial');
       assert.deepEqual(proof.gaps.map(gap => gap.kind), ['historical-source-access']);
-      assert.doesNotMatch(JSON.stringify(proof), /This supply uses partner access/);
+      assert.doesNotMatch(JSON.stringify(proof), /comes from (?:your partner's|another group member's) map/);
       assert.ok(Object.values(proof.nodes).some(node => node.rule === 'recorded-completion'));
     }
   }

@@ -6,6 +6,7 @@ const pointer = value => String(value).replaceAll('~', '~0').replaceAll('/', '~1
 export function createHowCapture({ state, memberId, definitions, byKey, completedTask, limits = {}, deadline: requestDeadline }) {
   const facts = new Map(), nodes = new Map(), boundEntrances = new Map(), sourceReasons = new Map(), choices = new Map();
   const byId = new Map([...byKey.values()].map(task => [task.id, task]));
+  const sharedMap = state.members.length === 2 ? "your partner's map" : "another group member's map";
   const areaApproaches = new Map(), areaLocations = new Map();
   const definitionRef = task => ({ catalogue: 'effective', pointer: `/challenges/${pointer(task.category)}/${pointer(task.rawLabel)}` });
   const maxCapture = Math.min(100000, limits.captureNodes ?? 50000);
@@ -44,7 +45,7 @@ export function createHowCapture({ state, memberId, definitions, byKey, complete
     if (unsupported) deps.push(gap(unsupported, {
       'resource-only-access': "The picker can use resources here, but hasn't proved a walking route into this place.",
       'transport-legs': "This route uses transport; the picker hasn't shown which journey to take yet.",
-      'partner-duo': "This step uses your partner's map; the picker hasn't shown how to reach it yet.",
+      'partner-duo': `Uses ${sharedMap} (route not shown yet).`,
       'unbound-entrance': "The picker hasn't linked this area permission to a reachable entrance.",
     }[unsupported]));
     if (reason.manual) deps.push(gap('manual-assumption', 'This access comes from a manual grant.'));
@@ -81,7 +82,7 @@ export function createHowCapture({ state, memberId, definitions, byKey, complete
         };
         const shared = state.rules?.['access.shared'] !== false && state.members.some(owner => owner.id !== memberId && owner.unlocked?.length);
         const admittedPartnerSource = source.location && ['drop', 'shop', 'object', 'spawn'].includes(source.kind);
-        if (shared && (admittedPartnerSource || producer && partnerEvidence(facts.get(`task:${producer.key}`)))) deps.push(gap('partner-duo', 'This supply uses partner access.'));
+        if (shared && (admittedPartnerSource || producer && partnerEvidence(facts.get(`task:${producer.key}`)))) deps.push(gap('partner-duo', `This item comes from ${sharedMap}.`));
         else deps.push(gap('source-access', 'Current access to this supply is not established.'));
       }
     }
@@ -110,7 +111,7 @@ export function createHowCapture({ state, memberId, definitions, byKey, complete
     for (const requirement of task.requirements) {
       const chosen = select(requirement, name => env.available(requirement.field, name, task));
       const witness = name => {
-        if (requirement.field === 'Chunks') return env.ownLocation(name) ? get(`place:${name}`) : gap('partner-duo', 'This location uses partner access.');
+        if (requirement.field === 'Chunks') return env.ownLocation(name) ? get(`place:${name}`) : gap('partner-duo', `This location is on ${sharedMap}.`);
         if (requirement.field === 'Items') {
           const sources = env.sources(name).filter(source => env.matches([source], task.record, task.category, name))
             .sort((a, b) => Number(b.kind === 'recorded') - Number(a.kind === 'recorded') || Number(b.own) - Number(a.own) || JSON.stringify(a).localeCompare(JSON.stringify(b)));
@@ -126,7 +127,7 @@ export function createHowCapture({ state, memberId, definitions, byKey, complete
           .sort((a, b) => a.place.localeCompare(b.place));
         const found = candidates.filter(({ kind, place }) => facts.has(`entity:${kind}:${name}:${place}`));
         const monsterGate = kinds.includes('Monster') ? env.monsterGate(name) : null;
-        const placement = found.length ? put(`placement-choice:${task.id}:${name}`, { kind: 'requirement', field: 'Placements', label: `Reach ${clean(name)}.`, rule: 'selected-placement', allOf: [get(`entity:${found[0].kind}:${name}:${found[0].place}`)] }) : candidates.length && candidates.every(candidate => !env.ownLocation(candidate.place)) ? gap('partner-duo', 'This placement uses partner access.') : gap('unsupported-kind', `The picker can't show the ${requirement.field} step for ${clean(name)} yet.`);
+        const placement = found.length ? put(`placement-choice:${task.id}:${name}`, { kind: 'requirement', field: 'Placements', label: `Reach ${clean(name)}.`, rule: 'selected-placement', allOf: [get(`entity:${found[0].kind}:${name}:${found[0].place}`)] }) : candidates.length && candidates.every(candidate => !env.ownLocation(candidate.place)) ? gap('partner-duo', `Found on ${sharedMap}.`) : gap('unsupported-kind', `The picker can't show the ${requirement.field} step for ${clean(name)} yet.`);
         if (found.length && placement) choices.set(placement, { count: 1, candidates: () => found.map(value => ({ subject: `${value.kind}:${name}:${value.place}`, id: facts.get(`entity:${value.kind}:${name}:${value.place}`) })) });
         return monsterGate ? put(`gated-placement:${task.id}:${name}`, { kind: 'placement', label: `Reach ${clean(name)}.`, allOf: [placement, gap(monsterGate, `The picker can't show this ${monsterGate.replaceAll('-', ' ')} step yet.`)] }) : placement;
       };
@@ -210,7 +211,7 @@ export function createHowCapture({ state, memberId, definitions, byKey, complete
   function seed(skill, own, method, env) {
     if (facts.has(`training:${skill}`)) return;
     const deps = [];
-    if (!own) deps.push(gap('partner-duo', `Training ${skill} uses partner access.`));
+    if (!own) deps.push(gap('partner-duo', `Trains ${skill} using ${sharedMap}.`));
     if (method) {
       deps.push(taskRef(method.key));
       if (method.level > env.passive[skill]) deps.push(gap('boosts', 'Starting this training method needs a boost.'));
