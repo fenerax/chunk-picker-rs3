@@ -6,7 +6,8 @@ import { Histogram, phaseMetrics, gates } from './metrics.mjs';
 import { arrivals, dispatch } from '../capacity/scheduler.mjs';
 import { schedule, dispatchSchedule } from './schedule.mjs';
 import { journalFor, reportPacket, observeAck } from './plugin.mjs';
-import { noteEvent } from './driver.mjs';
+import { noteEvent, phaseClients, population, switchTarget } from './driver.mjs';
+import { scopedCgroup } from './resources.mjs';
 import { validatePluginReport } from '../../../app/integrations/game-plugin.mjs';
 
 test('seed, roster, multichar allocation, exact action mix and runtime sweeps', () => {
@@ -43,6 +44,48 @@ test('soak schedule is lazy, preserves per-login checks and keeps dispatch indep
     onDrop: event => { drops++; assert.equal(event.scheduledAt, drops); if (drops === 2) release(); },
   });
   assert.equal(drops, 2);
+});
+test('every default headroom login has an eligible switch target, including expanded groups', () => {
+  const c = parse(['--groups', '50', '--phases', 'headroom']), p = plan(c);
+  const fixture = { groups: p.groups, clients: p.groups.flatMap(group => group.members.map((member, i) => ({
+    ...member, group: group.index, characterId: `synthetic-character-${group.index}-${i}`,
+  }))) };
+  // Special control groups must never become product switch targets.
+  for (const flag of ['nearLimit', 'lifecycle']) {
+    const group = fixture.groups.length;
+    fixture.groups.push({ index: group, [flag]: true });
+    fixture.clients.push({ login: 0, group, characterId: `synthetic-${flag}` });
+  }
+  const nominal = phaseClients(fixture, c.groups, 'steady');
+  const expanded = phaseClients(fixture, c.groups, 'headroom'), cohort = population(expanded).slice(0, 200);
+  assert.equal(cohort.length, 200);
+  assert.equal(cohort.filter(client => !nominal.some(m => m.login === client.login)).length, 35);
+  for (const client of cohort) {
+    const choices = expanded.filter(m => m.login === client.login);
+    for (let ordinal = 0; ordinal <= choices.length; ordinal++) {
+      const selected = switchTarget(fixture, c.groups, 'headroom', client, ordinal);
+      assert.ok(selected.characterId); assert.equal(selected.login, client.login);
+      assert.equal(selected, choices[ordinal % choices.length]);
+      assert.ok(!fixture.groups[selected.group].nearLimit && !fixture.groups[selected.group].lifecycle);
+    }
+  }
+  for (const client of population(nominal)) assert.ok(switchTarget(fixture, c.groups, 'steady', client, 100).group < c.groups);
+});
+test('resource capacity clamps affinity and every ancestor quota using injected readers', async () => {
+  const base = '/sys/fs/cgroup/synthetic/trial', files = new Map([
+    ['/proc/self/cgroup', ['0', '', '/synthetic/trial'].join(':') + '\n'],
+    [`${base}/cpu.max`, '600000 100000'], ['/sys/fs/cgroup/synthetic/cpu.max', '400000 100000'],
+    ['/sys/fs/cgroup/cpu.max', 'max 100000'],
+    [`${base}/memory.max`, '8000'], ['/sys/fs/cgroup/synthetic/memory.max', '6000'], ['/sys/fs/cgroup/memory.max', 'max'],
+  ]);
+  const read = async file => { if (!files.has(file)) throw new Error('Missing synthetic cgroup file.'); return files.get(file); };
+  const options = { platform: 'linux', read, parallelism: () => 2, logicalCpus: () => 16, memory: () => 16000 };
+  const limited = await scopedCgroup(options);
+  assert.equal(limited.affinityCpuCores, 2); assert.equal(limited.effectiveCpuCores, 2);
+  assert.equal(limited.effectiveMemoryBytes, 6000);
+  assert.equal((await scopedCgroup({ ...options, parallelism: () => 8 })).effectiveCpuCores, 4);
+  files.set('/sys/fs/cgroup/cpu.max', '150000 100000');
+  assert.equal((await scopedCgroup(options)).effectiveCpuCores, 1.5);
 });
 test('percentile bounds and incomplete evidence never claims acceptance', () => {
   const h = new Histogram(); for (let i = 1; i <= 100; i++) h.add(i);

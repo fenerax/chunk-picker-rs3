@@ -1,10 +1,10 @@
 // One disposable HTTP process. Restarting this child drops all application memory.
 import path from 'node:path';
 import { readFile, writeFile } from 'node:fs/promises';
-import { cpus, totalmem } from 'node:os';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { monitorEventLoopDelay } from 'node:perf_hooks';
 import { processTree } from '../capacity/telemetry.mjs';
+import { scopedCgroup } from './resources.mjs';
 const root = process.argv[2];
 if (!process.send || !root) throw new Error('Use the synthetic host.');
 for (const key of Object.keys(process.env)) if (key.startsWith('RS3_')) delete process.env[key];
@@ -70,27 +70,6 @@ const operator = async (route, body) => {
     ...(body ? { method: 'POST', body: JSON.stringify(body) } : {}) });
   const value = await response.json(); if (!response.ok) throw new Error(`Operator ${route}: ${response.status}: ${value.message}`); return value;
 };
-async function scopedCgroup() {
-  if (process.platform !== 'linux') return {};
-  const membership = (await readFile('/proc/self/cgroup', 'utf8')).split('\n').map(line => line.split(':'))
-    .find(([hierarchy, controllers]) => hierarchy === '0' && controllers === '')?.slice(2).join(':');
-  if (membership === undefined) return { version: 'unavailable' };
-  const base = path.resolve('/sys/fs/cgroup', '.' + membership);
-  if (base !== '/sys/fs/cgroup' && !base.startsWith('/sys/fs/cgroup/')) throw new Error('Invalid cgroup membership.');
-  const values = { version: 2, effectiveCpuCores: cpus().length, effectiveMemoryBytes: totalmem() };
-  for (const name of ['cpu.max', 'memory.max', 'memory.current', 'memory.peak', 'memory.swap.current'])
-    try { values[name] = (await readFile(path.join(base, name), 'utf8')).trim(); } catch { values[name] = null; }
-  for (let directory = base; directory.startsWith('/sys/fs/cgroup'); directory = path.dirname(directory)) {
-    try {
-      const [quota, period] = (await readFile(path.join(directory, 'cpu.max'), 'utf8')).trim().split(' ').map(Number);
-      if (Number.isFinite(quota) && period > 0) values.effectiveCpuCores = Math.min(values.effectiveCpuCores, quota / period);
-    } catch {}
-    try { const bytes = Number((await readFile(path.join(directory, 'memory.max'), 'utf8')).trim());
-      if (Number.isFinite(bytes) && bytes > 0) values.effectiveMemoryBytes = Math.min(values.effectiveMemoryBytes, bytes); } catch {}
-    if (directory === '/sys/fs/cgroup') break;
-  }
-  return values;
-}
 const observed = (await operator('/api/diagnostics')).residency;
 if (observed?.maxOpenContexts !== c['max-open-contexts'] || observed.coldStartsGlobal !== c.limits.coldStartsGlobal ||
   Object.entries(observed.coldAdmission ?? {}).some(([key, value]) => value !== c.admission[key])) throw new Error('Runtime residency settings were not applied.');

@@ -208,6 +208,8 @@ transitions, samples and generator CPU/RSS without cookies or keys.
 
 Linux samples include process-tree CPU/RSS/swap, cgroup v2 limits and the HTTP
 event-loop p99. RSS sums process hosts once; threads are not added twice.
+CPU capacity is the lowest of scheduler-affinity parallelism, host logical CPUs
+and every ancestor cgroup CPU quota, including fractional-core quotas.
 Windows explicitly reports tree metrics unavailable and cannot pass the
 resource gate from HTTP-process memory alone. Sampling can miss brief peaks.
 The JSON receipt evaluates the proposed cheap/expensive/cold/switch/ack/event,

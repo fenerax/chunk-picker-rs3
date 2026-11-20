@@ -21,7 +21,16 @@ export function noteEvent({ client, id, value, receivedAt, phase, isolation, see
   if (seenEvents.size > maxSeenEvents) seenEvents.delete(seenEvents.keys().next().value);
   return 'verified';
 }
-function population(clients) {
+export function phaseClients(fixture, groupCount, phase) {
+  return fixture.clients.filter(client => !fixture.groups[client.group].nearLimit && !fixture.groups[client.group].lifecycle &&
+    (phase === 'headroom' || client.group < groupCount));
+}
+export function switchTarget(fixture, groupCount, phase, client, ordinal) {
+  const choices = phaseClients(fixture, groupCount, phase).filter(candidate => candidate.login === client.login);
+  if (!choices.length) throw new Error('No eligible switch target for this synthetic login.');
+  return choices[ordinal % choices.length];
+}
+export function population(clients) {
   const groupFirst = [...new Map(clients.map(client => [client.group, client])).values()];
   const logins = new Map();
   for (const client of [...groupFirst, ...clients]) if (!logins.has(client.login)) logins.set(client.login, client);
@@ -33,10 +42,10 @@ const cookies = (response, previous) => {
   return [...values].map(([k, v]) => `${k}=${v}`).join('; ');
 };
 export async function drive({ c, identity, base, control, log }) {
-  const fixture = identity.fixture, clients = fixture.clients.filter(m => m.group < c.groups), rng = random(c.seed);
+  const fixture = identity.fixture, clients = phaseClients(fixture, c.groups, 'steady'), rng = random(c.seed);
   // One document for each distinct login; other characters remain switch targets.
   const distinct = population(clients);
-  const allDistinct = population(fixture.clients.filter(m => !fixture.groups[m.group].nearLimit && !fixture.groups[m.group].lifecycle));
+  const allDistinct = population(phaseClients(fixture, c.groups, 'headroom'));
   const phases = stages(c, allDistinct.length), metrics = Object.fromEntries(phases.map(p => [p.name, phaseMetrics()]));
   const isolation = [], writes = new Map(), tombstones = [], pickerTombstones = [], captures = [], restarts = [], transitions = {};
   const journals = new Map(), historyAcks = new Map(), staleKeys = [], deletedClients = [];
@@ -153,7 +162,7 @@ export async function drive({ c, identity, base, control, log }) {
     const population = currentPhase === 'headroom' ? allDistinct : distinct;
     const selected = population.slice(0, users);
     const logins = new Set(selected.map(m => m.login)), covered = new Set(selected.map(m => m.group));
-    const eligible = currentPhase === 'headroom' ? fixture.clients.filter(m => !fixture.groups[m.group].nearLimit && !fixture.groups[m.group].lifecycle) : clients;
+    const eligible = phaseClients(fixture, c.groups, currentPhase);
     for (const client of eligible) if (logins.has(client.login) && !covered.has(client.group)) { selected.push(client); covered.add(client.group); }
     const wanted = new Set(selected.flatMap(client => Array.from({ length: tabs }, (_, tab) => `${client.characterId}:${tab}`)));
     for (const [id, stream] of streams) if (!wanted.has(id)) { stream.controller.abort(); streams.delete(id); }
@@ -254,7 +263,7 @@ export async function drive({ c, identity, base, control, log }) {
       if (item && ordinal % 3) await call(client, `/api/task-${ordinal % 2 ? 'how' : 'why'}?memberId=${client.memberId}&taskId=${encodeURIComponent(item.id)}&revision=${list.stateRevision}`, undefined, ctx);
     } else if (ctx.action === 'edit') await edit(client, ctx, ordinal);
     else if (ctx.action === 'switch') {
-      const choices = clients.filter(m => m.login === client.login), selected = choices[ordinal % choices.length];
+      const selected = switchTarget(fixture, c.groups, ctx.phase, client, ordinal);
       const stable = await request(selected, `/characters/${selected.characterId}`, undefined, ctx);
       if (stable.response.status !== 303 || !stable.response.headers.get('Location')?.includes(selected.pickerId)) isolation.push({ kind: 'wrong-stable-link', phase: ctx.phase });
       ctx.action = 'switch:state-and-tasks'; await state(selected, ctx); await task(selected, ctx);
