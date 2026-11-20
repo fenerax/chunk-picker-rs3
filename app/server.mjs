@@ -118,6 +118,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
   loopbackRole = process.env.RS3_LOOPBACK_ROLE ?? 'private',
   signIn = process.env.RS3_SIGNIN ?? 'off', signInProvider, multiPicker, backupRetentionMs, guestOptions,
   httpServer, httpLoopbackServer, startupConnections, onRequestHandler, startupSignal,
+  testEventTransform,
   // Operator capability only: no HTTP endpoint can acquire writer ownership.
   liveSwap,
   // Synthetic scratch saves only: game plugin items from beta worlds tick like live ones.
@@ -456,7 +457,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
       pickerRegistry = await openRegistry({ ...multiPicker, admission: admissionMode(multiPicker), legacyDir: dataDir });
       await reconcileTombstones({ registry: pickerRegistry });
     }
-    context = await createPickerContext({ pickerId: 'legacy', dataDir, runtime,
+    context = await createPickerContext({ pickerId: 'legacy', dataDir, runtime, testEventTransform,
       initialState, prepareState, beforeCommit, now, random, retention, initialImport,
       runeMetrics, progressSources, originalSync, idleMemoryOptions, predictionPrewarm,
       schedulingClock, publicOrigin, signIn, signInProvider, liveSwap, pluginItemsBetaAsLive,
@@ -493,7 +494,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
               return { id, name: character?.runescapeName ?? 'Unnamed character', ...(character?.runescapeName ? { runescapeName: character.runescapeName } : {}) };
             }), ruleRegistry);
             initial.provenance = { dataset: { id: dataset.datasetId, contractVersion: dataset.datasetContractVersion, digest: dataset.digest } };
-            opened = await createPickerContext({ pickerId, dataDir: directory, runtime: pickerRuntime, prepareStateResponse: false,
+            opened = await createPickerContext({ pickerId, dataDir: directory, runtime: pickerRuntime, prepareStateResponse: false, testEventTransform,
               ownedFormat2: pinned?.ownedFormat2 ?? false,
               openDiagnostics,
               initialState: initial, now, random, beforeCommit: Object.assign(async change => {

@@ -96,7 +96,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
   idleMemoryOptions, predictionPrewarm = true, prepareStateResponse = true,
   schedulingClock = { now: () => performance.now(), setTimeout, clearTimeout },
   publicOrigin, signIn = 'off', signInProvider, pickerRouting, liveSwap, pluginItemsBetaAsLive = false,
-  startupSignal, startupTimingMs = {}, openDiagnostics,
+  startupSignal, startupTimingMs = {}, openDiagnostics, testEventTransform,
   backupStatusDir = pickerId === 'legacy' ? path.dirname(path.resolve(dataDir)) : path.resolve(dataDir),
   transport = {},
 }) {
@@ -416,6 +416,9 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
     return identityLookup.lookup(id);
   };
   const clients = new Set();
+  // In-process synthetic harness seam only; never exposed by HTTP or config.
+  // Tag the actual emitter, including callbacks from shared calculator hosts.
+  const eventBytes = bytes => testEventTransform ? testEventTransform({ pickerId, bytes }) : bytes;
   const clientCredentials = new Map();
   const aggregateAccess = (identity, security) => identity?.admin && !security.publicRequest;
   function clientWorkerHealth(identity, security) {
@@ -429,7 +432,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
       const { request, security } = credentials;
       const identity = invites.authenticate(request, security);
       if (!identity) continue;
-      const event = `event: worker\ndata: ${JSON.stringify(clientWorkerHealth(identity, security))}\n\n`;
+      const event = eventBytes(`event: worker\ndata: ${JSON.stringify(clientWorkerHealth(identity, security))}\n\n`);
       // Another picker's transitions must not leak through event frequency.
       if (event === credentials.workerEvent) continue;
       credentials.workerEvent = event;
@@ -437,6 +440,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
     }
   }
   function broadcast(bytes) {
+    bytes = eventBytes(bytes);
     if (pickerRouting?.authenticate) endInactiveClients();
     for (const client of clients) if (!writeEvent(client, bytes)) {
       clients.delete(client); clientCredentials.delete(client);
@@ -1566,9 +1570,9 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
             if (request.method !== 'HEAD' && !(pickerLimits ? pickerLimits.stream(identity, pickerId, response) : admitStream(identity.pickerId ? `account:${identity.accountId}` : `invite:${identity.inviteId ?? identity.kind}`, response))) return;
             response.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': PRIVATE_NO_STORE, Connection: 'keep-alive' });
             if (request.method === 'HEAD') { response.end(); return; }
-            response.write(`event: revision\ndata: ${JSON.stringify({ revision: store.getInfo().revision })}\n\n`);
-            response.write(`event: version\ndata: ${JSON.stringify({ version: appVersion })}\n\n`);
-            const workerEvent = taskWorker ? `event: worker\ndata: ${JSON.stringify(clientWorkerHealth(identity, security))}\n\n` : undefined;
+            response.write(eventBytes(`event: revision\ndata: ${JSON.stringify({ revision: store.getInfo().revision })}\n\n`));
+            response.write(eventBytes(`event: version\ndata: ${JSON.stringify({ version: appVersion })}\n\n`));
+            const workerEvent = taskWorker ? eventBytes(`event: worker\ndata: ${JSON.stringify(clientWorkerHealth(identity, security))}\n\n`) : undefined;
             if (workerEvent) response.write(workerEvent);
             const releaseSession = !identity.readOnly ? taskWorker?.openSession?.() : undefined;
             if (!identity.readOnly) { writableStreams++; notePickerActivity(); }
