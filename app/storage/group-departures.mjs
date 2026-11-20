@@ -61,7 +61,7 @@ export function departureSoloEligible(doc, accountId, characterId) {
     && !pickerHasPendingJoin(doc, p.id));
 }
 
-export function createGroupDepartures({ read, save, saveLedgerId, allocate, version, point, now, caps, pickerRoot, registryDir }) {
+export function createGroupDepartures({ read, save, saveLedgerId, allocate, version, point, now, caps, pickerRoot, registryDir, admit = async () => {} }) {
   const stamp = () => new Date(now()).toISOString();
   const snapshotFile = id => path.join(registryDir, 'past-maps', id + '.json');
   function character(doc, id) { const c = doc.characters.find(c => c.id === id && c.lifecycle === 'active'); if (!c) fail('Character is unavailable.', 403); return c; }
@@ -116,6 +116,8 @@ export function createGroupDepartures({ read, save, saveLedgerId, allocate, vers
         return structuredClone(existing);
       }
       if (read().pastMaps.length >= 20000) fail('The retained map record limit has been reached.');
+      const proposal = structuredClone(read()); proposal.pastMaps.push(meta);
+      await admit(proposal);
       await durableDirectory(path.join(registryDir, 'past-maps'));
       const file = snapshotFile(meta.id);
       let bytes;

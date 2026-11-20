@@ -1,5 +1,6 @@
 import { withStoreWrite } from './storage/snapshot.mjs';
 import { withPluginEvidence } from './storage/plugin-evidence-lock.mjs';
+import { withLoginStoragePublication } from './storage/login-storage-budget.mjs';
 import { lstat, open, readFile, rename, rm } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import path from 'node:path';
@@ -47,26 +48,30 @@ async function archivePath(file, timestamp) {
 
 /** Atomic replace for small plugin sidecars; a corrupt original is archived, never deleted. */
 export async function replaceSidecar(file, contents, corrupt, clock) {
-  const temporary = `${file}.${randomUUID()}.tmp`;
-  let handle, archived;
-  try {
-    handle = await open(temporary, 'wx', 0o600);
-    await handle.writeFile(contents); await handle.sync(); await handle.close(); handle = null;
-    if (corrupt) {
-      const destination = await archivePath(file, clock());
-      await renameWithRetry(file, destination); archived = destination;
-    }
-    try { await renameWithRetry(temporary, file); }
-    catch (error) {
-      if (archived) {
-        try { await renameWithRetry(archived, file); }
-        catch (restoreError) {
-          throw new AggregateError([error, restoreError], `Could not replace ${path.basename(file)}; its original remains in the corrupt archive.`);
-        }
+  const destination = corrupt ? await archivePath(file, clock()) : undefined;
+  const publications = [{ file, bytes: contents }];
+  if (destination) publications.push({ file: destination, size: (await lstat(file)).size });
+  return withLoginStoragePublication(publications, async () => {
+    const temporary = `${file}.${randomUUID()}.tmp`;
+    let handle, archived;
+    try {
+      handle = await open(temporary, 'wx', 0o600);
+      await handle.writeFile(contents); await handle.sync(); await handle.close(); handle = null;
+      if (corrupt) {
+        await renameWithRetry(file, destination); archived = destination;
       }
-      throw error;
-    }
-  } finally { await handle?.close(); await rm(temporary, { force: true }); }
+      try { await renameWithRetry(temporary, file); }
+      catch (error) {
+        if (archived) {
+          try { await renameWithRetry(archived, file); }
+          catch (restoreError) {
+            throw new AggregateError([error, restoreError], `Could not replace ${path.basename(file)}; its original remains in the corrupt archive.`);
+          }
+        }
+        throw error;
+      }
+    } finally { await handle?.close(); await rm(temporary, { force: true }); }
+  });
 }
 
 /** Sidecar only: the caller owns the save directory's existing lock. */

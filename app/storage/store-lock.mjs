@@ -6,6 +6,7 @@ import { promisify } from 'node:util';
 import path from 'node:path';
 import { atomicWrite } from './atomic-write.mjs';
 import { acquireProcessGuard } from './process-guard.mjs';
+import { withLoginStorageRelief } from './login-storage-budget.mjs';
 
 let host;
 const execFileAsync = promisify(execFile);
@@ -61,7 +62,9 @@ async function removeUnchanged(file, contents) {
 async function createOwnerFile(file, contents) {
   const temporary = `${file}.${process.pid}.${randomBytes(8).toString('hex')}.tmp`;
   try {
-    await atomicWrite(temporary, contents);
+    // Lock publication (including its exclusive temporary name) must remain
+    // possible when an existing login is over its retained-data allowance.
+    await withLoginStorageRelief(() => atomicWrite(temporary, contents));
     await link(temporary, file);
   } finally { await unlink(temporary).catch(() => {}); }
 }

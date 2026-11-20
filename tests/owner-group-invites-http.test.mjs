@@ -5,6 +5,27 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { groupHttpFixture } from './helpers/group-invite-http.mjs';
 
+test('login retained quota returns actionable HTTP refusals while its existing map stays readable', async t => {
+  const f = await groupHttpFixture(t), owner = await f.login('101');
+  f.multiPicker.loginStorage = { maxMaps: 1 };
+  await f.restart();
+  const before = await f.document();
+  const refused = await f.send('/api/characters', owner.cookie, { requestId: 'second-character' });
+  assert.equal(refused.status, 507, refused.text);
+  assert.equal(refused.json().code, 'LOGIN_STORAGE_BUDGET_EXCEEDED');
+  assert.match(refused.json().message, /login.*storage limit.*Existing maps/s);
+  assert.deepEqual(await f.document(), before);
+  assert.equal((await f.send('/api/state', owner.cookie)).status, 200);
+  f.multiPicker.loginStorage = { maxBytes: 1 };
+  await f.restart();
+  const state = await f.send('/api/state', owner.cookie);
+  assert.equal(state.status, 200, state.text);
+  const command = await f.send('/api/command', owner.cookie, { expectedRevision: state.json().state.revision, command: { type: 'set-journal', memberId: 'owner', note: 'Synthetic note' } });
+  assert.equal(command.status, 507, command.text);
+  assert.equal(command.json().code, 'LOGIN_STORAGE_BUDGET_EXCEEDED');
+  assert.match(command.json().message, /login.*storage limit/);
+});
+
 test('GET previews only, secret exchange survives first login, explicit untouched-solo acceptance and retry', async t => {
   const f = await groupHttpFixture(t), owner = await f.login('101');
   const created = await f.send('/api/group-invites', owner.cookie, {}); assert.equal(created.status, 200, created.text);

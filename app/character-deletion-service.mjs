@@ -1,7 +1,8 @@
+import { withLoginStorageRelief } from './storage/login-storage-budget.mjs';
 const fail = message => { throw Object.assign(new Error(message), { status: 409 }); };
 export function createCharacterDeletionService({ registry, using, purge, fenceSessions, point = async () => {} }) {
   let queue = Promise.resolve();
-  const serialized = work => { const result = queue.then(work); queue = result.catch(() => {}); return result; };
+  const serialized = work => { const result = queue.then(() => withLoginStorageRelief(work)); queue = result.catch(() => {}); return result; };
   const receipt = d => ({ status: 'deleted', requestId: d.id, kind: d.kind, characters: d.targets.map(t => t.characterId), groups: d.groups,
     href: d.kind === 'account' ? '/auth/signin' : '/characters' });
   async function finish(d) {
@@ -23,9 +24,11 @@ export function createCharacterDeletionService({ registry, using, purge, fenceSe
   }
   return {
     async review(accountId, selection) {
-      const plan = registry.deletionPlan(accountId, selection), revisions = {};
-      for (const id of [...new Set(plan.targets.map(t => t.pickerId))].sort()) await using(id, c => { revisions[id] = c.store.getInfo().revision; });
-      return { ...plan, revisions };
+      return withLoginStorageRelief(async () => {
+        const plan = registry.deletionPlan(accountId, selection), revisions = {};
+        for (const id of [...new Set(plan.targets.map(t => t.pickerId))].sort()) await using(id, c => { revisions[id] = c.store.getInfo().revision; });
+        return { ...plan, revisions };
+      });
     },
     delete(accountId, input, review, recheck = () => {}) { return serialized(async () => {
       const old = registry.getDeletion(input.requestId);

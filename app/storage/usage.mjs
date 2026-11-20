@@ -4,6 +4,7 @@ import { randomBytes } from 'node:crypto';
 import { setTimeout as delay } from 'node:timers/promises';
 import path from 'node:path';
 import { usageEvents } from '../web/usage-catalogue.mjs';
+import { withLoginStoragePublication } from './login-storage-budget.mjs';
 
 export const USAGE_MAX_BYTES = 32 * 1024;
 export const USAGE_MAX_ROWS = 200;
@@ -45,20 +46,23 @@ export function validateUsagePayload(input, { actors, actor, now = Date.now } = 
 }
 
 async function atomicWrite(file, document) {
-  const temporary = `${file}.${process.pid}.${randomBytes(8).toString('hex')}.tmp`;
-  let handle;
-  try {
-    handle = await open(temporary, 'wx', 0o600);
-    await handle.writeFile(`${JSON.stringify(document)}\n`);
-    await handle.sync(); await handle.close(); handle = undefined;
-    for (let attempt = 0; ; attempt++) {
-      try { await rename(temporary, file); break; }
-      catch (error) {
-        if (process.platform !== 'win32' || !['EPERM', 'EACCES', 'EBUSY'].includes(error.code) || attempt >= 6) throw error;
-        await delay(20 * 2 ** attempt);
+  const bytes = `${JSON.stringify(document)}\n`;
+  return withLoginStoragePublication([{ file, bytes }], async () => {
+    const temporary = `${file}.${process.pid}.${randomBytes(8).toString('hex')}.tmp`;
+    let handle;
+    try {
+      handle = await open(temporary, 'wx', 0o600);
+      await handle.writeFile(bytes);
+      await handle.sync(); await handle.close(); handle = undefined;
+      for (let attempt = 0; ; attempt++) {
+        try { await rename(temporary, file); break; }
+        catch (error) {
+          if (process.platform !== 'win32' || !['EPERM', 'EACCES', 'EBUSY'].includes(error.code) || attempt >= 6) throw error;
+          await delay(20 * 2 ** attempt);
+        }
       }
-    }
-  } finally { await handle?.close().catch(() => {}); await rm(temporary, { force: true }).catch(() => {}); }
+    } finally { await handle?.close().catch(() => {}); await rm(temporary, { force: true }).catch(() => {}); }
+  });
 }
 
 /** Shares the gameplay directory lock, but never writes gameplay or its backups. */

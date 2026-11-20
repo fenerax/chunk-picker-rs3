@@ -85,3 +85,89 @@ the file ceiling and over 1,000 times below the byte ceiling. This measures
 retained-file accumulation, not the contents or size of any private game.
 Other cases independently exercise oversized publications, reservations across
 groups, import refusals, preserved downloads and packing under pressure.
+
+## Retained storage per login
+
+Multi-picker mode adds a retained allowance independent of traffic/upload limits:
+
+| Environment setting | Default | Meaning |
+| --- | ---: | --- |
+| `RS3_LOGIN_MAX_BYTES` | `10737418240` (10 GiB) | Maximum aggregate retained on-disk bytes and pending reservations per login |
+| `RS3_LOGIN_MAX_MAPS` | `20` | Maximum distinct retained picker directories plus frozen Past maps per login |
+
+Both accept positive safe integers; map count has a hard maximum of 128 to bound
+metadata work. Programmatic configuration is `multiPicker.loginStorage` with
+`maxBytes` and `maxMaps`; explicit options override the environment. These
+settings are read only when opening the multi-picker registry. The 10 GiB default
+equals ten default 1 GiB group budgets, matching the ten-character allowance.
+Twenty retained maps permits history beyond ten current maps while preventing
+unlimited departure/rejoin churn. These are admission defaults, not preallocated
+disk or proof that an operator's server can support all users at their ceilings.
+
+Each login is charged once for each default picker it owns or controls through
+a non-viewer membership/current character placement, including retired onboarding
+and rejoin solos, reserved creation and deleting-but-not-yet-deleted pickers.
+Several of its characters in one picker do not multiply that picker. A shared
+picker is charged in full to each controlling login; equal shares would let
+other logins subsidize retained growth. Legacy shared-picker storage and viewer
+memberships are excluded. Each registry-held Past map is additionally charged
+to its recorded login by exact snapshot file length, independently of its source
+picker's lifecycle. Retired source directories and frozen snapshots are separate
+retained objects and both count when owned by the login.
+
+Bytes include History, backups/packs, private evidence and sidecars, and the
+sibling dataset binding, with the existing capture lock/cache exclusions.
+No save contents are decoded for accounting. The publishing picker's existing
+usage measurement is reused; other pickers use streamed metadata reads capped at
+4,096 entries each, including directories. A new allocation first checks map
+count, so an already-over-count login causes no directory walks. At most 128
+retained objects are measured for a checked login; shared measurements are reused
+within an admission. Malformed/nonregular paths or exhausted scan budgets fail
+closed. There is no request-path scan of all picker-root directories.
+
+Pending creations and departure destinations, including ready pickers whose
+state has not yet been initialized, reserve one configured group byte budget.
+Pending frozen snapshots also reserve one group byte budget until the snapshot
+exists. The reservation comes from existing durable lifecycle records and is
+reconstructed after restart. It can conservatively refuse an operation whose
+eventual small save might fit. Departure/rejoin services check the portable
+snapshot length against that reservation before committing a new intent.
+Pending joins and departures also reserve one group byte budget for roster
+publication growth, including preimages, for every login controlling the changed
+group. This byte-only reservation prevents a new character joining an already
+controlled picker from bypassing quota and protects the other group members'
+allowances. It adds no map to the count and is released when the intent completes.
+
+First sign-in, Add character, invite admission (including direct new characters),
+leave/removal, rejoin and membership changes check projected holdings before
+publication. Registry admissions and positive file publications share one
+process-local serialization gate for the exclusively owned registry. Two
+concurrent additions cannot each spend the same remaining allowance. Gameplay
+plans include their preimages/dependencies; imports, restore, regular saves,
+plugin evidence (including corrupt-sidecar archives), keys/invites, overlays,
+feedback/usage and dataset bindings use the same gate. Pure reads do not check
+quota. Non-growing writes remain allowed. Age-based packing, explicitly requested
+deletion and completion/recovery of an already-admitted lifecycle transaction
+can finish after limits are lowered. These exceptions preserve records; they
+never evict or truncate data to make a limit pass.
+
+Refusal is HTTP 507 / `LOGIN_STORAGE_BUDGET_EXCEEDED` with a player-facing request
+to delete an unwanted character/group or contact the operator. A login already
+over either limit keeps its maps, Past maps, History and downloads, but cannot
+add retained storage. Optional daily startup observations skip quota refusals.
+Retired/Past map removal is not introduced here; an operator may need to raise
+the allowance when no suitable user-deletable map remains. Shared registry,
+non-reuse ledger, release inputs, operator snapshots/off-site backups and
+diagnostic logs remain server-level operational storage, outside this login
+allowance. No durable file/field, registry/ledger version or gameplay format was
+added. The option-absent single-picker mode keeps its existing group budget.
+
+`tests/login-storage-budget.test.mjs` covers synthetic map/byte admissions,
+concurrent attempts across maps, pending work and restart with lowered limits,
+retired onboarding and Past-map accounting, deletion over quota, bounded scans
+and unchanged single-picker behavior. These checks do not establish deployed
+latency or operational capacity.
+An isolated headless Chrome journey also checked the visible Add character
+refusal, editable name field after refusal/reload and navigation to the existing
+character's map. It used synthetic accounts and temporary stores, not live saves
+or outside-user acceptance.

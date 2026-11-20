@@ -11,6 +11,8 @@ import { createGroupHandovers, validateHandovers } from './group-handovers.mjs';
 import { createGroupDepartures, validateDepartures, departureSoloEligible } from './group-departures.mjs';
 import { validateRetirements, migrateRetirements, registryV5, slotKey, reservedRetirementSlots, reservedRetiredCharacters } from './registry-retirements.mjs';
 import { deletionPlan, requireLoginDeletionReady } from './character-deletions.mjs';
+import { createLoginStorageBudget, loginStorageBudget } from './login-storage-budget.mjs';
+import { storageBudget } from './storage-budget.mjs';
 
 const PICKER = /^p_[0-9a-f]{32}$/;
 const HASH = /^[0-9a-f]{64}$/;
@@ -197,7 +199,9 @@ async function load(file) {
 
 /** Operator paths only. No HTTP, gameplay state, sign-in, or store is opened here. */
 export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, legacyDir, caps: overrides = {}, now = Date.now,
-  crashPoint, pickerRandomBytes = randomBytes, betaPickerCap, onCapCheck, recoveryOnly = false } = {}) {
+  crashPoint, pickerRandomBytes = randomBytes, betaPickerCap, onCapCheck, recoveryOnly = false, loginStorage: storageOptions = {} } = {}) {
+  const loginLimits = loginStorageBudget(storageOptions);
+  const groupMaxBytes = storageBudget().maxBytes;
   if (typeof recoveryOnly !== 'boolean') throw new TypeError('Invalid registry recovery mode.');
   if ([registryDir, pickerRoot, tombstoneDir].some(dir => typeof dir !== 'string' || !dir)) throw new TypeError('Registry, picker and tombstone roots are required.');
   const caps = { ...DEFAULT_REGISTRY_CAPS, ...overrides };
@@ -215,7 +219,7 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
   }
   const releases = [];
   let current, ledger, queue = Promise.resolve(), closed = false, failed = false, closing;
-  let lifecycleCapture = false;
+  let lifecycleCapture = false, retained;
   let providerIndex, capabilityIndex, accountIndex, pickerIndex, memberAccounts, tombstoneIndex, retiredAccounts, issuedIds, capCounts, characterIndex;
   const file = path.join(registryDir, 'registry.json'), ledgerFile = path.join(tombstoneDir, 'ledger.json');
   const timestamp = () => new Date(now()).toISOString();
@@ -250,6 +254,7 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
     return capCounts.prepare(next, nextLedger, changes);
   }
   async function save(next, changes = {}) {
+    await retained?.admit(next);
     if (changes.characters) requireCharacterAllocations(next);
     if (changes.characters || changes.relinkRetirements) checkRetirementCapacity(next, ledger);
     const accountRows = changes.accounts ?? [], pickerRows = changes.pickers ?? [];
@@ -326,7 +331,7 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
   }
   function enqueue(operation) {
     try { usable(); } catch (failure) { return Promise.reject(failure); }
-    const pending = queue.then(async () => { if (failed) throw new Error('Registry requires restart.'); return copy(await operation()); });
+    const pending = queue.then(() => (retained?.run ?? (work => work()))(async () => { if (failed) throw new Error('Registry requires restart.'); return copy(await operation()); }));
     queue = pending.catch(() => {}); return pending;
   }
   const requireAccount = (next, id) => { const account = next.accounts.find(a => a.id === id); if (!account) throw error(404, 'Account not found.'); return account; };
@@ -488,6 +493,7 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
   }
   const blockedPicker = id => tombstoneIndex.get(id);
   const groupInvites = createGroupInvites({ read: () => current, now, caps, point,
+    admit: next => retained?.admit(next),
     save: next => save(next, { accounts: next.accounts, pickers: next.pickers, characters: true, removedCapabilities: current.capabilities.filter(k => !next.capabilities.some(n => n.kind === k.kind && n.hash === k.hash)) }),
     async version() {
       if (current.schemaVersion >= 3) return;
@@ -517,6 +523,7 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
     versionInvites: () => groupInvites.resumeVersion(),
     save: next => save(next, { accounts: next.accounts, pickers: next.pickers, characters: true }) });
   const departures = createGroupDepartures({ read: () => current, now, point, caps, allocate, pickerRoot, registryDir,
+    admit: next => retained?.admit(next),
     version: () => retirementVersion(),
     async saveLedgerId(id) { if (!issuedIds.has(id)) { const next = copy(ledger); next.issuedPickerIds.push(id); await saveLedger(next); } },
     save: (next, removedCapabilities = []) => save(next, { accounts: next.accounts, pickers: next.pickers, characters: true, removedCapabilities }) });
@@ -656,6 +663,8 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
     for (const release of releases.reverse()) await release().catch(() => {});
     throw failure;
   }
+  if (!recoveryOnly) retained = createLoginStorageBudget({ read: () => current, pickerRoot, registryDir,
+    limits: loginLimits, groupMaxBytes });
   const api = {
     deletionPlan(accountId, input) { usable(); return copy(deletionPlan(current, accountId, input)); },
     deletionTransactions() { usable(); return copy(ledger.deletions ?? []); },
@@ -865,7 +874,12 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
       if (!existing || !existing.initialProvisioned && !existing.pendingCreation) checkPickerAllocation();
       if (!existing && current.characters.filter(c => c.lifecycle === 'active').length >= caps.characters) throw characterError('The service character limit has been reached. Existing maps are unchanged.');
       if (!existing && ledger.issuedCharacterIds.length >= caps.issuedCharacterIds) throw characterError('The character ID history limit has been reached. Existing IDs cannot be reused.');
-      const next = copy(current), account = ensureIdentity(next, provider, subject); await save(next, { accounts: [account] });
+      const next = copy(current), account = ensureIdentity(next, provider, subject);
+      if (!existing) {
+        const proposal = copy(next); proposal.accounts.find(a => a.id === account.id).pendingCreation = { pickerId: 'new-picker' };
+        await retained.admit(proposal);
+      }
+      await save(next, { accounts: [account] });
       const picker = await ensureDefault(account.id); return { account: requireAccount(current, account.id), picker };
     }); },
     // Reserve gameplay slots before a replacement commit. This only grows the
@@ -1026,6 +1040,7 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
     reconcileTombstones() { return enqueue(applyTombstones); },
     close() { return closing ??= (async () => {
       closed = true; await queue;
+      retained?.close();
       const results = await Promise.allSettled(releases.reverse().map(release => release()));
       const failure = results.find(result => result.status === 'rejected');
       if (failure) throw failure.reason;

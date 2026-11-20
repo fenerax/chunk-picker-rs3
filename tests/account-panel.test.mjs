@@ -166,6 +166,17 @@ test('Add character preserves its request through uncertainty and duplicate revi
   assert.equal(requests[2].acknowledgeDuplicate, true); assert.deepEqual(created, ['same-character']); assert.equal(values.size, 0);
 });
 
+test('a definitive login quota refusal shows its guidance and leaves Add character editable after reload', async () => {
+  const values = new Map(), storage = { getItem: key => values.get(key), setItem: (key, value) => values.set(key, value) };
+  const options = { el, accountId: 'synthetic', storage, randomId: () => 'same-request', onCreated: () => assert.fail('refused'),
+    fetch: async () => ({ ok: false, status: 507, json: async () => ({ code: 'LOGIN_STORAGE_BUDGET_EXCEEDED', message: 'This login has reached its retained map or save storage limit.' }) }) };
+  const form = createCharacterForm(options);
+  await form.listeners.submit({ preventDefault() {} });
+  assert.match(text(form), /login.*storage limit/);
+  assert.equal(walk(form).find(n => n.name === 'runescapeName').disabled, false);
+  assert.equal(walk(createCharacterForm(options)).find(n => n.name === 'runescapeName').disabled, false);
+});
+
 function accountMenu() {
   const topMenu = el('details'), summary = el('summary'), label = el('span'), content = el('div');
   topMenu.hidden = true; topMenu.append(summary, content); summary.append(label);

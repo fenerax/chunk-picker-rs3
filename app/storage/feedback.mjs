@@ -3,6 +3,7 @@ import { open, readFile, rename, rm } from 'node:fs/promises';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { setTimeout as delay } from 'node:timers/promises';
 import path from 'node:path';
+import { withLoginStoragePublication } from './login-storage-budget.mjs';
 
 // Feedback from the people using the picker (bugs, ideas). Kept beside the save, not in it,
 // so it never appears in History, Undo or gameplay backups.
@@ -46,20 +47,23 @@ function owns(item, actor) {
 }
 
 async function atomicWrite(file, document) {
-  const temporary = `${file}.${process.pid}.${randomBytes(8).toString('hex')}.tmp`;
-  let handle;
-  try {
-    handle = await open(temporary, 'wx', 0o600);
-    await handle.writeFile(`${JSON.stringify(document)}\n`);
-    await handle.sync(); await handle.close(); handle = undefined;
-    for (let attempt = 0; ; attempt++) {
-      try { await rename(temporary, file); break; }
-      catch (failure) {
-        if (process.platform !== 'win32' || !['EPERM', 'EACCES', 'EBUSY'].includes(failure.code) || attempt >= 6) throw failure;
-        await delay(20 * 2 ** attempt);
+  const bytes = `${JSON.stringify(document)}\n`;
+  return withLoginStoragePublication([{ file, bytes }], async () => {
+    const temporary = `${file}.${process.pid}.${randomBytes(8).toString('hex')}.tmp`;
+    let handle;
+    try {
+      handle = await open(temporary, 'wx', 0o600);
+      await handle.writeFile(bytes);
+      await handle.sync(); await handle.close(); handle = undefined;
+      for (let attempt = 0; ; attempt++) {
+        try { await rename(temporary, file); break; }
+        catch (failure) {
+          if (process.platform !== 'win32' || !['EPERM', 'EACCES', 'EBUSY'].includes(failure.code) || attempt >= 6) throw failure;
+          await delay(20 * 2 ** attempt);
+        }
       }
-    }
-  } finally { await handle?.close().catch(() => {}); await rm(temporary, { force: true }).catch(() => {}); }
+    } finally { await handle?.close().catch(() => {}); await rm(temporary, { force: true }).catch(() => {}); }
+  });
 }
 
 /** Open under the gameplay store's existing exclusive data-directory lock. */

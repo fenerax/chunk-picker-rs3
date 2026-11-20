@@ -1,10 +1,13 @@
+import { withLoginStorageRelief } from './storage/login-storage-budget.mjs';
+import { storageBudget } from './storage/storage-budget.mjs';
 const fail = message => { throw Object.assign(new Error(message), { status: 409 }); };
 export function createGroupDepartureService({ registry, using, point = async () => {} }) {
   let queue = Promise.resolve();
   const serialized = work => { const p = queue.then(work); queue = p.catch(() => {}); return p; };
   const receipt = d => ({ message: d.reason === 'removed' ? 'Member removed. Their character now has an empty solo and a Past maps receipt.' : 'Left group. Your previous map is in Past maps.',
     ...(d.actorAccountId === d.accountId ? { character: { id: d.characterId, href: `/characters/${d.characterId}` }, pastMap: { href: `/past-maps/${d.id}` } } : {}) });
-  async function finish(d, source) {
+  const finish = (d, source) => withLoginStorageRelief(() => complete(d, source));
+  async function complete(d, source) {
     if (d.completedAt) return receipt(d);
     source.fenceRevokedSessions?.();
     await registry.prepareDeparture(d.id);
@@ -37,6 +40,7 @@ export function createGroupDepartureService({ registry, using, point = async () 
       }
       return using(pickerId, source => source.withGroupAdmission(async () => {
         if (!old && source.store.getInfo().revision !== input.revision) fail('The group changed. Review departure again before confirming.');
+        if (!old && Buffer.byteLength(JSON.stringify(await source.store.backup())) + 1 > storageBudget().maxBytes) fail('This Past map would exceed the retained save storage limit. Contact the server operator. Existing maps are unchanged.');
         const d = await registry.beginDeparture(accountId, characterId, pickerId, input);
         return finish(d, source);
       }));
