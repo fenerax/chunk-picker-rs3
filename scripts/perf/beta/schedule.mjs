@@ -1,4 +1,3 @@
-import { arrivals } from '../capacity/scheduler.mjs';
 import { random } from '../capacity/model.mjs';
 import { pause } from '../capacity/client.mjs';
 
@@ -9,13 +8,22 @@ export function* schedule(c, phases, cohorts, keyedClients) {
   let offset = 0;
   for (const [stage, phase] of phases.entries()) {
     yield { atMs: offset, kind: 'phase', stage };
-    const counters = {}, streams = { product: phase.actions,
+    const rates = { product: phase.actions,
       pluginReport: keyedClients ? phase.plugins * .4 : 0, pluginStatus: keyedClients ? phase.plugins * .4 : 0,
       pluginTasks: keyedClients ? phase.plugins * .2 : 0, sync: c['sync-per-minute'] / 60, isolation: .1 };
+    const streams = Object.entries(rates).map(([kind, rate]) => ({ kind, rate, count: Math.floor(phase.seconds * rate),
+      ordinal: 0, nextAtMs: null, rng: random(`${c.seed}:${stage}:${kind}`) }));
     for (let from = 0; from < phase.seconds; from += 30) {
       const seconds = Math.min(30, phase.seconds - from);
-      const events = arrivals([{ seconds }], `${c.seed}:${stage}:${from}`, () => streams).map(event => ({ ...event,
-        atMs: offset + from * 1000 + event.atMs, stage, ordinal: counters[event.kind] = (counters[event.kind] ?? -1) + 1 }));
+      const events = [];
+      // Phase-wide strata preserve fractional rates across window boundaries.
+      // Keep a future stratum's jitter so inspecting it twice cannot resample it.
+      for (const stream of streams) while (stream.ordinal < stream.count) {
+        stream.nextAtMs ??= (stream.ordinal + stream.rng()) * 1000 / stream.rate;
+        if (stream.nextAtMs >= (from + seconds) * 1000) break;
+        events.push({ atMs: offset + stream.nextAtMs, kind: stream.kind, stage, ordinal: stream.ordinal++ });
+        stream.nextAtMs = null;
+      }
       for (const [clientIndex, client] of cohorts[stage].entries()) {
         const stagger = random(`${c.seed}:session:${client.login}`)() * 5000, start = offset + from * 1000;
         for (let atMs = stagger + Math.ceil((start - stagger) / 5000) * 5000; atMs < start + seconds * 1000; atMs += 5000)

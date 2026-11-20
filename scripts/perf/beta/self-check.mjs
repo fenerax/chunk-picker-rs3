@@ -6,6 +6,7 @@ import { Histogram, phaseMetrics, gates } from './metrics.mjs';
 import { arrivals, dispatch } from '../capacity/scheduler.mjs';
 import { schedule, dispatchSchedule } from './schedule.mjs';
 import { journalFor, reportPacket, observeAck } from './plugin.mjs';
+import { noteEvent } from './driver.mjs';
 import { validatePluginReport } from '../../../app/integrations/game-plugin.mjs';
 
 test('seed, roster, multichar allocation, exact action mix and runtime sweeps', () => {
@@ -49,6 +50,40 @@ test('percentile bounds and incomplete evidence never claims acceptance', () => 
   const g = gates({ steady: phaseMetrics() }, [], { passed: true }, 0, { logicalCpus: 1, physicalRAMBytes: 1e9 }, parse([]));
   assert.equal(g.phases.steady.resourceHeadroom, 'unmeasured'); assert.equal(g.acceptance, 'unproven');
 });
+test('unverified SSE cannot satisfy or precede an acknowledgement and fails isolation', () => {
+  const client = { pickerId: 'synthetic-picker', characterId: 'observer' }, isolation = [], seenEvents = new Map();
+  const acknowledgements = new Map(), metrics = { steady: phaseMetrics() }, key = 'synthetic-picker:1';
+  const emit = value => noteEvent({ client, id: 'revision', value, receivedAt: 20, phase: 'steady',
+    isolation, seenEvents, acknowledgements, metrics, maxSeenEvents: 8 });
+  assert.equal(emit({ revision: 1 }), 'untagged'); assert.equal(seenEvents.size, 0);
+  acknowledgements.set(key, { at: 10, phase: 'steady', receivers: ['observer:0'] });
+  assert.equal(emit({ revision: 1 }), 'untagged');
+  assert.equal(emit({ revision: 1, _trialOrigin: 'another-picker' }), 'foreign');
+  assert.equal(acknowledgements.size, 1); assert.equal(seenEvents.size, 0); assert.equal(metrics.steady.propagation.count, 0);
+  assert.equal(emit({ revision: 1, _trialOrigin: client.pickerId }), 'verified');
+  assert.equal(acknowledgements.size, 0); assert.equal(metrics.steady.propagation.count, 1);
+  const result = gates(metrics, isolation, { passed: true, acknowledgedWrites: 1 }, 0, {}, parse([]));
+  assert.equal(result.isolationAndDurability, 'fail');
+  assert.deepEqual(isolation.map(row => row.kind), ['untagged-event', 'untagged-event', 'foreign-event']);
+});
+test('fractional arrivals retain phase-wide counts and ordinals across thirty-second windows', () => {
+  const c = parse(['--smoke', '--sync-per-minute', '1']);
+  const phases = [120, 95].map(seconds => ({ seconds, actions: .125, plugins: .75 }));
+  const events = [...schedule(c, phases, [[], []], 10)];
+  assert.deepEqual(events, [...schedule(c, phases, [[], []], 10)]);
+  assert.ok(events.every((event, i) => !i || event.atMs >= events[i - 1].atMs));
+  let offset = 0;
+  for (const [stage, phase] of phases.entries()) {
+    for (const [kind, rate] of Object.entries({ product: .125, pluginReport: .3, pluginStatus: .3, pluginTasks: .15, sync: 1 / 60, isolation: .1 })) {
+      const arrivals = events.filter(event => event.stage === stage && event.kind === kind);
+      assert.equal(arrivals.length, Math.floor(rate * phase.seconds), `${stage}:${kind}`);
+      assert.deepEqual(arrivals.map(event => event.ordinal), Array.from({ length: arrivals.length }, (_, i) => i));
+      assert.ok(arrivals.every(event => event.atMs >= offset && event.atMs < offset + phase.seconds * 1000));
+    }
+    offset += phase.seconds * 1000;
+  }
+  assert.equal(events.filter(event => event.kind === 'sync' && event.stage === 0).length, 2);
+});
 test('real plugin wire validator accepts multipart packets and bounded journal replay', () => {
   const client = { group: 1, memberId: 'owner', pickerId: 'synthetic-picker', characterId: 'synthetic-character' }, journal = journalFor(client, 'seed');
   validatePluginReport(reportPacket(journal, client, 'seed', true));
@@ -57,7 +92,13 @@ test('real plugin wire validator accepts multipart packets and bounded journal r
   for (let i = 0; i < 40; i++) validatePluginReport(reportPacket(journal, client, 'seed', true));
   assert.equal(journal.pending.length, 32);
   observeAck(journal, { items: { journal: { id: journal.id, event: 32 } } }); assert.equal(journal.pending.length, 0);
+  assert.equal(observeAck(journal, { items: { journal: { id: journal.id, event: 31 } } }, 0), true);
+  assert.equal(journal.acknowledged, 32); assert.equal(journal.pending.length, 0);
+  validatePluginReport(reportPacket(journal, client, 'seed', true));
+  assert.equal(journal.pending[0][0], 33);
   assert.throws(() => observeAck(journal, { items: { journal: { id: journal.id, event: 31 } } }));
+  assert.throws(() => observeAck(journal, { items: { journal: { id: journal.id, event: 34 } } }, 0));
+  assert.equal(journal.acknowledged, 32); assert.equal(journal.pending.length, 1);
 });
 test('scheduled arrivals stay independent of completions and count generator drops', async () => {
   const list = arrivals([{ seconds: 1 }], 'seed', () => ({ product: 10 }));

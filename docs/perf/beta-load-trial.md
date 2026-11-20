@@ -121,6 +121,9 @@ Scheduled arrivals are independent of completion: ramps request 25, 75 and
 150 distinct logins, then steady load defaults to 15 product actions/s. A login
 may need another document to keep each group active; people, documents and
 groups have separate counts. Small fixtures explicitly cap the actual cohort.
+Each stream uses phase-wide jittered ordinals, with the final count rounded
+down once per phase. Lazy thirty-second windows retain fractional progress;
+for example, one sync per minute produces two arrivals in a two-minute phase.
 Product actions use seeded shuffled
 60-action blocks: 50% read/navigation/history, 20% task filters/explanations,
 15% durable edits, 5% stable character selection, 8⅓% expensive work and 1⅔%
@@ -137,6 +140,8 @@ to two in flight; skipped arrivals are counted. The transport cycles through
 success, private, unknown, malformed, oversized, timeout and 429 responses.
 Reports carry a bounded durable item journal, retain unacknowledged events for
 replay after restart, and audit committed journal acknowledgements on disk.
+Concurrent replies may arrive out of order: the greatest acknowledgement is
+retained, and each reply must cover the watermark known before its request.
 No fake transport ever falls back to a real provider.
 
 Optional phases use `--phases` with a comma-separated list:
@@ -185,7 +190,8 @@ contexts by `createServer`, with no HTTP, CLI or settings-file exposure. The
 default is absent and leaves event bytes unchanged. Request-local tags cannot
 identify emissions from shared calculator callbacks reliably, which is why the
 hook sits at the context emitter. Events without an emitter tag are counted as
-untagged, not silently claimed verified.
+untagged and fail the isolation gate. Untagged and foreign emissions cannot
+provide propagation evidence or satisfy a pending acknowledgement.
 State markers and rosters check response isolation. Final audit closes the app
 and reopens durable stores to check every acknowledged revision and note token;
 deleted characters must retain completed tombstones. The lifecycle phase checks stale

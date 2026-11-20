@@ -11,11 +11,13 @@ export function reportPacket(journal, client, seed, sendItems, now = new Date().
     ...(sendItems ? { items: { snapshot: digest(`${seed}:${client.characterId}`).slice(0, 16), worn: [], backpack: [],
       journal: { id: journal.id, events: structuredClone(journal.pending) } } } : { skills: { MINING: { level: 20, xp: 4470 } } }) };
 }
-export function observeAck(journal, result) {
+export function observeAck(journal, result, acknowledgedAtSend = journal.acknowledged) {
   const ack = result.items?.journal;
   if (ack?.id !== journal.id) return false;
-  if (!Number.isSafeInteger(ack.event) || ack.event < journal.acknowledged || ack.event > journal.event) throw new Error('Plugin journal acknowledgement regressed or exceeds sent evidence.');
-  journal.initialized = true; journal.acknowledged = ack.event;
-  journal.pending = journal.pending.filter(event => event[0] > ack.event);
+  // Concurrent replies may arrive out of order. Only knowledge predating this
+  // request proves a regression; retain the greatest acknowledgement observed.
+  if (!Number.isSafeInteger(ack.event) || ack.event < acknowledgedAtSend || ack.event > journal.event) throw new Error('Plugin journal acknowledgement regressed or exceeds sent evidence.');
+  journal.initialized = true; journal.acknowledged = Math.max(journal.acknowledged, ack.event);
+  journal.pending = journal.pending.filter(event => event[0] > journal.acknowledged);
   return true;
 }

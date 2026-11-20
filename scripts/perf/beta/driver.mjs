@@ -7,6 +7,20 @@ import { schedule, dispatchSchedule } from './schedule.mjs';
 import { journalFor, reportPacket, observeAck } from './plugin.mjs';
 
 const scope = client => ({ 'X-Picker-Id': client.pickerId, 'X-Character-Id': client.characterId });
+export function noteEvent({ client, id, value, receivedAt, phase, isolation, seenEvents, acknowledgements, metrics, maxSeenEvents }) {
+  if (!value._trialOrigin) { isolation.push({ kind: 'untagged-event', event: id, phase }); return 'untagged'; }
+  if (value._trialOrigin !== client.pickerId) { isolation.push({ kind: 'foreign-event', event: id, phase }); return 'foreign'; }
+  if (id !== 'revision') return 'verified';
+  const key = `${client.pickerId}:${value.revision}`, document = `${client.characterId}:${client.tab ?? 0}`;
+  const observed = seenEvents.get(key) ?? new Map(); observed.set(document, receivedAt); seenEvents.set(key, observed);
+  const ack = acknowledgements.get(key);
+  if (ack && ack.receivers.includes(document)) {
+    metrics[ack.phase].propagation.add(Math.max(0, receivedAt - ack.at)); acknowledgements.delete(key); seenEvents.delete(key);
+  }
+  // Cover events received before HTTP completion without retaining a whole soak.
+  if (seenEvents.size > maxSeenEvents) seenEvents.delete(seenEvents.keys().next().value);
+  return 'verified';
+}
 function population(clients) {
   const groupFirst = [...new Map(clients.map(client => [client.group, client])).values()];
   const logins = new Map();
@@ -84,20 +98,9 @@ export async function drive({ c, identity, base, control, log }) {
   };
   const call = async (...args) => (await request(...args)).value;
   const eventKey = (picker, revision) => `${picker}:${revision}`;
-  const noteEvent = (client, id, value, receivedAt) => {
-    if (value._trialOrigin && value._trialOrigin !== client.pickerId) isolation.push({ kind: 'foreign-event', event: id, phase: currentPhase });
-    if (!value._trialOrigin) untaggedEvents++;
-    if (id !== 'revision') return;
-    const key = eventKey(client.pickerId, value.revision);
-    const document = `${client.characterId}:${client.tab ?? 0}`;
-    const observed = seenEvents.get(key) ?? new Map(); observed.set(document, receivedAt); seenEvents.set(key, observed);
-    const ack = acknowledgements.get(key);
-    if (ack && ack.receivers.includes(document)) {
-      metrics[ack.phase].propagation.add(Math.max(0, receivedAt - ack.at)); acknowledgements.delete(key); seenEvents.delete(key);
-    }
-    // Only in-flight acknowledgements need old events. A bounded cache covers
-    // events arriving before HTTP completion without growing through a soak.
-    if (seenEvents.size > c['max-in-flight'] * 4) seenEvents.delete(seenEvents.keys().next().value);
+  const receiveEvent = (client, id, value, receivedAt) => {
+    if (noteEvent({ client, id, value, receivedAt, phase: currentPhase, isolation, seenEvents, acknowledgements, metrics,
+      maxSeenEvents: c['max-in-flight'] * 4 }) === 'untagged') untaggedEvents++;
   };
   const openStream = client => {
     const id = `${client.characterId}:${client.tab ?? 0}`;
@@ -129,7 +132,7 @@ export async function drive({ c, identity, base, control, log }) {
             while ((boundary = pending.indexOf('\n\n')) >= 0) {
               const frame = pending.slice(0, boundary); pending = pending.slice(boundary + 2);
               const event = /^event: (.*)$/m.exec(frame)?.[1], json = /^data: (.*)$/m.exec(frame)?.[1];
-              if (json) noteEvent(client, event, JSON.parse(json), performance.now());
+              if (json) receiveEvent(client, event, JSON.parse(json), performance.now());
             }
           }
         } catch {
@@ -376,8 +379,9 @@ export async function drive({ c, identity, base, control, log }) {
             const burst = ['cold', 'restart'].includes(ctx.phase) && journal.burstPhase !== ctx.phase;
             journal.burstPhase = ctx.phase;
             for (const sendItems of burst ? [items, !items] : [items]) {
+              const acknowledgedAtSend = journal.acknowledged;
               const result = await call(plugin, '/api/plugin/v1/report', reportPacket(journal, plugin, c.seed, sendItems), ctx, { plugin: true });
-              if (sendItems && observeAck(journal, result)) {
+              if (sendItems && observeAck(journal, result, acknowledgedAtSend)) {
                 metrics[ctx.phase].acknowledgement.add(performance.now() - ctx.scheduledAt);
               }
             }
