@@ -48,7 +48,8 @@ function backupHeaders(request, maxUploadBytes) {
 // Owned uploads reserve bytes at ingress before buffering. Only a complete wire
 // body may compete for the global decompression/JSON parser slot. Keep chunks
 // separate so admission does not need a second contiguous copy of the upload.
-export async function receiveBackupRequest(request, { idleTimeoutMs, totalTimeoutMs, maxUploadBytes = MAX_UPLOAD_BYTES } = {}) {
+export async function receiveBackupRequest(request, { idleTimeoutMs, totalTimeoutMs, maxUploadBytes = MAX_UPLOAD_BYTES,
+  clock = { setTimeout, clearTimeout }, onChunk } = {}) {
   backupHeaders(request, maxUploadBytes);
   if (!Number.isSafeInteger(idleTimeoutMs) || idleTimeoutMs < 1) throw new TypeError('Invalid backup body idle timeout.');
   if (!Number.isSafeInteger(totalTimeoutMs) || totalTimeoutMs < 1) throw new TypeError('Invalid backup body total timeout.');
@@ -57,28 +58,30 @@ export async function receiveBackupRequest(request, { idleTimeoutMs, totalTimeou
     // Bytes renew only the idle timer: a trickled body still ends at the total deadline.
     let bytes = 0, timer, total;
     const cleanup = () => {
-      clearTimeout(timer); clearTimeout(total);
+      clock.clearTimeout(timer); clock.clearTimeout(total);
       request.off('data', data); request.off('end', end);
       request.off('error', failed); request.off('aborted', aborted);
     };
     const failed = error => { cleanup(); request.pause(); reject(error); };
     const aborted = () => failed(fail(400, 'The backup upload was interrupted. Choose it again.'));
     const reset = () => {
-      clearTimeout(timer);
-      timer = setTimeout(() => failed(fail(408, 'The backup upload stopped arriving. Choose it again.')), idleTimeoutMs);
-      timer.unref();
+      clock.clearTimeout(timer);
+      timer = clock.setTimeout(() => failed(fail(408, 'The backup upload stopped arriving. Choose it again.')), idleTimeoutMs);
+      timer?.unref?.();
     };
     const data = chunk => {
       if (typeof chunk === 'string') chunk = Buffer.from(chunk);
-      bytes += Buffer.byteLength(chunk);
+      const chunkBytes = Buffer.byteLength(chunk);
+      bytes += chunkBytes;
       if (bytes > maxUploadBytes) { failed(fail(413, `This backup is too large. The limit is ${BACKUP_LIMIT_LABEL} after decompression.`)); return; }
       chunks.push(chunk); reset();
+      onChunk?.({ bytes, chunkBytes });
     };
     const end = () => { cleanup(); resolve(); };
     if (request.destroyed) { aborted(); return; }
     request.on('error', failed); request.on('aborted', aborted);
-    total = setTimeout(() => failed(fail(408, 'The backup upload took too long. Choose it again.')), totalTimeoutMs);
-    total.unref();
+    total = clock.setTimeout(() => failed(fail(408, 'The backup upload took too long. Choose it again.')), totalTimeoutMs);
+    total?.unref?.();
     request.on('end', end); request.on('data', data); reset();
   });
   // The parser retains the same headers and size/depth/decompression checks as
