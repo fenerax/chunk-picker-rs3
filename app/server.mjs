@@ -1,4 +1,6 @@
 import { openLiveTimings, noteTiming } from './live-timings.mjs';
+import { admissionMode } from './storage/beta-links.mjs';
+import { betaLinkOperation } from '../scripts/linux/beta-link-operator.mjs';
 import { beginOpenDiagnostics } from './open-diagnostics.mjs';
 import { createDeepProfiles } from './deep-profiles.mjs';
 const PROFILE_ENABLED = process.env.RS3_PROFILE === '1';
@@ -175,6 +177,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
   loopbackRole = normalizeIngressRole(loopbackRole);
   if (!['off', 'optional', 'required'].includes(signIn)) throw new TypeError('RS3_SIGNIN must be off, optional or required.');
   // MP7: one enabled-mode budget for the full server lifetime.
+  if (multiPicker) admissionMode(multiPicker);
   const pickerLimits = multiPicker ? createPickerLimits(multiPicker) : undefined;
   const limits = createRateLimits(rateLimits);
   const admitStream = createStreamLimits(rateLimits);
@@ -450,7 +453,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
     if (multiPicker) {
       await mkdir(dataDir, { recursive: true, mode: 0o700 });
       backupDeletionDisclosure(backupRetentionMs);
-      pickerRegistry = await openRegistry({ ...multiPicker, legacyDir: dataDir });
+      pickerRegistry = await openRegistry({ ...multiPicker, admission: admissionMode(multiPicker), legacyDir: dataDir });
       await reconcileTombstones({ registry: pickerRegistry });
     }
     context = await createPickerContext({ pickerId: 'legacy', dataDir, runtime,
@@ -538,6 +541,10 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
       if (request.method !== 'POST') throw httpError(405, 'Use POST.');
       checkRequestOrigin(request, security);
       const body = await bodyJSON(request, 8192);
+      if (request.url.split('?')[0] === '/api/operator/beta-links') {
+        const result = await betaLinkOperation(pickerRegistry, publicOrigin, body);
+        await json(request, response, 200, result); return;
+      }
       if (request.url.split('?')[0] === '/api/operator/relink-code') {
         if (!publicOrigin || new URL(publicOrigin).protocol !== 'https:') throw httpError(409, 'An HTTPS public origin is required.');
         if (Object.keys(body).length !== 1 || typeof body.accountId !== 'string') throw httpError(400, 'Use an account ID.');
@@ -556,7 +563,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
     }
   }
   const requestHandler = (request, response, listener = { host, ingressRole }) => {
-    if (pickerRouter && ['/api/operator/service-snapshot', '/api/operator/relink-code', '/api/health'].includes((request.url ?? '').split('?')[0])) return serviceOperator(request, response, listener);
+    if (pickerRouter && ['/api/operator/service-snapshot', '/api/operator/relink-code', '/api/operator/beta-links', '/api/health'].includes((request.url ?? '').split('?')[0])) return serviceOperator(request, response, listener);
     return pickerRouter ? pickerRouter.handle(request, response, listener) : contextFor(request).handle(request, response, listener);
   };
   const headerOptions = { maxHeaderSize: requestContextFor === requestContext ? http.maxHeaderSize : 64 * 1024 };

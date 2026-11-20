@@ -12,6 +12,7 @@ export const messages = Object.freeze({
   'operation-long': 'An operation exceeded its time budget', 'disk-low': 'Disk reserve is low',
   'ram-low': 'Available memory is low', 'failed-units': 'System services have failed',
   'group-storage': 'A group is nearing or has reached its retained storage limit; inspect monitor --storage',
+  'plugin-key-records': 'A plugin key file is nearing or has reached its 1,000-record limit; inspect monitor --storage and review key retention before creating more keys. Revoking keys does not free records.',
   'operator-fault': 'An operator operation failed', 'health-fault': 'Health recovery failed',
   'backup-fault': 'Recovery backup failed', 'offhost-fault': 'Off-site backup failed',
   'offhost-paused': 'Off-site delivery is deliberately paused',

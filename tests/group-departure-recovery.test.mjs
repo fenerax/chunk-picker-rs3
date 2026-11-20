@@ -15,7 +15,7 @@ import { encode, sha, json } from '../scripts/linux/files.mjs';
 test('service capture and stopped restore carry immutable Past maps independently of active gameplay', async t => {
   const root = await mkdtemp(path.join(tmpdir(), 'past-recovery-')), f = await inviteFixture(path.join(root, 'source'));
   const settingsAt = base => ({ dataDir: path.join(base, 'legacy'), controlDir: path.join(base, 'control'), backupDir: path.join(base, 'backups'), scratchRoot: path.join(base, 'scratch'), minFreeBytes: 0,
-    multiPicker: { registryDir: path.join(base, 'registry'), pickerRoot: path.join(base, 'pickers'), tombstoneDir: path.join(base, 'ledger') } });
+    multiPicker: { admission: 'open', registryDir: path.join(base, 'registry'), pickerRoot: path.join(base, 'pickers'), tombstoneDir: path.join(base, 'ledger') } });
   const settings = settingsAt(path.join(root, 'source'));
   t.after(async () => { await f.close(); await rm(root, { recursive: true }); });
   await f.registry.registerLegacy({ memberIds: ['one', 'two'], accounts: [], droppedMemberships: 0 });

@@ -84,6 +84,22 @@ private listener address and use distinct explicit listener ports. The additiona
 loopback listener always receives `loopbackRole: public`. Store the exact HTTPS
 origin in `publicOriginFile`. No origin or credential is printed by this kit.
 
+Optional top-level `backupRetentionMs` must be identical in the pinned release
+config and `operator.json`, including whether it is present. It is a positive
+integer in milliseconds, at most `316224000000` (ten 366-day years). For example,
+`2592000000` discloses a 30-day period in the deletion review shown before
+confirmation. Startup and operator agreement checks reject invalid or mismatched
+values. Individual recovery probes receive the same disclosure setting.
+
+This setting describes an independently enforced backup expiry policy; it does
+not schedule deletion or change the local `keep` count, gameplay retention, or
+restic daily/weekly/monthly policies. Set it only if every retained copy is
+guaranteed to expire within that period. Count-based snapshots and calendar-based
+restic retention alone do not guarantee a maximum age. Otherwise omit it from
+both configurations: deletion review explicitly says the retention period is
+not configured and makes no hard expiry claim. In either case, retained backups
+are not erased immediately when a character, group or login is deleted.
+
 Generate target config bytes and pins after rebasing paths. A Windows receipt
 does not attest a modified Linux config. Reject unverified uploads, symlinks and
 hard links. Keep source runtime state outside immutable release roots. Source
@@ -251,6 +267,36 @@ service account. No restore automatically starts the writer.
 Recovery backups contain reusable credentials. Keep directories private,
 encrypt off-host copies, verify delivery separately, and rehearse a download
 and restore. The local retained count is not an off-host retention policy.
+
+## Monitor thresholds
+
+The root-owned `/etc/chunk-picker/monitor.json` accepts the settings below;
+`scripts/linux/monitor.example.json` shows their defaults. The monitor unit reads
+`runtime.env`, including `RS3_OPERATOR_CONFIG`, to find the legacy store and
+configured `multiPicker.pickerRoot`. An explicit `dataDir` and optional
+`multiPicker` in monitor settings select those roots instead.
+
+| Setting | Default | Validation and behavior |
+| --- | --- | --- |
+| `backupWarningAgeMs` | `129600000` (36 hours) | Positive integer milliseconds, at most `31622400000` (366 days) |
+| `backupCriticalAgeMs` | `172800000` (48 hours) | Same bound, strictly greater than the warning age |
+| `pluginKeyWarningRecords` | `800` (80% of 1,000) | Integer 1–999; warning at or above this count, critical at 1,000 |
+
+Both backup ages apply to the local source snapshot, delivered source snapshot,
+and last successful off-host delivery. Equality triggers the respective level;
+missing, invalid or implausibly future timestamps remain critical. Invalid
+threshold settings fail monitoring rather than silently using defaults.
+
+Plugin key counts include active and revoked records in every legacy and owned
+picker file, including dormant pickers. Collection reads bounded chunks and
+discards record strings before JSON decoding; it never opens a credential store
+or authenticates a key. `monitor.mjs --storage` prints counts alongside existing
+group storage usage. Missing key files count as zero; unreadable or malformed
+files fail collection and raise the existing monitoring-evidence alert. Alerts
+contain fixed text only, without key material, labels, player identities or paths.
+On a key-count alert, inspect that private count report and review key retention
+before further key creation. Revoking a key does not free a record; do not delete
+live credentials or remove revoked records without a reviewed retention procedure.
 
 ## Final stopped-save compatibility and activation
 
@@ -580,6 +626,49 @@ Repeat the full operator commands on staging under its isolated systemd owner
 before production approval. Neither command starts the paused PC picker.
 
 ## Optional multi-picker service operations (MP8)
+
+### Invite-only beta admission
+
+Whenever `multiPicker` is configured, `multiPicker.admission` defaults to
+`"invite-only"`; its only other value is `"open"`. The operator and pinned
+release configs must agree (omitted and explicit `"invite-only"` agree).
+Public sign-up still needs the owner's approval before selecting `"open"`.
+Single-picker sign-in is unchanged. Existing logins, provider linking, valid
+group invitations and operator relink codes remain usable.
+
+Issue a single-use beta link for each person starting a group, including a
+plugin reviewer. These synthetic commands work against the active private
+operator endpoint or a deliberately stopped registry under its writer lock:
+
+```sh
+node scripts/linux/operator.mjs beta-link-issue "Synthetic group"
+node scripts/linux/operator.mjs beta-link-issue "Synthetic plugin reviewer" 7
+node scripts/linux/operator.mjs beta-link-list
+node scripts/linux/operator.mjs beta-link-revoke 00000000-0000-4000-8000-000000000001
+```
+
+The optional final number is a positive whole number of days; the default is
+14 days. Issue prints JSON with the full `link` **once, to stdout only**.
+Copy it privately; avoid terminal recording, log redirection and shared
+transcripts. List and revoke return metadata without tokens or hashes. A lost
+link cannot be recovered: revoke its listed ID and issue another. Labels are
+optional private operator notes, limited to 120 characters.
+
+A full link looks like `https://picker.example/auth/beta#<secret>`.
+The fragment stays out of HTTP request URLs; the browser removes it before a
+same-origin POST exchanges it for a ten-minute pre-auth continuation. OAuth
+state carries no beta token. Expiry and revocation are rechecked at login
+creation. Opening a link does not consume it; a new login consumes it once.
+Existing logins neither need nor consume beta links. Issuance reserves no
+picker capacity; redemption still obeys `betaPickerCap` and ordinary quotas.
+A full beta refuses redemption without consuming the link.
+
+Treat `registryDir/beta-links.json` as credential material even though it stores
+only hashes. Sanitized service checkpoints and off-host backups exclude it.
+Restore invalidates outstanding links in the destination before publishing the
+restored registry, including on interrupted retries. Reissue links afterward;
+restored logins use the existing relink-code procedure. This does not change
+the credential-bearing legacy single-store backup format.
 
 The default single-duo configuration and backup format are unchanged. To operate
 MP4's opt-in service, put identical `multiPicker` roots in the pinned release

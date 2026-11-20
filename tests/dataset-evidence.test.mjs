@@ -64,7 +64,7 @@ test('server reopens a newly prepared owned save without retained release eviden
   const root = await mkdtemp(path.join(tmpdir(), 'dataset-evidence-server-'));
   let app;
   t.after(async () => { await app?.close(); await rm(root, { recursive: true, force: true }); });
-  const dataDir = path.join(root, 'legacy'), multiPicker = { registryDir: path.join(root, 'registry'),
+  const dataDir = path.join(root, 'legacy'), multiPicker = { admission: 'open', registryDir: path.join(root, 'registry'),
     pickerRoot: path.join(root, 'pickers'), tombstoneDir: path.join(root, 'tombstones') };
   const base = selectedDataset;
   const provider = options => {

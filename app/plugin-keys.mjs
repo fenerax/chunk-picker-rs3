@@ -8,8 +8,9 @@ const fail = (status, message) => Object.assign(new Error(message), { status });
 const hash = token => createHash('sha256').update(token).digest('hex');
 const same = (a, b) => timingSafeEqual(Buffer.from(a, 'hex'), Buffer.from(b, 'hex'));
 const publicRecord = ({ tokenHash, accountId, ...record }) => structuredClone(record);
+export const PLUGIN_KEY_RECORD_LIMIT = 1000;
 function validate(value) {
-  if (!value || value.schemaVersion !== 1 || Object.keys(value).some(key => !['schemaVersion', 'keys'].includes(key)) || !Array.isArray(value.keys) || value.keys.length > 1000) throw new TypeError('Invalid plugin key store.');
+  if (!value || value.schemaVersion !== 1 || Object.keys(value).some(key => !['schemaVersion', 'keys'].includes(key)) || !Array.isArray(value.keys) || value.keys.length > PLUGIN_KEY_RECORD_LIMIT) throw new TypeError('Invalid plugin key store.');
   const ids = new Set(), hashes = new Set();
   for (const record of value.keys) {
     if (!record || Object.keys(record).some(key => !['id', 'player', 'label', 'createdAt', 'lastUsedAt', 'lastWorld', 'revoked', 'tokenHash', 'accountId'].includes(key))
@@ -62,7 +63,7 @@ export async function openPluginKeys({ dataDir, clock = Date.now, maxActiveKeysP
     create(player, label, accountId) {
       return mutate(next => {
         if (next.keys.filter(record => record.player === player && !record.revoked).length >= (maxActiveKeysPerPlayer ?? 3)) throw maxActiveKeysPerPlayer ? Object.assign(fail(429, 'Revoke an existing plugin key and retry.'), { retryAfter: 1 }) : fail(409, 'Revoke a key first. Each player can have three active keys.');
-        if (next.keys.length >= 1000) throw maxActiveKeysPerPlayer ? Object.assign(fail(429, 'The plugin key record limit has been reached. Ask the operator to review key retention before retrying.'), { retryAfter: 60 }) : fail(409, 'The game plugin key limit has been reached.');
+        if (next.keys.length >= PLUGIN_KEY_RECORD_LIMIT) throw maxActiveKeysPerPlayer ? Object.assign(fail(429, 'The plugin key record limit has been reached. Ask the operator to review key retention before retrying.'), { retryAfter: 60 }) : fail(409, 'The game plugin key limit has been reached.');
         const key = `gpk_${randomBytes(32).toString('base64url')}`, record = { id: randomUUID(), player, label, ...(accountId ? { accountId } : {}),
           createdAt: new Date(clock()).toISOString(), lastUsedAt: null, lastWorld: null, revoked: false, tokenHash: hash(key) };
         next.keys.push(record); return { key, record: publicRecord(record) };

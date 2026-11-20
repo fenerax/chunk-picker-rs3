@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
-import { evaluate, monitor, lockOwnerAlive } from '../scripts/linux/monitor.mjs';
+import { evaluate, monitor, lockOwnerAlive, collectStorage, monitorSettings } from '../scripts/linux/monitor.mjs';
+import { pluginKeyCount } from '../scripts/linux/plugin-key-count.mjs';
 import { notify, notifyFailure, releaseWindow, failureUnits } from '../scripts/linux/notify.mjs';
 import { deadman } from '../scripts/linux/ops-status.mjs';
 import { exclusive } from '../scripts/linux/files.mjs';
@@ -14,6 +15,60 @@ const sample = () => ({ writerActive: true, backup: { snapshotAt: new Date(now).
   offhost: { snapshotAt: new Date(now).toISOString(), lastSuccessAt: new Date(now).toISOString() }, diskBytes: 20 * GiB, ramBytes: 3 * GiB, failed: [] });
 async function fixture(t) { await mkdir(base, { recursive: true }); const dir = await mkdtemp(path.join(base, 'run-'));
   t.after(() => rm(dir, { recursive: true, force: true })); return dir; }
+
+test('monitor settings reject invalid counts, ages and reversed escalation', () => {
+  assert.deepEqual(monitorSettings(), { backupWarningAgeMs: 129600000, backupCriticalAgeMs: 172800000, pluginKeyWarningRecords: 800 });
+  for (const key of ['backupWarningAgeMs', 'backupCriticalAgeMs', 'pluginKeyWarningRecords'])
+    for (const value of [null, 0, -1, 1.5, '800', Infinity, Number.MAX_SAFE_INTEGER])
+      assert.throws(() => monitorSettings({ [key]: value }), /Invalid monitor/);
+  assert.throws(() => monitorSettings({ pluginKeyWarningRecords: 1000 }), /Invalid monitor/);
+  for (const value of [129600000, 129599999]) assert.throws(() => monitorSettings({ backupCriticalAgeMs: value }), /precede/);
+});
+
+test('backup thresholds apply at exact boundaries to all three age observations and monitor configuration', async t => {
+  for (const config of [{}, { backupWarningAgeMs: 1000, backupCriticalAgeMs: 2000 }]) {
+    const settings = monitorSettings(config);
+    for (const [elapsed, expected] of [[settings.backupWarningAgeMs - 1, undefined], [settings.backupWarningAgeMs, 'warning'],
+      [settings.backupCriticalAgeMs - 1, 'warning'], [settings.backupCriticalAgeMs, 'critical']]) {
+      const at = new Date(now - elapsed).toISOString(), value = { ...sample(), backup: { snapshotAt: at }, offhost: { snapshotAt: at, lastSuccessAt: at } };
+      const controlDir = await fixture(t);
+      const result = await monitor({ controlDir, ...config }, { sample: value, now, send: async () => {} });
+      for (const code of ['backup-source', 'offhost-source', 'offhost-delivery']) assert.equal(result.faults[code], expected);
+    }
+  }
+});
+
+test('plugin record counts include revoked keys across legacy and dormant roots; alerts expose no key material', async t => {
+  const controlDir = await fixture(t), dataDir = path.join(controlDir, 'legacy'), pickerRoot = path.join(controlDir, 'pickers');
+  const id = 'p_' + 'a'.repeat(32), owned = path.join(pickerRoot, id);
+  await mkdir(dataDir); await mkdir(owned, { recursive: true });
+  const secret = 'synthetic-key-material', record = { tokenHash: secret, player: 'synthetic-player', label: 'escaped " \\ { } [ ] keys', revoked: true };
+  const file = path.join(owned, 'plugin-keys.json');
+  assert.equal(await pluginKeyCount(file), 0);
+  for (const count of [799, 800, 999, 1000]) {
+    await writeFile(file, JSON.stringify({ schemaVersion: 1, keys: Array.from({ length: count }, () => record) }, null, 2));
+    const storage = await collectStorage({ dataDir, multiPicker: { pickerRoot } });
+    assert.deepEqual(storage.map(row => row.pluginKeyRecords), [0, count]);
+    const result = evaluate({ ...sample(), storage }, {}, now);
+    assert.equal(result.faults['plugin-key-records'], count < 800 ? undefined : count < 1000 ? 'warning' : 'critical');
+    assert.equal(evaluate({ ...sample(), storage }, {}, now, { pluginKeyWarningRecords: 799 }).faults['plugin-key-records'], count < 1000 ? 'warning' : 'critical');
+    assert(!JSON.stringify(storage).includes(secret));
+  }
+  // Exercise legacy collection too, with the key string crossing stream chunks.
+  await writeFile(path.join(dataDir, 'plugin-keys.json'), JSON.stringify({ keys: [{ ...record, label: 'x'.repeat(70000) }], schemaVersion: 1 }));
+  const storage = await collectStorage({ dataDir, multiPicker: { pickerRoot } }), sent = [];
+  assert.equal(storage[0].pluginKeyRecords, 1);
+  await monitor({ controlDir }, { sample: { ...sample(), storage }, now, send: async text => sent.push(text) });
+  assert.match(sent[0], /review key retention/); assert.match(sent[0], /Revoking keys does not free records/);
+  for (const privateValue of [secret, record.player, record.label, id, owned]) {
+    assert(!sent.join('\n').includes(privateValue));
+    assert(!(await readFile(path.join(controlDir, 'monitor-state.json'), 'utf8')).includes(privateValue));
+  }
+  for (const invalid of ['{', '{"schemaVersion":1,"keys":null}', '{"schemaVersion":1,"keys":[null]}', '{"schemaVersion":1,"keys":[{"label":"\\q"}]}']) {
+    await writeFile(file, invalid); await assert.rejects(pluginKeyCount(file), /Invalid plugin key count input/);
+  }
+  await writeFile(file, 'x'.repeat(1024 * 1024 + 1)); await assert.rejects(pluginKeyCount(file), /Invalid plugin key count input/);
+});
 
 test('observer catches inactive writer independently of skipped health, both snapshot ages and delivery age', () => {
   const value = sample(); assert.deepEqual(evaluate(value, {}, now).faults, {});

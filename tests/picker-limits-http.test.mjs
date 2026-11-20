@@ -62,7 +62,7 @@ async function fixture(t, { initiallyEnabled = true, beforeCommit, taskWorkerOpt
     return Response.json({ id: access.get(options.headers.Authorization.slice(7)) });
   } };
   const admissionEvents = [], observeAdmission = limits.onAdmission;
-  const multiPicker = { registryDir: path.join(root, 'registry'), pickerRoot: path.join(root, 'pickers'), tombstoneDir: path.join(root, 'tombstones'), ...limits,
+  const multiPicker = { admission: 'open', registryDir: path.join(root, 'registry'), pickerRoot: path.join(root, 'pickers'), tombstoneDir: path.join(root, 'tombstones'), ...limits,
     onAdmission(event) { admissionEvents.push(event); observeAdmission?.(event); } };
   let app, handler;
   const start = async (multi) => {

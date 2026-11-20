@@ -17,7 +17,7 @@ export async function groupHttpFixture(t, { crashPoint, beforeCommit, progressSo
   if(url.endsWith('/oauth2/token')){const form=new URLSearchParams(options.body), grant=grants.get(form.get('code')); assert.ok(grant); assert.equal(createHash('sha256').update(form.get('code_verifier')).digest('base64url'),grant.challenge); const token='synthetic-'+form.get('code');access.set(token,grant.subject);return Response.json({access_token:token});}
   assert.equal(url,'https://discord.com/api/users/@me');return Response.json({id:access.get(options.headers.Authorization.slice(7))});
  }};
- const multiPicker={registryDir:path.join(root,'registry'),pickerRoot:path.join(root,'pickers'),tombstoneDir:path.join(root,'ledger'),registrationsGlobal:100,registrationsPerAccount:100,crashPoint};
+ const multiPicker={ admission: 'open',registryDir:path.join(root,'registry'),pickerRoot:path.join(root,'pickers'),tombstoneDir:path.join(root,'ledger'),registrationsGlobal:100,registrationsPerAccount:100,crashPoint};
  async function start(){app=await createServer({dataDir:path.join(root,'legacy'),dataset,definitions:{challenges:{},chunks:{'12341':{}},walkableChunks:['12341'],walkableChunksF2P:['12341']},taskMap:{},initialState:createGroupState([{id:'one',name:'Player 1'},{id:'two',name:'Player 2'}]),port:0,loopbackPort:0,loopbackRole:'public',publicOrigin:origin,signIn:'optional',signInProvider:provider,multiPicker,beforeCommit,progressSources,predictionPrewarm:false,shutdownDeadlineMs:500,rateLimits:{unauthenticated:10000}});await app.listen();}
  await start();
  const send=(route,cookie='',body,extra={})=>new Promise((resolve,reject)=>{

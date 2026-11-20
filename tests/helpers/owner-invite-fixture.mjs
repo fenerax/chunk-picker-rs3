@@ -8,7 +8,7 @@ import { createGroupInviteService } from '../../app/group-invite-service.mjs';
 import { createGroupDepartureService } from '../../app/group-departure-service.mjs';
 
 export async function inviteFixture(root, { crashPoint, now = () => Date.parse('2026-01-01T00:00:00Z'), caps, retention, prepareState, loginStorage, beforeCommit } = {}) {
-  const options = { registryDir: path.join(root, 'registry'), pickerRoot: path.join(root, 'pickers'), tombstoneDir: path.join(root, 'ledger'), legacyDir: path.join(root, 'legacy') };
+  const options = { admission: 'open', registryDir: path.join(root, 'registry'), pickerRoot: path.join(root, 'pickers'), tombstoneDir: path.join(root, 'ledger'), legacyDir: path.join(root, 'legacy') };
   await mkdir(options.legacyDir, { recursive: true });
   const registry = await openRegistry({ ...options, crashPoint, now, caps, loginStorage });
   const firstLogin = registry.firstLogin;

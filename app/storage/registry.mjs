@@ -12,6 +12,7 @@ import { createGroupDepartures, validateDepartures, departureSoloEligible } from
 import { validateRetirements, migrateRetirements, registryV5, slotKey, reservedRetirementSlots, reservedRetiredCharacters } from './registry-retirements.mjs';
 import { deletionPlan, requireLoginDeletionReady } from './character-deletions.mjs';
 import { createLoginStorageBudget, loginStorageBudget } from './login-storage-budget.mjs';
+import { admissionMode, BETA_LINK_FILE, createBetaLinks } from './beta-links.mjs';
 
 const PICKER = /^p_[0-9a-f]{32}$/;
 const HASH = /^[0-9a-f]{64}$/;
@@ -198,8 +199,11 @@ async function load(file) {
 
 /** Operator paths only. No HTTP, gameplay state, sign-in, or store is opened here. */
 export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, legacyDir, caps: overrides = {}, now = Date.now,
-  crashPoint, pickerRandomBytes = randomBytes, betaPickerCap, onCapCheck, recoveryOnly = false, loginStorage: storageOptions = {} } = {}) {
+  crashPoint, pickerRandomBytes = randomBytes, betaPickerCap, onCapCheck, recoveryOnly = false, loginStorage: storageOptions = {}, admission = 'open' } = {}) {
   const loginLimits = loginStorageBudget(storageOptions);
+  // Storage-only callers can bootstrap fixtures. The service supplies the
+  // validated multiPicker policy, whose omitted value is invite-only.
+  admissionMode({ admission });
   if (typeof recoveryOnly !== 'boolean') throw new TypeError('Invalid registry recovery mode.');
   if ([registryDir, pickerRoot, tombstoneDir].some(dir => typeof dir !== 'string' || !dir)) throw new TypeError('Registry, picker and tombstone roots are required.');
   const caps = { ...DEFAULT_REGISTRY_CAPS, ...overrides };
@@ -217,7 +221,7 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
   }
   const releases = [];
   let current, ledger, queue = Promise.resolve(), closed = false, failed = false, closing;
-  let lifecycleCapture = false, retained;
+  let lifecycleCapture = false, retained, betaLinks;
   let providerIndex, capabilityIndex, accountIndex, pickerIndex, memberAccounts, tombstoneIndex, retiredAccounts, issuedIds, capCounts, characterIndex;
   const file = path.join(registryDir, 'registry.json'), ledgerFile = path.join(tombstoneDir, 'ledger.json');
   const timestamp = () => new Date(now()).toISOString();
@@ -654,6 +658,11 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
     // Reconcile before recovery can create a directory or expose any index.
     await saveLedger(ledger); await save(current);
     if (!recoveryOnly) {
+      const betaFile = path.join(registryDir, BETA_LINK_FILE);
+      betaLinks = createBetaLinks({ file: betaFile, document: await load(betaFile), now, poison: () => { failed = true; } });
+      await betaLinks.recover(id => current.accounts.some(a => a.id === id));
+    }
+    if (!recoveryOnly) {
       for (const account of [...current.accounts]) if (account.pendingCreation && !loginDeleting(account.id)) await createCharacter(account.id, { requestId: account.pendingCreation.requestId, runescapeName: account.pendingCreation.runescapeName, acknowledgeDuplicate: true });
       for (const picker of current.pickers.filter(p => p.lifecycle === 'active' && p.provisioning === 'reserved' && !loginDeleting(p.ownerAccountId))) await provision(picker.id);
     }
@@ -663,6 +672,10 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
   }
   if (!recoveryOnly) retained = createLoginStorageBudget({ read: () => current, limits: loginLimits });
   const api = {
+    previewBetaLink(secret) { usable(); return betaLinks.preview(secret); },
+    listBetaLinks() { return enqueue(() => betaLinks.list()); },
+    issueBetaLink(input) { return enqueue(() => betaLinks.issue(input)); },
+    revokeBetaLink(id) { return enqueue(() => betaLinks.revoke(id)); },
     deletionPlan(accountId, input) { usable(); return copy(deletionPlan(current, accountId, input)); },
     deletionTransactions() { usable(); return copy(ledger.deletions ?? []); },
     getDeletion(id) { usable(); return copy(ledger.deletions?.find(d => d.id === id)); },
@@ -863,15 +876,29 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
       if (!['discord', 'google'].includes(provider)) throw error(400, 'Invalid sign-in provider.');
       const next = copy(current), account = requireAccount(next, accountId); account.identities = account.identities.filter(i => i.provider !== provider); await save(next, { accounts: [account] }); return account;
     }); },
-    firstLogin(provider, subject) { return enqueue(async () => {
+    firstLogin(provider, subject, { betaSecret, groupSecret } = {}) { return enqueue(async () => {
       registryIdentity(provider, subject);
       // Refuse admission before persisting a new login or consuming an ID.
       const existing = accountForIdentity(current, provider, subject);
+      if (!existing && admission === 'invite-only') {
+        if (groupSecret) {
+          if (groupInvites.preview(groupSecret).status !== 'pending') throw error(403, 'This group invitation is no longer available. Ask the group owner for a new invitation.');
+        } else if (betaSecret) betaLinks.preview(betaSecret);
+        else throw error(403, 'The beta is invite-only. To get started, open a beta link from the operator or a player invitation from your group owner. If you already have a login, use the provider you linked to it.');
+      }
       if (existing) requireAllocation(existing.id);
       if (!existing || !existing.initialProvisioned && !existing.pendingCreation) checkPickerAllocation();
       if (!existing && current.characters.filter(c => c.lifecycle === 'active').length >= caps.characters) throw characterError('The service character limit has been reached. Existing maps are unchanged.');
       if (!existing && ledger.issuedCharacterIds.length >= caps.issuedCharacterIds) throw characterError('The character ID history limit has been reached. Existing IDs cannot be reused.');
-      const next = copy(current), account = ensureIdentity(next, provider, subject); await save(next, { accounts: [account] });
+      const next = copy(current), account = ensureIdentity(next, provider, subject);
+      if (!existing && betaSecret) {
+        await betaLinks.begin(betaSecret, account.id); await point('beta-link-intent');
+      }
+      await save(next, { accounts: [account] });
+      if (!existing && betaSecret) {
+        await point('beta-link-login');
+        await betaLinks.recover(id => current.accounts.some(a => a.id === id)); await point('beta-link-consumed');
+      }
       const picker = await ensureDefault(account.id); return { account: requireAccount(current, account.id), picker };
     }); },
     // Reserve gameplay slots before a replacement commit. This only grows the

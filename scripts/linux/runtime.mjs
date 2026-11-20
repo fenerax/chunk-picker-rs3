@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { admissionMode } from '../../app/storage/beta-links.mjs';
 import { warmStoreAllowed } from '../../app/tasks/warm-store.mjs';
 import { readFile } from 'node:fs/promises';
 import { pathToFileURL } from 'node:url';
@@ -17,6 +18,7 @@ async function inspectRelease(bytes, dataDir, pointerFile) {
   const configBytes = await readFile(pointer.config.path);
   if (sha(configBytes) !== pointer.config.sha256) throw new Error('Release configuration pin changed.');
   const config = JSON.parse(configBytes);
+  backupRetention(config);
   if (path.resolve(config.dataDir) !== path.resolve(dataDir)) throw new Error('Release names another store.');
   if (!path.isAbsolute(config.coreRoot)) throw new Error('Release root must be absolute.');
   for (const pin of [config.selection, config.profile, config.addons, ...Object.values(config.packs ?? {})].filter(Boolean)) {
@@ -48,6 +50,7 @@ export function runtimeEnvironment(config, { probe = false } = {}) {
   return sanitizeExecutionEnvironment(process.env, { overrides });
 }
 export async function openApplication(config, dataDir, { probe = false } = {}) {
+  const backupRetentionMs = backupRetention(config);
   // Process-owned runtime: serve/probe run as dedicated children; rehearse's
   // public API launches a child too. Do not call this in an operator process.
   if (!probe && (!isPrivateClient(config.host) || !Number.isInteger(config.port) || !Number.isInteger(config.loopbackPort)
@@ -62,7 +65,7 @@ export async function openApplication(config, dataDir, { probe = false } = {}) {
   Object.assign(process.env, environment);
   const server = await import(pathToFileURL(path.join(config.coreRoot, 'app/server.mjs')).href);
   const options = { dataDir, host: config.host, port: config.port, loopbackPort: probe ? undefined : config.loopbackPort,
-    loopbackRole: 'public', predictionPrewarm: !probe,
+    loopbackRole: 'public', predictionPrewarm: !probe, backupRetentionMs,
     retention: Object.fromEntries(Object.entries({ backupDays: config.runtimeOptions?.backupDays, historyEntries: config.runtimeOptions?.historyEntries }).filter(([, value]) => value != null)) };
   if (!probe && config.multiPicker) options.multiPicker = { ...config.multiPicker, recoveryInputs: { ...config.packs,
     ...(config.selection ? { selection: config.selection } : {}), ...(config.profile ? { profile: config.profile } : {}), ...(config.addons ? { addons: config.addons } : {}) } };
@@ -78,6 +81,7 @@ export async function operatorSettings() {
   if (!file || !path.isAbsolute(file)) throw new Error('Set an absolute operator configuration path.');
   await noLinks(file);
   const settings = await json(file);
+  backupRetention(settings);
   for (const key of ['current', 'dataDir', 'controlDir', 'scratchRoot', 'backupDir']) if (!path.isAbsolute(settings[key] ?? '')) throw new Error('Operator paths must be absolute.');
   // Adjacent binding and status files belong beside the resolved store directory.
   settings.dataDir = path.resolve(settings.dataDir);
@@ -90,8 +94,19 @@ export async function operatorSettings() {
 }
 
 export function assertOperatorService(settings, release) {
+  if (backupRetention(settings) !== backupRetention(release.config)) throw new Error('Operator and release backup retention differ.');
   if (!!settings.multiPicker !== !!release.config.multiPicker) throw new Error('Operator and release service options differ.');
+  if (settings.multiPicker && admissionMode(settings.multiPicker) !== admissionMode(release.config.multiPicker)) throw new Error('Operator and release admission policies differ.');
   if (settings.multiPicker) for (const key of ['registryDir', 'pickerRoot', 'tombstoneDir']) {
     if (settings.multiPicker[key] !== release.config.multiPicker[key]) throw new Error('Operator and release service roots differ.');
   }
+}
+
+// Disclosure only: the operator must independently enforce this period across
+// every retained copy. Omit it when count/calendar policies cannot guarantee it.
+export function backupRetention(config) {
+  const value = config.backupRetentionMs;
+  if (value !== undefined && (!Number.isSafeInteger(value) || value < 1 || value > 10 * 366 * 86400000))
+    throw new TypeError('backupRetentionMs must be a positive integer of at most ten years in milliseconds.');
+  return value;
 }

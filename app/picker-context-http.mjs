@@ -77,7 +77,8 @@ export function apiPermission(method, route) {
   return template ? routes[template] : undefined;
 }
 export function redactInviteTokens(value) {
-  return String(value).replace(/(?:\/|%2f)join(?:\/|%2f)[^\s"'<>?#\\]*/gi, '/join/[redacted]');
+  return String(value).replace(/(?:\/|%2f)join(?:\/|%2f)[^\s"'<>?#\\]*/gi, '/join/[redacted]')
+    .replace(/bet_[A-Za-z0-9_-]{43}/g, '[redacted]');
 }
 export function serverReadyMessage(inviteUrl) {
   return `Private duo picker ready at ${new URL(inviteUrl).origin}.\nUse your saved private administrator link to open it.\n`;

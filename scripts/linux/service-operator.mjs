@@ -5,7 +5,8 @@ import { snapshotPath } from '../../app/storage/snapshot.mjs';
 import { openRegistry, registryRecoveryDocument } from '../../app/storage/registry.mjs';
 import { lockRegistry } from '../../app/storage/registry-lock.mjs';
 import { assertReleased, atomic, directory, encode, exists, headroom, inventory, json, noLinks } from './files.mjs';
-import { assertSameRelease, readRelease } from './runtime.mjs';
+import { assertSameRelease, assertOperatorService, readRelease } from './runtime.mjs';
+import { runBetaLinkCommand } from './beta-link-operator.mjs';
 import { captureServiceCheckpoint, pickerPath, publishServiceBackup, validateServicePaths } from './service-checkpoint.mjs';
 import { listServicePickers, releaseServiceQuarantine, restoreServiceStopped, reconcileServiceRecoveryTombstones } from './service-recovery.mjs';
 import { recordStatus } from './ops-status.mjs';
@@ -69,6 +70,7 @@ export async function serviceBackupWarnings(settings, { now = Date.now(), write 
   if (settings.controlDir) await recordStatus(settings.controlDir, 'health', { result: 'running', faults });
 }
 function sameService(settings, release) {
+  assertOperatorService(settings, release);
   for (const key of ['registryDir', 'pickerRoot', 'tombstoneDir']) if (settings.multiPicker[key] !== release.config.multiPicker?.[key]) throw new Error('Service roots differ from the pinned release.');
 }
 export async function serviceBackup({ settings, release, request, stopped = false, assertStopped }) {
@@ -117,6 +119,21 @@ export async function runServiceOperator({ settings, command, argument, evidence
     if (await exists(pause)) {
       const previous = await json(pause);
       if (!(command === 'restore' && previous.command === 'service-restore' && previous.backup === path.resolve(argument) || command === 'quarantine-release' && previous.command === command && previous.id === argument)) throw new Error('Reconcile maintenance evidence before continuing.');
+    }
+    if (['beta-link-issue', 'beta-link-list', 'beta-link-revoke'].includes(command)) {
+      if ((await controller.state()).active) return runBetaLinkCommand({ command, argument, expiryDays: evidence,
+        perform: body => request(release, '/api/operator/beta-links', 'POST', body) });
+      await stopped();
+      const origin = command === 'beta-link-issue' ? (await readFile(release.config.publicOriginFile, 'utf8')).trim() : undefined;
+      const identity = await serviceIdentity();
+      let registry;
+      try {
+        registry = await openRegistry({ ...settings.multiPicker, legacyDir: settings.dataDir });
+        return await runBetaLinkCommand({ command, argument, expiryDays: evidence, origin, registry });
+      } finally {
+        try { await registry?.close(); }
+        finally { await repairServiceOwnership({ settings, ...identity }); }
+      }
     }
     if (command === 'relink-code') {
       if (!argument) throw new Error('Relink-code requires an account ID.');

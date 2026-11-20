@@ -17,7 +17,7 @@ const hash = text => createHash('sha256').update(text).digest('hex');
 const json = async file => JSON.parse(await readFile(file, 'utf8'));
 async function fixture(t) {
   const root = await mkdtemp(path.join(tmpdir(), 'picker-registry-test-'));
-  const options = { registryDir: path.join(root, 'registry'), pickerRoot: path.join(root, 'pickers'), tombstoneDir: path.join(root, 'ledger') };
+  const options = { admission: 'open', registryDir: path.join(root, 'registry'), pickerRoot: path.join(root, 'pickers'), tombstoneDir: path.join(root, 'ledger') };
   let registry;
   const f = { root, options, file: path.join(options.registryDir, 'registry.json'), ledger: path.join(options.tombstoneDir, 'ledger.json'),
     get registry() { return registry; },

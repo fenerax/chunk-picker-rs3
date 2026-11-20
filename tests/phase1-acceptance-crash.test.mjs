@@ -27,7 +27,7 @@ const app = await createServer({ dataDir: path.join(root, 'legacy'), port: 0, lo
   definitions: { chunks: { '12341': {} }, walkableChunks: ['12341'], walkableChunksF2P: ['12341'] }, taskMap: {},
   initialState: createGroupState([{ id: 'one', name: 'Player 1' }, { id: 'two', name: 'Player 2' }]),
   signInProvider: { fetch: async url => url.endsWith('/oauth2/token') ? Response.json({ access_token: 'synthetic' }) : Response.json({ id: String(101) }) },
-  multiPicker: { registryDir: path.join(root, 'registry'), pickerRoot: path.join(root, 'pickers'), tombstoneDir: path.join(root, 'tombstones'),
+  multiPicker: { admission: 'open', registryDir: path.join(root, 'registry'), pickerRoot: path.join(root, 'pickers'), tombstoneDir: path.join(root, 'tombstones'),
     crashPoint: name => { if (mode === 'crash' && armed && name === point) process.exit(86); } },
 });
 await app.listen(); armed = true;

@@ -316,7 +316,7 @@ test('tiny fixture first owned server open keeps its revision and emits every ph
   const manifest=await generate(profile,directory,{workers:1}),group=manifest.groups[0],opens=[],admissions=[],correlation=createAdmissionCorrelation();
   const definitions=catalogue(profile.catalogue);
   app=await createServer({dataDir:path.join(directory,'legacy'),definitions,taskMap:{},world:syntheticWorld(definitions,buildWorld),port:0,predictionPrewarm:false,
-    multiPicker:{registryDir:path.join(directory,'registry'),pickerRoot:path.join(directory,'pickers'),tombstoneDir:path.join(directory,'tombstones'),onContextOpen:row=>opens.push(row),onAdmission:row=>admissions.push(correlation.observe(row))}});
+    multiPicker:{ admission: 'open',registryDir:path.join(directory,'registry'),pickerRoot:path.join(directory,'pickers'),tombstoneDir:path.join(directory,'tombstones'),onContextOpen:row=>opens.push(row),onAdmission:row=>admissions.push(correlation.observe(row))}});
   observeAdmissionCorrelation(app.server,correlation);
   const serverId=observeServerIdentity(app.server);
   await app.listen();

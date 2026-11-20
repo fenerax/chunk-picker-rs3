@@ -119,10 +119,10 @@ export async function openSignIn({ publicOrigin, mode = 'off', accounts, invites
     try { return await operation(); }
     catch (error) {
       continuing--; reserved = false;
-      if (error.code === 'SESSION_BUSY' || error.status === 502 && (entry.inviteId || entry.reclaimCode || entry.groupSecret)) {
+      if (error.code === 'SESSION_BUSY' || error.status === 502 && (entry.inviteId || entry.reclaimCode || entry.groupSecret || entry.betaSecret)) {
         // Restart provider consent with fresh state; never replay a consumed code.
-        const { inviteId, reclaimCode, groupSecret, accountId, sessionId, returnTo } = entry;
-        error.signInContinuation = put(request, response, { inviteId, reclaimCode, groupSecret, accountId, sessionId, returnTo });
+        const { inviteId, reclaimCode, groupSecret, betaSecret, accountId, sessionId, returnTo } = entry;
+        error.signInContinuation = put(request, response, { inviteId, reclaimCode, groupSecret, betaSecret, accountId, sessionId, returnTo });
       }
       throw error;
     } finally { if (reserved) continuing--; }
@@ -256,6 +256,27 @@ export async function openSignIn({ publicOrigin, mode = 'off', accounts, invites
       if (!budgeted) unauthenticated(security.rateKey);
       ingress(security);
       if (request.method === 'POST') checkFormOrigin(request, security, checkRequestOrigin);
+      if (pickerRegistry && route === '/auth/beta' && request.method === 'GET') {
+        page(response, { heading: 'Welcome to the beta', message: 'Checking your invitation…', help: false, betaBootstrap: true }); return true;
+      }
+      if (pickerRegistry && route === '/auth/beta.mjs' && request.method === 'GET') {
+        response.writeHead(200, { 'Content-Type': 'text/javascript; charset=utf-8', 'Cache-Control': 'private, no-store', 'Referrer-Policy': 'no-referrer' });
+        response.end(await readFile(path.join(webRoot, 'beta-link.mjs'), 'utf8')); return true;
+      }
+      if (pickerRegistry && route === '/auth/beta' && request.method === 'POST') {
+        const body = await bodyJSON(request, 1024);
+        if (Object.keys(body).length !== 1) throw failure(400, 'Open the beta link shared with you.');
+        pickerRegistry.previewBetaLink(body.secret);
+        put(request, response, { betaSecret: body.secret });
+        await json(request, response, 200, { next: '/auth/beta/signin' }); return true;
+      }
+      if (pickerRegistry && route === '/auth/beta/signin' && request.method === 'GET') {
+        prune();
+        const entry = pending.get(cookie(request));
+        if (!entry?.betaSecret) throw failure(403, 'Open the beta link shared with you to get started.');
+        pickerRegistry.previewBetaLink(entry.betaSecret);
+        page(response, { providers, heading: 'Welcome to the beta', message: 'Sign in to create your login and first map. This invitation can be used once.', help: false }); return true;
+      }
       if (route.startsWith('/auth/group-invite') && pickerRegistry && groupInvites) {
         prune();
         const entry = pending.get(cookie(request));
@@ -346,7 +367,7 @@ export async function openSignIn({ publicOrigin, mode = 'off', accounts, invites
         const query = new URL(request.url, publicOrigin).searchParams;
         if (!configured.has(name) || !entry || entry.provider !== name || query.getAll('state').length !== 1 || !equal(query.get('state'), entry.state)) throw failure(400, 'This sign-in request has expired. Start again; if you were joining, reopen the invite link.');
         if (query.has('error')) {
-          put(request, response, entry.groupSecret ? { groupSecret: entry.groupSecret } : entry.reclaimCode ? { reclaimCode: entry.reclaimCode } : entry.inviteId ? { inviteId: entry.inviteId } : { returnTo: entry.returnTo });
+          put(request, response, entry.betaSecret ? { betaSecret: entry.betaSecret } : entry.groupSecret ? { groupSecret: entry.groupSecret } : entry.reclaimCode ? { reclaimCode: entry.reclaimCode } : entry.inviteId ? { inviteId: entry.inviteId } : { returnTo: entry.returnTo });
           const invite = entry.inviteId ? invites.get(entry.inviteId) : undefined;
           page(response, { providers, heading: 'Sign-in cancelled', message: 'You can try signing in again.',
             continueInvite: canContinueInvite(invite, identity) }, 400); return true;
@@ -364,7 +385,7 @@ export async function openSignIn({ publicOrigin, mode = 'off', accounts, invites
               // First-ever login still gets its solo character before review.
               const legacy = accounts.findIdentity(name, subject);
               if (availableMembership(legacy ?? { memberships: [] })) await syncLegacy?.();
-              const result = await pickerRegistry.firstLogin(name, subject);
+              const result = await pickerRegistry.firstLogin(name, subject, { groupSecret: entry.groupSecret });
               const token = await invites.issueRegistrySession(result.account.id, name);
               addCookie(response, invites.cookie(token, security));
               put(request, response, { groupSecret: entry.groupSecret }, true);
@@ -388,7 +409,7 @@ export async function openSignIn({ publicOrigin, mode = 'off', accounts, invites
               if (entry.accountId && (active?.accountId !== entry.accountId || !equal(active.sessionId, entry.sessionId))) throw failure(401, 'Sign in again before linking an account.');
               const result = entry.accountId
                 ? { account: await pickerRegistry.linkIdentity(entry.accountId, name, subject), picker: await pickerRegistry.ensureDefaultPicker(entry.accountId) }
-                : await pickerRegistry.firstLogin(name, subject);
+                : await pickerRegistry.firstLogin(name, subject, { betaSecret: entry.betaSecret });
               const token = await invites.issueRegistrySession(result.account.id, name);
               const character = pickerRegistry.selectCharacter(result.account.id);
               addCookie(response, invites.cookie(token, security)); redirect(response, entry.returnTo && entry.returnTo !== '/' ? entry.returnTo : character ? `/characters/${character.id}` : '/characters'); return;
@@ -431,7 +452,7 @@ export async function openSignIn({ publicOrigin, mode = 'off', accounts, invites
         }
         const inviteId = previous?.inviteId ?? (identity?.kind === 'invite' && !identity.admin && !identity.readOnly && identity.memberId ? identity.inviteId : undefined);
         const entry = put(request, response, { provider: name, state: generateToken(), verifier: generateToken(), ...(name === 'google' ? { nonce: generateToken() } : {}),
-          ...(previous?.groupSecret ? { groupSecret: previous.groupSecret } : previous?.reclaimCode ? { reclaimCode: previous.reclaimCode } : accountId ? { accountId, sessionId } : inviteId ? { inviteId } : { returnTo }) });
+          ...(previous?.groupSecret ? { groupSecret: previous.groupSecret } : previous?.reclaimCode ? { reclaimCode: previous.reclaimCode } : accountId ? { accountId, sessionId } : previous?.betaSecret ? { betaSecret: previous.betaSecret, returnTo } : inviteId ? { inviteId } : { returnTo }) });
         const destination = new URL(SIGN_IN_ENDPOINTS[name].authorize);
         destination.search = new URLSearchParams({ client_id: config.clientId, redirect_uri: `${publicOrigin}/auth/${name}/callback`, response_type: 'code',
           scope: name === 'discord' ? 'identify' : 'openid', state: entry.state, code_challenge: createHash('sha256').update(entry.verifier).digest('base64url'), code_challenge_method: 'S256',
@@ -482,7 +503,7 @@ export async function openSignIn({ publicOrigin, mode = 'off', accounts, invites
       if (mode === 'off' || !(request.method === 'GET' || busy && request.method === 'POST') ||
         !((request.url ?? '').startsWith('/auth/') || joining && busy) || security.ingressRole !== 'public' || !security.secure || security.origin !== publicOrigin) return false;
       const message = error.status ? error.message : 'Sign-in could not be completed. Please try again.';
-      const heading = busy ? 'Sign-in temporarily unavailable' : /already.*claimed/i.test(message) ? 'Invite already claimed' : /expired/i.test(message) ? 'Sign-in expired' : 'Unable to sign in';
+      const heading = busy ? 'Sign-in temporarily unavailable' : /beta is invite-only/i.test(message) ? 'The beta is invite-only' : /already.*claimed/i.test(message) ? 'Invite already claimed' : /expired/i.test(message) ? 'Sign-in expired' : 'Unable to sign in';
       const entry = error.signInContinuation;
       const identity = entry ? invites.authenticate?.(request, security) : undefined;
       const invite = entry?.inviteId ? invites.get(entry.inviteId) : undefined;

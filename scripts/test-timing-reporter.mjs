@@ -2,6 +2,7 @@ import { writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 export const redact = value => String(value).replace(/\/join\/[^\s"'<>]+/g, '/join/<token>')
+  .replace(/bet_[A-Za-z0-9_-]{43}/g, '<token>')
   .replace(/Bearer\s+[^\s"'<>]+/gi, 'Bearer <token>')
   .replace(/([#?&](?:key|(?:access|invite|master|overlay)[_-]?token|token)=)[^\s"'<>\]&]+/gi, '$1<token>')
   .replace(/(?<![a-z0-9_-])[a-z0-9_-]{43}(?![a-z0-9_-])/gi, '<token>');

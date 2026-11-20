@@ -68,7 +68,7 @@ async function fixture(t, { initiallyEnabled = true, beforeCommit, backupRetenti
     assert.equal(url, 'https://discord.com/api/users/@me');
     return Response.json({ id: access.get(options.headers.Authorization.slice(7)) });
   } };
-  const multiPicker = { registryDir: path.join(root, 'registry'), pickerRoot: path.join(root, 'pickers'), tombstoneDir: path.join(root, 'tombstones'), ...limits };
+  const multiPicker = { admission: 'open', registryDir: path.join(root, 'registry'), pickerRoot: path.join(root, 'pickers'), tombstoneDir: path.join(root, 'tombstones'), ...limits };
   let app, handler;
   const start = async (multi) => {
     app = await createServer({ dataDir: path.join(root, 'legacy'), dataset, definitions, taskMap: {},
@@ -462,7 +462,7 @@ test('P1.8 restoring a service backup containing a later-deleted picker keeps it
   const ids = [await f.picker(A), await f.picker(B)], keys = [await keyFor(f, a), await keyFor(f, b)];
   const accountB = (await f.registry()).accounts.find(row => row.defaultPickerId === ids[1]).id;
   const paths = root => ({ dataDir: path.join(root, 'legacy'), controlDir: path.join(root, 'control'), backupDir: path.join(root, 'backups'), scratchRoot: path.join(root, 'scratch'), minFreeBytes: 0,
-    multiPicker: { registryDir: path.join(root, 'registry'), pickerRoot: path.join(root, 'pickers'), tombstoneDir: f.multiPicker.tombstoneDir } });
+    multiPicker: { admission: 'open', registryDir: path.join(root, 'registry'), pickerRoot: path.join(root, 'pickers'), tombstoneDir: f.multiPicker.tombstoneDir } });
   let claimLink;
   const live = paths(f.root), recovered = paths(path.join(f.root, 'recovered')), backupId = crypto.randomUUID();
   await f.restart(async () => {
