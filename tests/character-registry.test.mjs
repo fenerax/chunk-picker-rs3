@@ -28,7 +28,7 @@ async function crash(options, seam, accountId) {
 }
 async function fixture(t) {
   const root = await mkdtemp(path.join(tmpdir(), 'character-registry-'));
-  const options = { registryDir: path.join(root, 'registry'), pickerRoot: path.join(root, 'pickers'), tombstoneDir: path.join(root, 'ledger'), legacyDir: path.join(root, 'legacy') };
+  const options = { admission: 'open', registryDir: path.join(root, 'registry'), pickerRoot: path.join(root, 'pickers'), tombstoneDir: path.join(root, 'ledger'), legacyDir: path.join(root, 'legacy') };
   await mkdir(options.legacyDir);
   let registry;
   const f = { options, file: path.join(options.registryDir, 'registry.json'), ledger: path.join(options.tombstoneDir, 'ledger.json'),

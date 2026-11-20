@@ -58,14 +58,14 @@ test('off-site service pair restores into isolated roots and writes a timed rehe
   await offhostBackup({ ...f, run, config: {}, ping: async () => {} });
   const source = path.join(f.dir, 'remote-payload'), before = await inventory(source);
   // Remove every original service root: the pair alone must supply recovery.
-  for (const root of [f.settings.dataDir, ...Object.values(f.settings.multiPicker)]) await rm(root, { recursive: true });
+  for (const root of [f.settings.dataDir, ...['registryDir', 'pickerRoot', 'tombstoneDir'].map(key => f.settings.multiPicker[key])]) await rm(root, { recursive: true });
   await rm(f.settings.dataDir + '.dataset.json');
   const scratch = path.join(f.dir, 'rehearsal'); let started = false;
   const result = await rehearseService({ source, scratch,
     probe: async (_release, dir) => json(path.join(dir, 'state.json')),
     start: async configFile => {
       const config = await json(configFile); started = true;
-      for (const root of [config.dataDir, config.coreRoot, config.packsDir, ...Object.values(config.multiPicker)]) assert(root.startsWith(scratch + path.sep));
+      for (const root of [config.dataDir, config.coreRoot, config.packsDir, ...['registryDir', 'pickerRoot', 'tombstoneDir'].map(key => config.multiPicker[key])]) assert(root.startsWith(scratch + path.sep));
     } });
   assert(started); assert.equal(result.result, 'success'); assert.equal(result.pickers.length, 2);
   assert.equal(result.access.reclaimedAccounts, 1); assert.equal(result.credentials.imported, 0);
@@ -84,7 +84,7 @@ test('off-site rehearsal runs the captured decoder and starts a multi-picker run
   const run = serviceRepository(f);
   await offhostBackup({ ...f, run, config: {}, ping: async () => {} });
   const source = path.join(f.dir, 'remote-payload');
-  for (const root of [f.roots.releases, f.roots.packs, f.settings.dataDir, ...Object.values(f.settings.multiPicker)]) await rm(root, { recursive: true });
+  for (const root of [f.roots.releases, f.roots.packs, f.settings.dataDir, ...['registryDir', 'pickerRoot', 'tombstoneDir'].map(key => f.settings.multiPicker[key])]) await rm(root, { recursive: true });
   await rm(f.settings.dataDir + '.dataset.json');
   const result = await rehearseService({ source, scratch: path.join(f.dir, 'real-rehearsal') });
   assert.equal(result.result, 'success'); assert.equal(result.pickers.length, 2);

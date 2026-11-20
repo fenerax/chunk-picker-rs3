@@ -75,7 +75,7 @@ async function fixture(t) {
     initialState: createGroupState([{ id: 'one', name: 'Player 1' }, { id: 'two', name: 'Player 2' }]),
     host: '127.0.0.1', port: 0, loopbackPort: 0, loopbackRole: 'public', publicOrigin: origin,
     signIn: 'optional', signInProvider: provider, predictionPrewarm: false, shutdownDeadlineMs: 500,
-    multiPicker: { registryDir: path.join(root, 'registry'), pickerRoot: path.join(root, 'pickers'),
+    multiPicker: { admission: 'open', registryDir: path.join(root, 'registry'), pickerRoot: path.join(root, 'pickers'),
       tombstoneDir: path.join(root, 'tombstones'), registrationsPerAccount: 12, registrationsGlobal: 30 } });
   await app.listen();
   const send = (route, cookie, options = {}) => request(`http://127.0.0.1:${app.loopbackAddress().port}`, route,

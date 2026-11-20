@@ -80,7 +80,7 @@ test('running HTTP diagnostics prove default and trial effective limits', async 
     const app = await createServer({ dataDir: path.join(root, 'legacy'), port: 0, loopbackPort: undefined, publicOrigin: undefined,
       definitions, taskMap: {}, world: syntheticWorld(definitions, buildWorld), predictionPrewarm: false,
       initialState: createGroupState([{ id: 'owner', name: 'Synthetic owner' }, { id: 'member', name: 'Synthetic member' }]),
-      multiPicker: { ...options, registryDir: path.join(root, 'registry'), pickerRoot: path.join(root, 'pickers'), tombstoneDir: path.join(root, 'tombstones') } });
+      multiPicker: { admission: 'open', ...options, registryDir: path.join(root, 'registry'), pickerRoot: path.join(root, 'pickers'), tombstoneDir: path.join(root, 'tombstones') } });
     try {
       await app.listen();
       const get = async route => {

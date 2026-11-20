@@ -46,7 +46,7 @@ async function fixture(t) {
   app = await createServer({ dataDir: path.join(root, 'legacy'), dataset: selectedDataset, definitions, taskMap: {},
     initialState: createGroupState([{ id: 'one', name: 'Player 1' }, { id: 'two', name: 'Player 2' }]), port: 0, loopbackPort: 0, loopbackRole: 'public',
     publicOrigin: origin, signIn: 'optional', signInProvider: provider, predictionPrewarm: false,
-    taskWorkerOptions: { workerFactory }, multiPicker: { registryDir: path.join(root, 'registry'),
+    taskWorkerOptions: { workerFactory }, multiPicker: { admission: 'open', registryDir: path.join(root, 'registry'),
       pickerRoot: path.join(root, 'pickers'), tombstoneDir: path.join(root, 'tombstones'), maxCalculators: 1 } });
   await app.listen();
   function send(route, cookie, { body } = {}) {

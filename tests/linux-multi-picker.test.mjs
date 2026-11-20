@@ -75,7 +75,7 @@ async function fixture(t, count = 2) {
   const root = await mkdtemp(path.join(tmpdir(), 'linux-multi-picker-'));
   const settings = { dataDir: path.join(root, 'legacy'), controlDir: path.join(root, 'control'),
     backupDir: path.join(root, 'backups'), scratchRoot: path.join(root, 'scratch'), minFreeBytes: 0,
-    multiPicker: { registryDir: path.join(root, 'registry'), pickerRoot: path.join(root, 'pickers'), tombstoneDir: path.join(root, 'ledger') } };
+    multiPicker: { admission: 'open', registryDir: path.join(root, 'registry'), pickerRoot: path.join(root, 'pickers'), tombstoneDir: path.join(root, 'ledger') } };
   await mkdir(settings.dataDir); await mkdir(settings.controlDir);
   let registry = await openRegistry({ ...settings.multiPicker, legacyDir: settings.dataDir });
   const legacy = await registry.registerLegacy({ memberIds: ['one', 'two'], accounts: [], droppedMemberships: 0 });
@@ -105,7 +105,7 @@ async function fixture(t, count = 2) {
   const target = async () => {
     const dest = path.join(root, 'recovered'); await mkdir(dest);
     const next = { ...settings, dataDir: path.join(dest, 'legacy'), controlDir: path.join(dest, 'control'), backupDir: path.join(dest, 'backups'), scratchRoot: path.join(dest, 'scratch'),
-      multiPicker: { registryDir: path.join(dest, 'registry'), pickerRoot: path.join(dest, 'pickers'), tombstoneDir: settings.multiPicker.tombstoneDir } };
+      multiPicker: { admission: 'open', registryDir: path.join(dest, 'registry'), pickerRoot: path.join(dest, 'pickers'), tombstoneDir: settings.multiPicker.tombstoneDir } };
     return next;
   };
   return { root, settings, registry, pickers, release, dir, capture, close, target, cleanup: work => cleanups.push(work) };
@@ -380,7 +380,7 @@ test('checkpoint queues admission only for registry metadata and never waits for
 
 test('health with 50 dormant registry pickers opens none; snapshots require private master Bearer', async t => {
   const root = await mkdtemp(path.join(tmpdir(), 'linux-multi-picker-health-'));
-  const multiPicker = { registryDir: path.join(root, 'registry'), pickerRoot: path.join(root, 'pickers'), tombstoneDir: path.join(root, 'ledger') };
+  const multiPicker = { admission: 'open', registryDir: path.join(root, 'registry'), pickerRoot: path.join(root, 'pickers'), tombstoneDir: path.join(root, 'ledger') };
   const dataDir = path.join(root, 'legacy'); await mkdir(dataDir);
   const registry = await openRegistry({ ...multiPicker, legacyDir: dataDir });
   for (let i = 0; i < 50; i++) await registry.firstLogin('discord', 'synthetic-' + i);

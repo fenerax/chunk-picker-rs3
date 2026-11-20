@@ -30,7 +30,7 @@ async function fixture(t) {
   t.after(() => rm(root, { recursive: true, force: true }));
   const settingsAt = (base, ledger = path.join(base, 'ledger')) => ({ dataDir: path.join(base, 'legacy'),
     controlDir: path.join(base, 'control'), backupDir: path.join(base, 'backups'), scratchRoot: path.join(base, 'scratch'), minFreeBytes: 0,
-    multiPicker: { registryDir: path.join(base, 'registry'), pickerRoot: path.join(base, 'pickers'), tombstoneDir: ledger } });
+    multiPicker: { admission: 'open', registryDir: path.join(base, 'registry'), pickerRoot: path.join(base, 'pickers'), tombstoneDir: ledger } });
   const settings = settingsAt(path.join(root, 'source'));
   await mkdir(settings.dataDir, { recursive: true });
   t.after(() => rm(settings.dataDir + '.snapshots', { recursive: true, force: true }));

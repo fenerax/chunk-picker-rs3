@@ -128,7 +128,7 @@ test('synthetic server records actions, flags, private bytes, admin permissions 
 test('multi-picker users and invite viewers cannot inspect or control process-wide captures', async t => {
   const root = await mkdtemp(path.join(tmpdir(), 'live-timings-isolation-'));
   const dataDir = path.join(root, 'legacy'); await mkdir(dataDir);
-  const multiPicker = { registryDir: path.join(root, 'registry'), pickerRoot: path.join(root, 'pickers'), tombstoneDir: path.join(root, 'ledger'), maxCalculators: 1 };
+  const multiPicker = { admission: 'open', registryDir: path.join(root, 'registry'), pickerRoot: path.join(root, 'pickers'), tombstoneDir: path.join(root, 'ledger'), maxCalculators: 1 };
   let registry, invites, app;
   t.after(async () => { await app?.close(); await invites?.close(); await registry?.close(); await rm(root, { recursive: true, force: true }); });
   const options = { dataDir, liveTimingOptions, deepProfiles: true, multiPicker, dataset: await emptyMetadataDataset(), definitions, taskMap: {},

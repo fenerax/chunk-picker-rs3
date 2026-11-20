@@ -54,7 +54,7 @@ for (const mode of ['completed', 'pending', 'interrupted', 'quarantine']) test(`
   const ledgerFile = path.join(f.settings.multiPicker.tombstoneDir, 'ledger.json'), ledgerBytes = await readFile(ledgerFile);
   const root = path.join(f.dir, 'older-backup-target'), target = { ...f.settings,
     dataDir: path.join(root, 'legacy'), controlDir: path.join(root, 'control'), scratchRoot: path.join(root, 'scratch'), backupDir: path.join(root, 'backups'),
-    multiPicker: Object.fromEntries(['registryDir', 'pickerRoot', 'tombstoneDir'].map(key => [key, path.join(root, key)])) };
+    multiPicker: { admission: 'open', ...Object.fromEntries(['registryDir', 'pickerRoot', 'tombstoneDir'].map(key => [key, path.join(root, key)])) } };
   await mkdir(target.multiPicker.tombstoneDir, { recursive: true });
   await copyFile(ledgerFile, path.join(target.multiPicker.tombstoneDir, 'ledger.json'));
   let cleaned = false, interrupted = false;

@@ -12,7 +12,7 @@ const pickerId = n => 'p_' + n.toString(16).padStart(32, '0');
 const account = n => ({ id: accountId(n), identities: [{ provider: 'google', subject: `synthetic-${n}` }], memberships: [], defaultPickerId: null, createdAt: at });
 async function fixture(t, overrides = {}) {
   const root = await mkdtemp(path.join(tmpdir(), 'launch-registry-caps-'));
-  const options = { registryDir: path.join(root, 'registry'), pickerRoot: path.join(root, 'pickers'), tombstoneDir: path.join(root, 'ledger'), ...overrides };
+  const options = { admission: 'open', registryDir: path.join(root, 'registry'), pickerRoot: path.join(root, 'pickers'), tombstoneDir: path.join(root, 'ledger'), ...overrides };
   const file = path.join(options.registryDir, 'registry.json'), ledger = path.join(options.tombstoneDir, 'ledger.json');
   let registry;
   const f = { options, file, ledger, get registry() { return registry; },

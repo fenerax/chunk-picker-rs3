@@ -192,7 +192,7 @@ test('owned capture admits the complete pinned payload only above the protected 
   assert.deepEqual(await inventory(f.dataDir), before);
 });
 test('service capture refuses a stopped owned store without a catalogue source before publication', async t => {
-  const f = await setup(t), multiPicker = { registryDir: path.join(f.root, 'registry'), pickerRoot: path.join(f.root, 'pickers'), tombstoneDir: path.join(f.root, 'ledger') };
+  const f = await setup(t), multiPicker = { admission: 'open', registryDir: path.join(f.root, 'registry'), pickerRoot: path.join(f.root, 'pickers'), tombstoneDir: path.join(f.root, 'ledger') };
   await mkdir(f.dataDir);
   const registry = await openRegistry({ ...multiPicker, legacyDir: f.dataDir });
   try {
@@ -326,7 +326,7 @@ test('raw owned restore refuses without a live deletion authority or when that a
   assert.equal(await exists(target), false);
 });
 test('service restore resumes after legacy cleanup, retains tombstones and installs bases first', async t => {
-  const f = await setup(t), multiPicker = { registryDir: path.join(f.root, 'registry'), pickerRoot: path.join(f.root, 'pickers'), tombstoneDir: path.join(f.root, 'ledger') };
+  const f = await setup(t), multiPicker = { admission: 'open', registryDir: path.join(f.root, 'registry'), pickerRoot: path.join(f.root, 'pickers'), tombstoneDir: path.join(f.root, 'ledger') };
   await mkdir(f.dataDir);
   const registry = await openRegistry({ ...multiPicker, legacyDir: f.dataDir }); t.after(() => registry.close());
   const legacy = await registry.registerLegacy({ memberIds: ['member-1', 'member-2'], accounts: [], droppedMemberships: 0 });
@@ -393,7 +393,7 @@ test('service restore resumes after legacy cleanup, retains tombstones and insta
 });
 
 for (const crash of [null, 'before-seal-journal', 'after-catalogue-rename']) test(`owned quarantine reseals post-probe bytes and releases after verification (${crash ?? 'uninterrupted'})`, async t => {
-  const f = await setup(t), multiPicker = { registryDir: path.join(f.root, 'registry'),
+  const f = await setup(t), multiPicker = { admission: 'open', registryDir: path.join(f.root, 'registry'),
     pickerRoot: path.join(f.root, 'pickers'), tombstoneDir: path.join(f.root, 'ledger') };
   await mkdir(f.dataDir);
   const registry = await openRegistry({ ...multiPicker, legacyDir: f.dataDir }); t.after(() => registry.close());
@@ -523,7 +523,7 @@ test('flag-off capture and dependency guards never parse whole storage-1 state o
   assert.equal(await captureOwnedClosure(root, ['store'], [null]), false);
   const picker = 'p_' + '1'.repeat(32), registry = { withRecoveryCheckpoint: work => work(registryRecoveryDocument({ schemaVersion: 1, accounts: [], capabilities: [],
     pickers: [{ id: picker, kind: 'legacy-shared', ownerAccountId: null, lifecycle: 'active', provisioning: 'ready', memberIds: ['member-1', 'member-2'], createdAt: now() }] })) };
-  const multiPicker = { registryDir: path.join(f.root, 'registry'), pickerRoot: path.join(f.root, 'pickers'), tombstoneDir: path.join(f.root, 'ledger') };
+  const multiPicker = { admission: 'open', registryDir: path.join(f.root, 'registry'), pickerRoot: path.join(f.root, 'pickers'), tombstoneDir: path.join(f.root, 'ledger') };
   await mkdir(multiPicker.tombstoneDir);
   await writeFile(path.join(multiPicker.tombstoneDir, 'ledger.json'), encode({ schemaVersion: 1, issuedPickerIds: [picker], pickers: [], accounts: [] }));
   const serviceId = '00000000-0000-4000-8000-000000000002';

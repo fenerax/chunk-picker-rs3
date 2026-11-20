@@ -45,7 +45,7 @@ test('guest solo workflow never changes durable gameplay, registry, auth, backup
   t.after(async () => { try { await app?.close(); } finally { await rm(root, { recursive: true, force: true }); } });
   app = await createServer({ dataDir: path.join(root, 'legacy'), definitions, taskMap: {}, port: 0,
     initialState: createGroupState([{ id: 'one', name: 'Player 1' }, { id: 'two', name: 'Player 2' }]),
-    multiPicker: { registryDir: path.join(root, 'registry'), pickerRoot: path.join(root, 'pickers'), tombstoneDir: path.join(root, 'tombstones') },
+    multiPicker: { admission: 'open', registryDir: path.join(root, 'registry'), pickerRoot: path.join(root, 'pickers'), tombstoneDir: path.join(root, 'tombstones') },
     backupRetentionMs: 90 * 86400000, predictionPrewarm: false, liveTimingOptions: { enabled: false },
     taskWorkerOptions: { warmStoreDirectory: undefined }, guestOptions: { limits: { requestsPerIP: 100, requestsGlobal: 100 } } });
   await app.listen();

@@ -11,8 +11,8 @@ export async function inflaterFixture(t, { populated = false, second = false } =
   const root = await mkdtemp(path.join(tmpdir(), 'rs3-inflater-'));
   t.after(() => rm(root, { recursive: true, force: true }));
   const settings = { dataDir: path.join(root, 'legacy'), controlDir: path.join(root, 'control'),
-    multiPicker: { pickerRoot: path.join(root, 'pickers'), registryDir: path.join(root, 'registry'), tombstoneDir: path.join(root, 'tombstones') } };
-  for (const dir of [settings.dataDir, settings.controlDir, ...Object.values(settings.multiPicker)]) await mkdir(dir);
+    multiPicker: { admission: 'open', pickerRoot: path.join(root, 'pickers'), registryDir: path.join(root, 'registry'), tombstoneDir: path.join(root, 'tombstones') } };
+  for (const dir of [settings.dataDir, settings.controlDir, ...['registryDir', 'pickerRoot', 'tombstoneDir'].map(key => settings.multiPicker[key])]) await mkdir(dir);
   const ownedFormat2 = options(path.join(root, 'catalogue')), ids = ['p_' + '1'.repeat(32), ...(second ? ['p_' + '2'.repeat(32)] : [])];
   const stores = [], flatDir = path.join(root, 'flat');
   for (const dataDir of [flatDir, ...ids.map(id => path.join(settings.multiPicker.pickerRoot, id))]) {
