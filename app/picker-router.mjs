@@ -25,7 +25,7 @@ const retry = () => Object.assign(httpError(503, 'The picker is unavailable. Ret
 /** The only residency and HTTP selection boundary. IDs from requests are checks,
  * never inputs to acquisition, registry path lookup or capability registration. */
 export function createPickerRouter({ registry, legacy, openContext, publicOrigin, requestContextFor = requestContext,
-  pickerLimits, onAdmission, admissionClock, coldOpenAdmission, unauthenticated = () => {}, backupRetentionMs, maxOpenContexts = 7, idleCloseMs = 10 * 60 * 1000, maxConcurrentImports = 1 }) {
+  pickerLimits, onAdmission, admissionClock, importBodyClock, onImportBodyChunk, coldOpenAdmission, unauthenticated = () => {}, backupRetentionMs, maxOpenContexts = 7, idleCloseMs = 10 * 60 * 1000, maxConcurrentImports = 1 }) {
   if (!Number.isSafeInteger(maxOpenContexts) || maxOpenContexts < 1 || !Number.isSafeInteger(idleCloseMs) || idleCloseMs < 1) throw new TypeError('Invalid picker residency limits.');
   if (!Number.isSafeInteger(maxConcurrentImports) || maxConcurrentImports < 1) throw new TypeError('Invalid picker import limit.');
   const admissionBounds = Object.freeze({ ...COLD_OPEN_ADMISSION, ...coldOpenAdmission });
@@ -379,7 +379,8 @@ export function createPickerRouter({ registry, legacy, openContext, publicOrigin
           releaseImportUser = reserveImportUser(identity.accountId ?? identity.id ?? identity.sessionId ?? security.rateKey);
           receiving.set(pickerId, request); receivingId = pickerId;
           bindBody?.importing();
-          upload = await receiveBackupRequest(request, { idleTimeoutMs: pickerLimits.config.importBodyIdleMs, totalTimeoutMs: pickerLimits.config.importBodyTotalMs });
+          upload = await receiveBackupRequest(request, { idleTimeoutMs: pickerLimits.config.importBodyIdleMs,
+            totalTimeoutMs: pickerLimits.config.importBodyTotalMs, clock: importBodyClock, onChunk: onImportBodyChunk });
         };
         const selected = await contextFor(request, security, bindBody, receiveBackup, controller.signal); entry = selected.entry;
         if (selected.redirect) { response.writeHead(303, { Location: selected.redirect, 'Cache-Control': 'private, no-store' }); response.end(); return; }

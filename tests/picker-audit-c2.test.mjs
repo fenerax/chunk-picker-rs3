@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { setTimeout as delay } from 'node:timers/promises';
+import { createManualClock } from './helpers/manual-clock.mjs';
 
 process.env.RS3_DATASET = 'open-f2p';
 for (const key of ['RS3_PACKS_DIR', 'RS3_PACK_SELECTION', 'RS3_PUBLIC_ORIGIN', 'RS3_LOOPBACK_PORT', 'RS3_LOOPBACK_ROLE',
@@ -148,25 +149,62 @@ test('MP14: two unfinished uploads leave the global parser available to a third 
   }
 });
 
+function createChunkBarrier() {
+  let received = 0;
+  const waiters = [];
+  return {
+    onChunk(info) {
+      received = info.bytes;
+      for (let index = waiters.length - 1; index >= 0; index--) {
+        if (received >= waiters[index].target) waiters.splice(index, 1)[0].resolve(received);
+      }
+    },
+    reset() { received = 0; },
+    waitForBytes(target) {
+      if (received >= target) return Promise.resolve(received);
+      return new Promise(resolve => waiters.push({ target, resolve }));
+    },
+  };
+}
+
 test('MP14: import bodies time out on idle, renew on bytes, and release picker admission', async t => {
-  const idleMs = 200, f = await fixture(t, { importBodyIdleMs: idleMs }), a = await f.login(subjects[0]);
+  const idleMs = 200, clock = createManualClock(), chunks = createChunkBarrier();
+  const f = await fixture(t, { importBodyIdleMs: idleMs, importBodyClock: clock, onImportBodyChunk: chunks.onChunk });
+  const a = await f.login(subjects[0]);
   for (const route of ['/api/import', '/api/restore/preview']) {
+    chunks.reset();
     const upload = f.start(route, a, { method: 'POST', hold: true, raw: Buffer.from('{'), headers: { 'Content-Length': 8 } });
-    await waitFor(async () => (await f.send(route, a, { body: {} })).status === 503, 'body reader admitted');
-    // Total upload time exceeds the idle limit; arriving bytes renew the lease.
+    await chunks.waitForBytes(1);
+    assert.equal((await f.send(route, a, { body: {} })).status, 503, 'body reader admitted');
+    // Total simulated upload time exceeds the idle limit; arriving bytes renew the lease deterministically.
     for (let index = 0; index < 3; index++) {
-      await delay(idleMs * 0.6); upload.req.write(' ');
-      assert.equal(await within(upload.result, 10), pending);
+      await clock.advance(idleMs - 20);
+      assert.equal((await f.send(route, a, { body: {} })).status, 503, 'upload stays admitted before idle expiry');
+      const nextBytes = index + 2;
+      upload.req.write(' ');
+      await chunks.waitForBytes(nextBytes);
     }
+    await clock.advance(idleMs);
     const response = await upload.result;
     assert.equal(response.status, 408); assert.equal(response.headers.connection, 'close');
     assert.notEqual((await f.send(route, a, { body: {} })).status, 503, 'timed-out reader releases the local guard');
   }
   const empty = f.start('/api/import/preview', a, { method: 'POST', hold: true,
     headers: { 'Content-Type': 'application/json', 'Transfer-Encoding': 'chunked' } });
+  await waitFor(async () => (await f.send('/api/import/preview', a, { body: {} })).status === 503, 'zero-byte reader admitted');
+  await clock.advance(idleMs);
   assert.equal((await empty.result).status, 408, 'the idle deadline also covers zero-byte chunked uploads');
   assert.notEqual((await f.send('/api/import/preview', a, { body: {} })).status, 503);
   assert.equal((await f.send('/api/state', a)).json().state.revision, 0);
+});
+
+test('MP14: real HTTP import idle timeout expires cleanly without injected clock', async t => {
+  const f = await fixture(t, { importBodyIdleMs: 250 }), a = await f.login(subjects[0]);
+  const upload = f.start('/api/restore/preview', a, { method: 'POST', hold: true, raw: Buffer.from('{'), headers: { 'Content-Length': 8 } });
+  const response = await upload.result;
+  assert.equal(response.status, 408);
+  assert.equal(response.headers.connection, 'close');
+  assert.notEqual((await f.send('/api/restore/preview', a, { body: {} })).status, 503, 'timed-out reader releases the local guard');
 });
 
 test('MP14: held owned uploads cannot take the ordinary-write body headroom', async t => {
@@ -186,14 +224,21 @@ test('MP14: held owned uploads cannot take the ordinary-write body headroom', as
 });
 
 test('MP14: a trickled import body ends at the total deadline even while bytes keep arriving', async t => {
-  const f = await fixture(t, { importBodyIdleMs: 300, importBodyTotalMs: 600 }), a = await f.login(subjects[0]);
+  const clock = createManualClock(), chunks = createChunkBarrier();
+  const f = await fixture(t, { importBodyIdleMs: 300, importBodyTotalMs: 600, importBodyClock: clock, onImportBodyChunk: chunks.onChunk });
+  const a = await f.login(subjects[0]);
   const upload = f.start('/api/restore/preview', a, { method: 'POST', hold: true, raw: Buffer.from('{'), headers: { 'Content-Length': 64 } });
-  const started = performance.now();
-  const trickle = setInterval(() => { if (!upload.req.destroyed) upload.req.write(' '); }, 100);
-  t.after(() => clearInterval(trickle));
-  const response = await upload.result; clearInterval(trickle);
+  await chunks.waitForBytes(1);
+  // Renew twice (400 ms simulated elapsed) while staying under the 300 ms idle deadline.
+  for (let index = 0; index < 2; index++) {
+    await clock.advance(200);
+    assert.equal((await f.send('/api/restore/preview', a, { body: {} })).status, 503, 'upload stays admitted before total deadline');
+    upload.req.write(' ');
+    await chunks.waitForBytes(index + 2);
+  }
+  await clock.advance(200);
+  const response = await upload.result;
   assert.equal(response.status, 408, response.text); assert.match(response.json().message, /took too long/);
-  assert.ok(performance.now() - started < 3000, 'the total deadline ends a renewing trickle');
   assert.notEqual((await f.send('/api/restore/preview', a, { body: {} })).status, 503, 'the timed-out reader releases the local guard');
 });
 
