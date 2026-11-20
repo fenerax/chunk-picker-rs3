@@ -46,3 +46,22 @@ test('guest capacity remains held until explicit release, including across expir
   active.release(); active.release();
   limits.acquire(replacement.token, 'c').release();
 });
+test('guest upload admission enforces independent per-IP, global and aggregate byte budgets', () => {
+  let at = 0;
+  const limits = createGuestLimits({ now: () => at, uploadsPerIP: 1, uploadsGlobal: 2, uploadBytesGlobal: 100 });
+  const one = limits.open('a'), two = limits.open('b'), three = limits.open('c');
+  const first = limits.admitUpload(one.token, 'a');
+  refused(() => limits.admitUpload(one.token, 'a'), 429);
+  first.reserveBytes(70);
+  // Worker calculation slot remains free while an upload is in progress.
+  const worker = limits.acquire(two.token, 'b');
+  worker.release();
+  const second = limits.admitUpload(two.token, 'b');
+  refused(() => limits.admitUpload(three.token, 'c'), 429);
+  refused(() => second.reserveBytes(40), 429);
+  second.reserveBytes(30);
+  first.release(); first.release();
+  second.reserveBytes(40);
+  second.release();
+  limits.admitUpload(three.token, 'c').release();
+});

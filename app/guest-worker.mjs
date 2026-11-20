@@ -67,11 +67,15 @@ function evaluate(state, memberId) {
   return result;
 }
 const stamp = { id: selectedDataset.datasetId, contractVersion: selectedDataset.datasetContractVersion, digest: selectedDataset.digest };
-function readSave(backup) {
+function readSave(backup, { allowOlderDigest = false } = {}) {
   const state = importBackup(backup, registry);
   if (state.members.length !== 1) throw new Error('solo');
   const saved = state.provenance?.dataset;
-  if (!saved || saved.id !== stamp.id || saved.contractVersion !== stamp.contractVersion || saved.digest !== stamp.digest) throw new Error('dataset');
+  if (!saved || saved.id !== stamp.id || saved.contractVersion !== stamp.contractVersion
+    || (!allowOlderDigest && saved.digest !== stamp.digest)) throw new Error('dataset');
+  if (allowOlderDigest && saved.digest !== stamp.digest) {
+    state.provenance = { ...state.provenance, dataset: stamp };
+  }
   return state;
 }
 try {
@@ -79,6 +83,8 @@ try {
   if (input.operation === 'new') {
     state = createGroupState([{ id: 'guest', name: 'Explorer' }], registry);
     state.provenance = { dataset: stamp };
+  } else if (input.operation === 'upgrade') {
+    state = readSave(input.backup, { allowOlderDigest: true });
   } else state = readSave(input.backup);
   const memberId = state.members[0].id;
   if (input.operation === 'roll-stats') {
@@ -158,7 +164,7 @@ try {
     const latest = getUndoEligibility(state, undefined, { registry });
     result.coordination = { stateRevision: state.revision, history: [], ownUndo: null,
       latestUndo: { ...latest, event: state.history.find(event => event.revision === latest.undoRevision) ?? null } };
-    if (input.operation === 'new' || input.operation === 'load') {
+    if (input.operation === 'new' || input.operation === 'load' || input.operation === 'upgrade') {
       result.chunks = [...world.chunks].flatMap(([id, record]) => {
         const position = surfaceCoordinates(id);
         return position ? [{ id, ...position, label: record.name ?? id }] : [];

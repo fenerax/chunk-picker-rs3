@@ -1,7 +1,7 @@
 // @test quick
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createGuestSave } from '../app/web/guest-save.mjs';
+import { createGuestSave, chooseOlderGuestSave, showGuestStartupRecovery } from '../app/web/guest-save.mjs';
 import { createGuestTransport } from '../app/web/guest-transport.mjs';
 
 const dataset = { id: 'synthetic', digest: 'a'.repeat(64) };
@@ -9,8 +9,24 @@ const fresh = () => ({ format: 'rs3-chunk-picker', schemaVersion: 1, state: { sc
   members: [{ id: 'guest', unlocked: ['12850'] }], provenance: { dataset }, rules: {}, tasks: [], history: [] } });
 function storage() {
   const values = new Map();
-  return { getItem: key => values.get(key) ?? null, setItem: (key, value) => values.set(key, value) };
+  return {
+    get length() { return values.size; },
+    key: index => [...values.keys()][index] ?? null,
+    getItem: key => values.get(key) ?? null,
+    setItem: (key, value) => values.set(key, value),
+    removeItem: key => values.delete(key),
+  };
 }
+function domNode(tag) {
+  const node = { tag, textContent: '', className: '', hidden: true, children: [], listeners: {},
+    append(...items) { this.children.push(...items); },
+    replaceChildren(...items) { this.children = [...items]; },
+    addEventListener(name, fn) { (this.listeners[name] ??= []).push(fn); },
+    click() { for (const fn of this.listeners.click ?? []) fn(); },
+  };
+  return node;
+}
+const allNodes = root => [root, ...root.children.flatMap(child => typeof child === 'object' ? allNodes(child) : [])];
 
 test('shared picker adapter keeps commands browser-owned and shares task reads without authenticated requests', async () => {
   const local = storage(), requests = [];
@@ -111,4 +127,72 @@ test('stale tabs cannot overwrite another tab and only reload adopts the changed
   first.commit(changed);
   assert.equal(second.changed(), true); assert.throws(() => second.commit(fresh()), /another tab/);
   assert.deepEqual(second.load(), changed); second.commit(changed);
+});
+
+test('startup recovery UI downloads raw bytes for corrupt saves and only clears after confirmation', async () => {
+  const local = storage(), key = createGuestSave(local, dataset).key;
+  local.setItem(key, '{broken-raw-bytes');
+  const network = async route => {
+    if (route === '/guest/api/session') return Response.json({ token: 'synthetic', dataset });
+    throw new Error('Unexpected route ' + route);
+  };
+  let caught;
+  try {
+    await createGuestTransport({ fetch: network, storage: local, tabStorage: storage(), locks: { request: async (_, work) => work() } });
+  } catch (error) { caught = error; }
+  assert.ok(caught?.guestRecovery, 'corrupt startup error carries raw recovery payload');
+  assert.equal(caught.guestRecovery.raw, '{broken-raw-bytes');
+  const panel = domNode('section'); panel.hidden = false;
+  const doc = { getElementById: id => id === 'startup-error' ? panel : null, createElement: domNode };
+  const downloaded = []; let reloaded = false, allowReset = false;
+  assert.equal(showGuestStartupRecovery({ error: caught, document: doc,
+    download: (text, name) => downloaded.push({ text, name }),
+    confirm: () => allowReset, reload: () => { reloaded = true; } }), true);
+  const buttons = allNodes(panel).filter(node => node.tag === 'button');
+  buttons.find(node => node.textContent === 'Download raw browser save').click();
+  assert.deepEqual(downloaded, [{ text: '{broken-raw-bytes', name: 'chunk-picker-guest-recovery.json' }]);
+  buttons.find(node => node.textContent === 'Start a fresh map').click();
+  assert.equal(local.getItem(key), '{broken-raw-bytes', 'cancelling reset preserves raw bytes');
+  assert.equal(reloaded, false);
+  allowReset = true;
+  buttons.find(node => node.textContent === 'Start a fresh map').click();
+  assert.equal(local.getItem(key), null);
+  assert.equal(reloaded, true);
+});
+
+test('older dataset saves are detected before creating a fresh map and can be downloaded or upgraded through the UI', async () => {
+  const oldDataset = { id: 'synthetic', digest: 'b'.repeat(64) };
+  const oldBackup = { format: 'rs3-chunk-picker', schemaVersion: 1, state: { schemaVersion: 1, revision: 4,
+    members: [{ id: 'guest', unlocked: ['12850', '12851'] }], provenance: { dataset: oldDataset }, rules: {}, tasks: [], history: [] } };
+  const local = storage();
+  const oldSave = createGuestSave(local, oldDataset); oldSave.load(); oldSave.commit(oldBackup);
+  const panel = domNode('section');
+  const doc = { getElementById: id => id === 'startup-error' ? panel : null, createElement: domNode };
+  const downloaded = [], operations = [];
+  const network = async (route, options) => {
+    if (route === '/guest/api/session') return Response.json({ token: 'synthetic', dataset });
+    const body = JSON.parse(options.body); operations.push(body.operation);
+    if (body.operation === 'upgrade') {
+      const upgraded = { ...body.backup, state: { ...body.backup.state, provenance: { dataset } } };
+      return Response.json({ backup: upgraded, pool: { eligible: [] }, bootstrap: { definitions: {}, world: {}, rules: {} } });
+    }
+    throw new Error('Unexpected operation ' + body.operation);
+  };
+  const pending = createGuestTransport({ fetch: network, storage: local, tabStorage: storage(),
+    locks: { request: async (_, work) => work() },
+    onOlderSave: olderSaves => chooseOlderGuestSave({ olderSaves, document: doc, download: (text, name) => downloaded.push({ text, name }) }) });
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(panel.hidden, false, 'recovery UI opens before starting a fresh map');
+  const buttons = allNodes(panel).filter(node => node.tag === 'button');
+  buttons.find(node => node.textContent === 'Download older save').click();
+  assert.equal(downloaded.length, 1);
+  assert.equal(downloaded[0].text, JSON.stringify(oldBackup));
+  buttons.find(node => node.textContent === 'Upgrade and continue').click();
+  const guest = await pending;
+  assert.deepEqual(operations, ['upgrade']);
+  assert.equal(guest.backup.state.revision, 4);
+  assert.deepEqual(guest.backup.state.members[0].unlocked, ['12850', '12851']);
+  assert.equal(guest.backup.state.provenance.dataset.digest, dataset.digest);
+  assert.equal(panel.hidden, true);
+  assert.equal(local.getItem(oldSave.key), JSON.stringify(oldBackup), 'older raw bytes remain untouched');
 });
