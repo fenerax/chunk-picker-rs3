@@ -18,11 +18,12 @@ function storage() {
   };
 }
 function domNode(tag) {
-  const node = { tag, textContent: '', className: '', hidden: true, children: [], listeners: {},
+  const node = { tag, textContent: '', className: '', hidden: true, value: '', children: [], listeners: {},
     append(...items) { this.children.push(...items); },
     replaceChildren(...items) { this.children = [...items]; },
     addEventListener(name, fn) { (this.listeners[name] ??= []).push(fn); },
     click() { for (const fn of this.listeners.click ?? []) fn(); },
+    dispatch(name) { for (const fn of this.listeners[name] ?? []) fn(); },
   };
   return node;
 }
@@ -155,9 +156,55 @@ test('startup recovery UI downloads raw bytes for corrupt saves and only clears 
   assert.equal(local.getItem(key), '{broken-raw-bytes', 'cancelling reset preserves raw bytes');
   assert.equal(reloaded, false);
   allowReset = true;
+  // Simulate another tab repairing/replacing the save before the stale recovery tab resets.
+  const replaced = JSON.stringify(fresh());
+  local.setItem(key, replaced);
   buttons.find(node => node.textContent === 'Start a fresh map').click();
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(local.getItem(key), replaced, 'stale recovery tab must not wipe another tab replacement');
+  assert.equal(reloaded, false);
+  const statusNode = allNodes(panel).find(node => node.className === 'guest-recovery-status');
+  assert.match(statusNode.textContent, /another tab/);
+  // When raw bytes still match what failed on startup, reset clears under Web Locks and reloads.
+  local.setItem(key, '{broken-raw-bytes');
+  buttons.find(node => node.textContent === 'Start a fresh map').click();
+  await new Promise(resolve => setImmediate(resolve));
   assert.equal(local.getItem(key), null);
   assert.equal(reloaded, true);
+});
+
+test('multiple older dataset saves order by recency and let the user pick any retained save to download or upgrade', async () => {
+  const datasetA = { id: 'synthetic', digest: 'b'.repeat(64) };
+  const datasetB = { id: 'synthetic', digest: 'c'.repeat(64) };
+  const backupA = { format: 'rs3-chunk-picker', schemaVersion: 1, state: { schemaVersion: 1, revision: 100,
+    members: [{ id: 'guest', unlocked: ['12850', '12851', '12852'] }], provenance: { dataset: datasetA }, rules: {}, tasks: [], history: [] } };
+  const backupB = { format: 'rs3-chunk-picker', schemaVersion: 1, state: { schemaVersion: 1, revision: 2,
+    members: [{ id: 'guest', unlocked: ['12850'] }], provenance: { dataset: datasetB }, rules: {}, tasks: [], history: [] } };
+  const local = storage();
+  let clock = 1000;
+  const saveA = createGuestSave(local, datasetA, { now: () => clock }); saveA.load(); saveA.commit(backupA);
+  clock = 2000;
+  const saveB = createGuestSave(local, datasetB, { now: () => clock }); saveB.load(); saveB.commit(backupB);
+  const current = createGuestSave(local, dataset, { now: () => clock });
+  const older = current.findOlderSaves();
+  assert.deepEqual(older.map(entry => entry.digest), [datasetB.digest, datasetA.digest], 'more recently saved dataset appears first regardless of revision');
+  const panel = domNode('section');
+  const doc = { getElementById: id => id === 'startup-error' ? panel : null, createElement: domNode };
+  const downloaded = [];
+  const pending = chooseOlderGuestSave({ olderSaves: older, document: doc, download: (text, name) => downloaded.push({ text, name }) });
+  const select = allNodes(panel).find(node => node.tag === 'select');
+  assert.ok(select, 'multiple older saves render a selector');
+  assert.equal(select.children.length, 2);
+  // Switch selection to the second entry (datasetA) and download + upgrade it.
+  select.value = '1';
+  select.dispatch('change');
+  const buttons = allNodes(panel).filter(node => node.tag === 'button');
+  buttons.find(node => node.textContent === 'Download older save').click();
+  assert.equal(downloaded[0].text, JSON.stringify(backupA));
+  buttons.find(node => node.textContent === 'Upgrade and continue').click();
+  const choice = await pending;
+  assert.equal(choice.action, 'upgrade');
+  assert.equal(choice.save.digest, datasetA.digest);
 });
 
 test('older dataset saves are detected before creating a fresh map and can be downloaded or upgraded through the UI', async () => {

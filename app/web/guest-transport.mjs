@@ -22,7 +22,7 @@ export async function createGuestTransport({ fetch: network = globalThis.fetch.b
   try { backup = save.load(); }
   catch (error) {
     const raw = save.raw();
-    if (raw !== null) error.guestRecovery = { kind: 'corrupt', key: save.key, raw, save };
+    if (raw !== null) error.guestRecovery = { kind: 'corrupt', key: save.key, raw, save, locks };
     throw error;
   }
   let queue = Promise.resolve(), taskRead, stale = false;

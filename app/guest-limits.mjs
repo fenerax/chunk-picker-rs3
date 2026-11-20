@@ -45,6 +45,7 @@ export function createGuestLimits({ now = Date.now, ...overrides } = {}) {
       const session = sessionFor(token, ip);
       const perIP = uploadsByIP.get(ip) ?? 0;
       if (activeUploads >= config.uploadsGlobal || perIP >= config.uploadsPerIP) throw busy();
+      charge(requests, ip);
       activeUploads++;
       uploadsByIP.set(ip, perIP + 1);
       let reserved = 0, released = false;
@@ -69,10 +70,11 @@ export function createGuestLimits({ now = Date.now, ...overrides } = {}) {
         },
       };
     },
-    acquire(token, ip) {
+    acquire(token, ip, { rateChecked = false } = {}) {
       const session = sessionFor(token, ip);
       if (running) throw busy();
-      charge(requests, ip); running = true;
+      if (!rateChecked) charge(requests, ip);
+      running = true;
       let released = false;
       return { expiresAt: session.expiresAt, deadlineAt: Math.min(session.expiresAt, now() + config.deadlineMs),
         release() { if (!released) { released = true; running = false; } } };

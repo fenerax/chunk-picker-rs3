@@ -165,7 +165,7 @@ export function createGuestMode({ runtime, publicOrigin, host, limits: limitOpti
         uploads.delete(request);
         uploadLease.release(); uploadLease = undefined;
         if (!operations.has(body.operation) || Object.keys(body).some(key => !['operation', 'backup', 'command', 'taskId', 'chunkId', 'profile', 'selector'].includes(key))) throw guestError(400, 'Choose an available guest action.');
-        lease = admission.acquire(request.headers['x-guest-token'], security.rateKey);
+        lease = admission.acquire(request.headers['x-guest-token'], security.rateKey, { rateChecked: true });
         const result = await calculate(body, request, response, lease);
         await json(request, response, 200, result);
       } catch (error) {

@@ -65,3 +65,14 @@ test('guest upload admission enforces independent per-IP, global and aggregate b
   second.release();
   limits.admitUpload(three.token, 'c').release();
 });
+test('guest upload admission charges the request rate before body buffering without double-charging worker acquisition', () => {
+  let at = 0;
+  const limits = createGuestLimits({ now: () => at, requestsPerIP: 2, requestsGlobal: 2, uploadsPerIP: 2, uploadsGlobal: 2 });
+  const one = limits.open('a');
+  const upload = limits.admitUpload(one.token, 'a');
+  upload.release();
+  limits.acquire(one.token, 'a', { rateChecked: true }).release();
+  // Second upload consumes the second and final request slot even if it fails before acquire.
+  limits.admitUpload(one.token, 'a').release();
+  refused(() => limits.admitUpload(one.token, 'a'), 429);
+});

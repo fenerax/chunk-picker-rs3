@@ -345,6 +345,25 @@ test('a slow or stalled guest upload does not block another visitor from complet
   assert.ok(outcome === 408 || outcome === 'destroyed', `unexpected stalled upload outcome: ${outcome}`);
 });
 
+test('repeated invalid guest uploads consume the request rate budget before body buffering', async t => {
+  const clock = createManualClock();
+  const runtime = { parsedDefinitions: definitions, dataset: selectedDataset, requestContextFor: requestContext };
+  const mode = createGuestMode({ runtime, host: '127.0.0.1', clock, now: clock.now,
+    limits: { requestsPerIP: 1, requestsGlobal: 1 },
+    workerFactory() { throw new Error('Invalid operations must never spawn a worker'); } });
+  const server = http.createServer((request, response) => mode.handle(request, response));
+  server.listen(0, '127.0.0.1'); await new Promise(resolve => server.once('listening', resolve));
+  t.after(async () => { await mode.close(); server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); });
+  const origin = `http://127.0.0.1:${server.address().port}`;
+  const { token } = await (await fetch(origin + '/guest/api/session', { method: 'POST',
+    headers: { Origin: origin, 'Content-Type': 'application/json' }, body: '{}' })).json();
+  const invalid = () => fetch(origin + '/guest/api/run', { method: 'POST',
+    headers: { Origin: origin, 'Content-Type': 'application/json', 'X-Guest-Token': token },
+    body: JSON.stringify({ operation: 'invalid-op' }) });
+  assert.equal((await invalid()).status, 400);
+  assert.equal((await invalid()).status, 429, 'second invalid upload is rate-limited before parsing');
+});
+
 test('guest upgrade operation re-stamps an older-digest solo save from the same dataset', async t => {
   guestFlag(t, '1');
   const root = await mkdtemp(path.join(tmpdir(), 'guest-upgrade-'));
