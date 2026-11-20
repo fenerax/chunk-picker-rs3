@@ -495,6 +495,26 @@ test('ambiguous evidence: older quarantine journals need a named per-picker manu
   }
 });
 
+test('sanitized restore invalidates outstanding beta links before registry publication, including interrupted retry', async t => {
+  const f = await fixture(t), settings = await f.target();
+  await mkdir(settings.multiPicker.registryDir, { recursive: true });
+  const betaFile = path.join(settings.multiPicker.registryDir, 'beta-links.json');
+  let registry = await openRegistry({ ...f.settings.multiPicker });
+  const link = await registry.issueBetaLink(); await registry.close();
+  await writeFile(betaFile, await readFile(path.join(f.settings.multiPicker.registryDir, 'beta-links.json')));
+  const before = await readFile(betaFile);
+  await assert.rejects(restoreServiceStopped({ ...f.restore(settings), step: async label => {
+    if (label === 'restore.beta-links') throw fault;
+  } }), error => error === fault);
+  assert.deepEqual(await readFile(betaFile), before, 'interruption before invalidation retains its original bytes');
+  await restoreServiceStopped(f.restore(settings));
+  assert.equal(await exists(betaFile), false);
+  registry = await openRegistry({ ...settings.multiPicker });
+  try { assert.throws(() => registry.previewBetaLink(link.secret), { status: 403 }); }
+  finally { await registry.close(); }
+  await intact(f);
+});
+
 test('every crash-table label is exercised by a fault sweep', async () => {
   const contract = await readFile(new URL('../docs/multi-picker-contract.md', import.meta.url), 'utf8');
   const section = contract.slice(contract.indexOf('### MP8 crash points'));

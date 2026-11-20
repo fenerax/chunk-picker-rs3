@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { BETA_LINK_FILE } from '../../app/storage/beta-links.mjs';
 import { chown, copyFile, lstat, mkdir, mkdtemp, open, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises';
 import { assertReleased, atomic, directory, encode, exists, headroom, inventory, json, noLinks, sha } from './files.mjs';
 import { assertSameRelease } from './runtime.mjs';
@@ -165,8 +166,8 @@ const quarantineRoot = settings => path.join(settings.controlDir, 'quarantine');
 const storeInventory = dir => inventory(dir, { ignoreRoot: STORE_IDENTITY_EXCLUSIONS });
 const identity = async dir => sha(encode(await storeInventory(dir)));
 async function checkedTarget(dir) { await noLinks(path.dirname(dir)); await assertReleased(dir); }
-async function empty(dir) {
-  if (await exists(dir)) { await noLinks(dir); if ((await readdir(dir)).length) throw actionRequired(`Service recovery requires empty targets. Move ${dir} aside after checking the verified backup; then rerun.`); }
+async function empty(dir, excluded = []) {
+  if (await exists(dir)) { await noLinks(dir); if ((await readdir(dir)).some(name => !excluded.includes(name))) throw actionRequired(`Service recovery requires empty targets. Move ${dir} aside after checking the verified backup; then rerun.`); }
 }
 function installStage(settings, picker, row) {
   if (!row.installStage) return;
@@ -436,7 +437,9 @@ export async function restoreServiceStopped({ settings, backup, release, assertS
   // shared duo passes the preflight above. All actual probes use scratch copies.
   await mutate(step, 'restore.directories', () => directory(settings.multiPicker.pickerRoot)); await mutate(step, 'restore.directories', () => directory(settings.multiPicker.registryDir));
   if (!resuming) {
-    await empty(settings.multiPicker.registryDir);
+    // A credential-only leftover is invalidated before publication below.
+    // Gameplay/registry payloads still require the ordinary empty target.
+    await empty(settings.multiPicker.registryDir, [BETA_LINK_FILE]);
     for (const picker of manifest.pickers.filter(p => !excludedPickerIds.has(p.id))) {
       const dir = pickerPath(settings, picker); await checkedTarget(dir); await empty(dir);
       if (await exists(dir + '.dataset.json')) throw new Error('Existing binding blocks service recovery.');
@@ -528,6 +531,14 @@ export async function restoreServiceStopped({ settings, backup, release, assertS
   // A later tombstone may change our own previously published checkpoint.
   // Journal both hashes before replacement so that intent is also resumable.
   progress.previousRegistrySha256 = previous; progress.registrySha256 = digest; await save('restore.registry-intent');
+  // Outstanding admission credentials do not survive a sanitized restore.
+  // Do this before registry publication, and on every interrupted retry.
+  const betaFile = path.join(settings.multiPicker.registryDir, BETA_LINK_FILE);
+  if (await exists(betaFile)) {
+    await noLinks(betaFile);
+    await mutate(step, 'restore.beta-links', () => rm(betaFile));
+    await syncRecoveryDirectory(settings.multiPicker.registryDir);
+  }
   if (previous !== digest) await mutate(step, 'restore.registry-publish', () => atomic(registryFile, bytes));
   progress.phase = 'complete'; await save('restore.complete');
   return { restored: progress.pickers.filter(p => p.status === 'restored').length,

@@ -1189,6 +1189,35 @@ test('MP15 online operator forwards only the target account through the private 
   assert.equal((await f.registry.claimIdentity(new URL(result.claimLink).searchParams.get('code'), 'google', 'synthetic-player')).id, accountId);
 });
 
+test('beta-link operator issue/list/revoke work stopped and forward only bounded commands online', async t => {
+  const f = await fixture(t, 1); await f.close();
+  const publicOriginFile = path.join(f.root, 'origin'); await writeFile(publicOriginFile, 'https://picker.example');
+  const options = { settings: f.settings, release: { ...f.release, config: { ...f.release.config, publicOriginFile } },
+    controller: { state: async () => ({ active: false, stopped: true }) },
+    serviceIdentity: async () => ({ uid: process.getuid?.() ?? 0, gid: process.getgid?.() ?? 0 }) };
+  const issued = await runServiceOperator({ ...options, command: 'beta-link-issue', argument: 'Synthetic reviewer', evidence: '7' });
+  assert.match(issued.link, /^https:\/\/picker\.example\/auth\/beta#bet_[A-Za-z0-9_-]{43}$/);
+  const noOrigin = { ...options, release: { ...options.release, config: { ...options.release.config, publicOriginFile: undefined } } };
+  const listed = await runServiceOperator({ ...noOrigin, command: 'beta-link-list' });
+  assert.equal(listed[0].label, 'Synthetic reviewer'); assert.equal(listed[0].id, issued.id);
+  assert(!encode(listed).includes(new URL(issued.link).hash.slice(1))); assert(!encode(listed).includes('secretHash'));
+  const revoked = await runServiceOperator({ ...noOrigin, command: 'beta-link-revoke', argument: issued.id });
+  assert.equal(revoked.status, 'revoked');
+  const calls = [];
+  for (const [command, argument, expected] of [
+    ['beta-link-issue', 'Synthetic group', { action: 'issue', label: 'Synthetic group' }],
+    ['beta-link-list', undefined, { action: 'list' }],
+    ['beta-link-revoke', issued.id, { action: 'revoke', id: issued.id }],
+  ]) {
+    const result = await runServiceOperator({ ...options, command, argument, controller: { state: async () => ({ active: true }) },
+      request: async (release, route, method, body) => {
+        calls.push(body); assert.equal(route, '/api/operator/beta-links'); assert.equal(method, 'POST'); assert.deepEqual(body, expected); return { synthetic: true };
+      } });
+    assert.deepEqual(result, { synthetic: true });
+  }
+  assert.equal(calls.length, 3);
+});
+
 test('MP15 refused stopped issuance repairs registry and ledger ownership', async t => {
   const f = await fixture(t, 1), accountId = f.pickers[1].ownerAccountId;
   // Keep the target linked so issuance refuses after openRegistry replaces both files.

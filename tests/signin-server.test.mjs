@@ -121,7 +121,7 @@ function providerFixture(config, clock) {
 async function fixture(t, mode = 'optional', rateLimits = {}, { multiPicker = false } = {}) {
   await mkdir(root, { recursive: true });
   const directory = await mkdtemp(path.join(root, 'server-')), dataDir = path.join(directory, 'game');
-  const registryOptions = multiPicker ? { registryDir: path.join(directory, 'registry'), pickerRoot: path.join(directory, 'pickers'), tombstoneDir: path.join(directory, 'ledger') } : undefined;
+  const registryOptions = multiPicker ? { admission: 'open', registryDir: path.join(directory, 'registry'), pickerRoot: path.join(directory, 'pickers'), tombstoneDir: path.join(directory, 'ledger') } : undefined;
   const config = {}, envKeys = [], oldEnvironment = new Map(), browserSecrets = [];
   for (const provider of ['discord', 'google']) {
     const prefix = `RS3_${provider.toUpperCase()}_CLIENT_`, file = path.join(directory, `${provider}-secret`);

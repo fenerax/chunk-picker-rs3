@@ -1,5 +1,31 @@
 # Multi-picker isolation contract
 
+## Beta admission (owner decision, 2026-11-19)
+
+Configured multi-picker services default to `multiPicker.admission: "invite-only"`.
+Only `"invite-only"` and `"open"` are valid, and the operator/release policies
+must agree. Unknown Discord/Google subjects require either a live single-use
+operator beta link or a valid group invitation before any account/subject is
+persisted. Otherwise a friendly refusal explains how to obtain access and how
+existing users choose their linked provider. Legacy single-picker behavior,
+existing logins, second-provider linking and recovery/relink codes are unchanged.
+
+Beta links expire after 14 days by default, with a per-link operator override.
+Their new version-1 `registryDir/beta-links.json` file stores only token hashes,
+timestamps, an optional label, state and the account ID of a consumption intent.
+The registry queue serializes redemption with login creation: persist intent,
+commit the login, then mark consumed. Restart consumes an intent whose account
+exists or releases it if the login never committed. No registry/ledger schema
+or existing durable fields change. Picker provisioning retains its existing
+recovery pattern; consumed links do not waive or free `betaPickerCap` accounting.
+
+The fragment token is removed by the browser and exchanged in a same-origin
+POST body into the existing bounded ten-minute pre-auth continuation. Neither
+provider URLs nor return-target queries contain it. Service captures exclude
+the beta store; restore invalidates destination links and operators reissue them.
+See [operator commands](linux-operator.md#invite-only-beta-admission) and the
+[storage contract](storage-contract.md#beta-admission-credentials).
+
 ## Service off-site recovery update
 
 Service manifest v2 in `scripts/linux/service-checkpoint.mjs` supersedes the MP8

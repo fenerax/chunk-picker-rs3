@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { admissionMode } from '../../app/storage/beta-links.mjs';
 import { warmStoreAllowed } from '../../app/tasks/warm-store.mjs';
 import { readFile } from 'node:fs/promises';
 import { pathToFileURL } from 'node:url';
@@ -91,6 +92,7 @@ export async function operatorSettings() {
 
 export function assertOperatorService(settings, release) {
   if (!!settings.multiPicker !== !!release.config.multiPicker) throw new Error('Operator and release service options differ.');
+  if (settings.multiPicker && admissionMode(settings.multiPicker) !== admissionMode(release.config.multiPicker)) throw new Error('Operator and release admission policies differ.');
   if (settings.multiPicker) for (const key of ['registryDir', 'pickerRoot', 'tombstoneDir']) {
     if (settings.multiPicker[key] !== release.config.multiPicker[key]) throw new Error('Operator and release service roots differ.');
   }

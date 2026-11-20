@@ -46,7 +46,7 @@ async function fixture(t) {
   const grants = new Map(), access = new Map(); let codeId = 0, app, handler;
   const settings = { dataDir: path.join(root, 'legacy'), controlDir: path.join(root, 'control'),
     scratchRoot: path.join(root, 'scratch'), backupDir: path.join(root, 'backups'), minFreeBytes: 0,
-    multiPicker: { registryDir: path.join(root, 'registry'), pickerRoot: path.join(root, 'pickers'), tombstoneDir: path.join(root, 'ledger') } };
+    multiPicker: { admission: 'open', registryDir: path.join(root, 'registry'), pickerRoot: path.join(root, 'pickers'), tombstoneDir: path.join(root, 'ledger') } };
   const provider = { async fetch(url, options) {
     if (url.endsWith('/oauth2/token')) {
       const form = new URLSearchParams(options.body), grant = grants.get(form.get('code'));

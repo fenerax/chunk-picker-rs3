@@ -64,6 +64,13 @@ The new character entity, character-to-slot binding, per-character lifecycle/tom
 
 ### First sign-in and adding characters
 
+In multi-picker mode, an unknown provider subject must first present a live
+operator beta link or valid group invitation. Admission defaults to invite-only;
+the explicit `multiPicker.admission: "open"` policy requires owner approval for
+public sign-up. Refusal persists neither a login nor the subject. Existing
+logins and provider linking remain available. The following automatic first-map
+rules apply after admission, including through a group invite.
+
 1. Successful Discord or Google sign-in resolves the identity to a login. For a genuinely new login, automatically provision one character, one solo picker and its occupied owner slot. Use a neutral label until the person enters a RuneScape name. Do not infer it from the provider profile.
 2. Provisioning is idempotent and recoverable. Retrying a callback completes the same allocation. No success page may expose a half-created character, picker or slot. Quota refusal explains the failure without replacing an existing map.
 3. If the first visit carried an invite, retain the invitation through sign-in and present acceptance after automatic provisioning. The new character can move from its empty solo picker to the invited group. Retiring that empty picker is disclosed in the acceptance review. Do not defer or omit the automatic first picker.
