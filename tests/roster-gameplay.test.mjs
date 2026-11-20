@@ -174,6 +174,21 @@ test('five-player travel refuses unclaimed gaps and one-way routes without copyi
   assert.deepEqual(state.members[4].teleports, []);
 });
 
+test('unclaimed blocked tasks and personal-access mode use neutral outside-your-map hidden reason', () => {
+  const f = fixture(2, true);
+  f.state.members[1].unlocked = [];
+  const unclaimed = f.engine.evaluate(f.state, f.state.members[0].id);
+  const blockedTask = unclaimed.tasks.find(task => task.id === taskId('Extra', 'Personal 2'));
+  assert.equal(blockedTask.status, 'blocked');
+  assert.ok(blockedTask.hiddenReasons.includes('Outside your unlocked chunks.'));
+  assert.equal(blockedTask.hiddenReasons.some(reason => /partner's map/.test(reason)), false);
+  const personal = fixture(2, true);
+  personal.state.rules['access.shared'] = false;
+  const personalResult = personal.engine.evaluate(personal.state, personal.state.members[0].id);
+  const personalOther = personalResult.tasks.find(task => task.id === taskId('Extra', 'Personal 2'));
+  assert.ok(personalOther.hiddenReasons.includes('Outside your unlocked chunks.'));
+});
+
 test('replacement summaries use the preview roster without requiring current screen state', () => {
   const el = (tag, text = '') => ({ tag, text, children: [], append(...children) { this.children.push(...children); } });
   for (const size of [1, 2, 3, 5, 32]) for (const currentSize of [undefined, 2, 5]) {

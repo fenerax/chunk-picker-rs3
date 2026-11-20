@@ -1591,9 +1591,10 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
       const filters = [];
       const own = obligation(task);
       const rosterSize = state.members.length;
+      const sharedReachable = !own && blockers.length === 0 && rosterSize > 1 && state.rules?.['access.shared'] !== false;
       if (!own) filters.push(sourcePolicyRejections.some(reason => reason.local)
         ? 'Local supplies do not meet this task’s source conditions.'
-        : rosterSize <= 1 ? 'Outside your unlocked chunks.'
+        : !sharedReachable ? 'Outside your unlocked chunks.'
           : rosterSize === 2 ? "Outside your own chunks — only reachable through your partner's map, so it isn't required."
             : "Outside your own chunks — only reachable through another group member's map, so it isn't required.");
       if (caps[task.category] && hideSkills) filters.push('Skills are hidden by the task rule.');

@@ -72,7 +72,8 @@ export function evaluateHouseStorage({ rules, f2p, rows, items, sourceList, acce
     const blockers = backlogged ? [{ kind: 'backlog', detail: 'This house-storage task is backlogged by the current member.' }] : [];
     const sources = [...new Set([...parts, ...Object.keys(furniture.materials)])].flatMap(item => sourceList(item).map(source => ({ ...source, item })));
     const obligation = objectHas(ownAccess, catalogue.housing.workbench) && objectHas(ownAccess, catalogue.housing.storage) && housingQuest.obligation !== false;
-    const outsideReason = rosterSize <= 1 ? 'Outside your unlocked chunks.'
+    const sharedReachable = !obligation && rosterSize > 1 && rules['access.shared'] !== false;
+    const outsideReason = !sharedReachable ? 'Outside your unlocked chunks.'
       : rosterSize === 2 ? "Outside your own chunks — only reachable through your partner's map, so it isn't required."
         : "Outside your own chunks — only reachable through another group member's map, so it isn't required.";
     const hiddenReasons = obligation ? [] : [outsideReason];
