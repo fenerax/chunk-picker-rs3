@@ -30,7 +30,7 @@ async function fixture(t) {
   t.after(() => rm(root, { recursive: true, force: true }));
   const settingsAt = (base, ledger = path.join(base, 'ledger')) => ({ dataDir: path.join(base, 'legacy'),
     controlDir: path.join(base, 'control'), backupDir: path.join(base, 'backups'), scratchRoot: path.join(base, 'scratch'), minFreeBytes: 0,
-    multiPicker: { registryDir: path.join(base, 'registry'), pickerRoot: path.join(base, 'pickers'), tombstoneDir: ledger } });
+    multiPicker: { admission: 'open', registryDir: path.join(base, 'registry'), pickerRoot: path.join(base, 'pickers'), tombstoneDir: ledger } });
   const settings = settingsAt(path.join(root, 'source'));
   await mkdir(settings.dataDir, { recursive: true });
   t.after(() => rm(settings.dataDir + '.snapshots', { recursive: true, force: true }));
@@ -493,6 +493,26 @@ test('ambiguous evidence: older quarantine journals need a named per-picker manu
     row.status = 'pending'; await atomic(file, encode(journal));
     await restoreServiceStopped(f.restore(settings)); await finalState(f, settings);
   }
+});
+
+test('sanitized restore invalidates outstanding beta links before registry publication, including interrupted retry', async t => {
+  const f = await fixture(t), settings = await f.target();
+  await mkdir(settings.multiPicker.registryDir, { recursive: true });
+  const betaFile = path.join(settings.multiPicker.registryDir, 'beta-links.json');
+  let registry = await openRegistry({ ...f.settings.multiPicker });
+  const link = await registry.issueBetaLink(); await registry.close();
+  await writeFile(betaFile, await readFile(path.join(f.settings.multiPicker.registryDir, 'beta-links.json')));
+  const before = await readFile(betaFile);
+  await assert.rejects(restoreServiceStopped({ ...f.restore(settings), step: async label => {
+    if (label === 'restore.beta-links') throw fault;
+  } }), error => error === fault);
+  assert.deepEqual(await readFile(betaFile), before, 'interruption before invalidation retains its original bytes');
+  await restoreServiceStopped(f.restore(settings));
+  assert.equal(await exists(betaFile), false);
+  registry = await openRegistry({ ...settings.multiPicker });
+  try { assert.throws(() => registry.previewBetaLink(link.secret), { status: 403 }); }
+  finally { await registry.close(); }
+  await intact(f);
 });
 
 test('every crash-table label is exercised by a fault sweep', async () => {

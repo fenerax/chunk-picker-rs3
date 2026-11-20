@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { admissionMode } from '../../app/storage/beta-links.mjs';
 import { copyFile, lstat, mkdir, open, readdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { packRelative } from '../../app/packs.mjs';
 import { capturePluginItemFiles, pluginItemFiles } from '../../app/plugin-items.mjs';
@@ -33,6 +34,7 @@ export async function syncRecoveryDirectory(root) {
   try { await handle.sync(); } finally { await handle.close(); }
 }
 export function validateServicePaths(settings) {
+  admissionMode(settings.multiPicker);
   if (['registryDir', 'pickerRoot', 'tombstoneDir'].some(key => !path.isAbsolute(settings.multiPicker?.[key] ?? ''))) throw new Error('Complete absolute service roots required.');
   const roots = [settings.dataDir, settings.multiPicker.registryDir, settings.multiPicker.pickerRoot,
     settings.multiPicker.tombstoneDir, snapshotRoot(settings.dataDir), settings.controlDir, settings.scratchRoot, settings.backupDir].filter(Boolean);

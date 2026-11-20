@@ -17,7 +17,7 @@ async function setup(t) {
   const owner = await f.registry.firstLogin('google', 'owner'), player = await f.registry.firstLogin('google', 'player'), invite = await f.registry.createGroupInvite(owner.account.id, owner.picker.id);
   await f.join(invite, player.account, { characterId: player.character.id }); player.character = f.registry.getCharacter(player.character.id);
   const settings = { dataDir: f.options.legacyDir, controlDir: path.join(root, 'control'), backupDir: path.join(root, 'backups'), scratchRoot: path.join(root, 'scratch'), minFreeBytes: 0,
-    multiPicker: { registryDir: f.options.registryDir, pickerRoot: f.options.pickerRoot, tombstoneDir: f.options.tombstoneDir } };
+    multiPicker: { admission: 'open', registryDir: f.options.registryDir, pickerRoot: f.options.pickerRoot, tombstoneDir: f.options.tombstoneDir } };
   return { root, owner, player, settings, get f() { return f; }, async reopen() { f = await inviteFixture(root); return f; },
     async checkpoint() { return registryRecoveryDocument(JSON.parse(await readFile(path.join(f.options.registryDir, 'registry.json')))); } };
 }

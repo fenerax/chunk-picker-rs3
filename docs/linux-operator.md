@@ -627,6 +627,49 @@ before production approval. Neither command starts the paused PC picker.
 
 ## Optional multi-picker service operations (MP8)
 
+### Invite-only beta admission
+
+Whenever `multiPicker` is configured, `multiPicker.admission` defaults to
+`"invite-only"`; its only other value is `"open"`. The operator and pinned
+release configs must agree (omitted and explicit `"invite-only"` agree).
+Public sign-up still needs the owner's approval before selecting `"open"`.
+Single-picker sign-in is unchanged. Existing logins, provider linking, valid
+group invitations and operator relink codes remain usable.
+
+Issue a single-use beta link for each person starting a group, including a
+plugin reviewer. These synthetic commands work against the active private
+operator endpoint or a deliberately stopped registry under its writer lock:
+
+```sh
+node scripts/linux/operator.mjs beta-link-issue "Synthetic group"
+node scripts/linux/operator.mjs beta-link-issue "Synthetic plugin reviewer" 7
+node scripts/linux/operator.mjs beta-link-list
+node scripts/linux/operator.mjs beta-link-revoke 00000000-0000-4000-8000-000000000001
+```
+
+The optional final number is a positive whole number of days; the default is
+14 days. Issue prints JSON with the full `link` **once, to stdout only**.
+Copy it privately; avoid terminal recording, log redirection and shared
+transcripts. List and revoke return metadata without tokens or hashes. A lost
+link cannot be recovered: revoke its listed ID and issue another. Labels are
+optional private operator notes, limited to 120 characters.
+
+A full link looks like `https://picker.example/auth/beta#<secret>`.
+The fragment stays out of HTTP request URLs; the browser removes it before a
+same-origin POST exchanges it for a ten-minute pre-auth continuation. OAuth
+state carries no beta token. Expiry and revocation are rechecked at login
+creation. Opening a link does not consume it; a new login consumes it once.
+Existing logins neither need nor consume beta links. Issuance reserves no
+picker capacity; redemption still obeys `betaPickerCap` and ordinary quotas.
+A full beta refuses redemption without consuming the link.
+
+Treat `registryDir/beta-links.json` as credential material even though it stores
+only hashes. Sanitized service checkpoints and off-host backups exclude it.
+Restore invalidates outstanding links in the destination before publishing the
+restored registry, including on interrupted retries. Reissue links afterward;
+restored logins use the existing relink-code procedure. This does not change
+the credential-bearing legacy single-store backup format.
+
 The default single-duo configuration and backup format are unchanged. To operate
 MP4's opt-in service, put identical `multiPicker` roots in the pinned release
 configuration and `RS3_OPERATOR_CONFIG`: `registryDir`, `pickerRoot` and

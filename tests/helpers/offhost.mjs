@@ -82,7 +82,7 @@ export async function serviceOffhostFixture(t, { runtime = false, prepare } = {}
   const { bindDatasetStorage } = await import('../../app/dataset-binding.mjs');
   const { resolveDataset } = await import('../../app/datasets.mjs');
   const dataset = await resolveDataset({ datasetId: 'open-starter' });
-  f.settings.multiPicker = Object.fromEntries(['registryDir', 'pickerRoot', 'tombstoneDir'].map(name => [name, path.join(f.dir, name)]));
+  f.settings.multiPicker = { admission: 'open', ...Object.fromEntries(['registryDir', 'pickerRoot', 'tombstoneDir'].map(name => [name, path.join(f.dir, name)])) };
   await mkdir(f.settings.dataDir);
   const registry = await openRegistry({ ...f.settings.multiPicker, legacyDir: f.settings.dataDir });
   let pickers;

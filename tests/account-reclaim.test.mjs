@@ -10,7 +10,7 @@ import { reconcileTombstones } from '../app/storage/tombstones.mjs';
 
 async function fixture(t) {
   const root = await mkdtemp(path.join(tmpdir(), 'account-reclaim-'));
-  const options = { registryDir: path.join(root, 'registry'), pickerRoot: path.join(root, 'pickers'), tombstoneDir: path.join(root, 'ledger') };
+  const options = { admission: 'open', registryDir: path.join(root, 'registry'), pickerRoot: path.join(root, 'pickers'), tombstoneDir: path.join(root, 'ledger') };
   let clock = Date.now(), registry = await openRegistry({ ...options, now: () => clock });
   const target = await registry.firstLogin('discord', 'synthetic-target');
   await registry.unlinkIdentity(target.account.id, 'discord');

@@ -75,7 +75,7 @@ async function fixture(t, count = 2) {
   const root = await mkdtemp(path.join(tmpdir(), 'linux-multi-picker-'));
   const settings = { dataDir: path.join(root, 'legacy'), controlDir: path.join(root, 'control'),
     backupDir: path.join(root, 'backups'), scratchRoot: path.join(root, 'scratch'), minFreeBytes: 0,
-    multiPicker: { registryDir: path.join(root, 'registry'), pickerRoot: path.join(root, 'pickers'), tombstoneDir: path.join(root, 'ledger') } };
+    multiPicker: { admission: 'open', registryDir: path.join(root, 'registry'), pickerRoot: path.join(root, 'pickers'), tombstoneDir: path.join(root, 'ledger') } };
   await mkdir(settings.dataDir); await mkdir(settings.controlDir);
   let registry = await openRegistry({ ...settings.multiPicker, legacyDir: settings.dataDir });
   const legacy = await registry.registerLegacy({ memberIds: ['one', 'two'], accounts: [], droppedMemberships: 0 });
@@ -105,7 +105,7 @@ async function fixture(t, count = 2) {
   const target = async () => {
     const dest = path.join(root, 'recovered'); await mkdir(dest);
     const next = { ...settings, dataDir: path.join(dest, 'legacy'), controlDir: path.join(dest, 'control'), backupDir: path.join(dest, 'backups'), scratchRoot: path.join(dest, 'scratch'),
-      multiPicker: { registryDir: path.join(dest, 'registry'), pickerRoot: path.join(dest, 'pickers'), tombstoneDir: settings.multiPicker.tombstoneDir } };
+      multiPicker: { admission: 'open', registryDir: path.join(dest, 'registry'), pickerRoot: path.join(dest, 'pickers'), tombstoneDir: settings.multiPicker.tombstoneDir } };
     return next;
   };
   return { root, settings, registry, pickers, release, dir, capture, close, target, cleanup: work => cleanups.push(work) };
@@ -380,7 +380,7 @@ test('checkpoint queues admission only for registry metadata and never waits for
 
 test('health with 50 dormant registry pickers opens none; snapshots require private master Bearer', async t => {
   const root = await mkdtemp(path.join(tmpdir(), 'linux-multi-picker-health-'));
-  const multiPicker = { registryDir: path.join(root, 'registry'), pickerRoot: path.join(root, 'pickers'), tombstoneDir: path.join(root, 'ledger') };
+  const multiPicker = { admission: 'open', registryDir: path.join(root, 'registry'), pickerRoot: path.join(root, 'pickers'), tombstoneDir: path.join(root, 'ledger') };
   const dataDir = path.join(root, 'legacy'); await mkdir(dataDir);
   const registry = await openRegistry({ ...multiPicker, legacyDir: dataDir });
   for (let i = 0; i < 50; i++) await registry.firstLogin('discord', 'synthetic-' + i);
@@ -1187,6 +1187,35 @@ test('MP15 online operator forwards only the target account through the private 
     } });
   assert.equal(calls, 1);
   assert.equal((await f.registry.claimIdentity(new URL(result.claimLink).searchParams.get('code'), 'google', 'synthetic-player')).id, accountId);
+});
+
+test('beta-link operator issue/list/revoke work stopped and forward only bounded commands online', async t => {
+  const f = await fixture(t, 1); await f.close();
+  const publicOriginFile = path.join(f.root, 'origin'); await writeFile(publicOriginFile, 'https://picker.example');
+  const options = { settings: f.settings, release: { ...f.release, config: { ...f.release.config, publicOriginFile } },
+    controller: { state: async () => ({ active: false, stopped: true }) },
+    serviceIdentity: async () => ({ uid: process.getuid?.() ?? 0, gid: process.getgid?.() ?? 0 }) };
+  const issued = await runServiceOperator({ ...options, command: 'beta-link-issue', argument: 'Synthetic reviewer', evidence: '7' });
+  assert.match(issued.link, /^https:\/\/picker\.example\/auth\/beta#bet_[A-Za-z0-9_-]{43}$/);
+  const noOrigin = { ...options, release: { ...options.release, config: { ...options.release.config, publicOriginFile: undefined } } };
+  const listed = await runServiceOperator({ ...noOrigin, command: 'beta-link-list' });
+  assert.equal(listed[0].label, 'Synthetic reviewer'); assert.equal(listed[0].id, issued.id);
+  assert(!encode(listed).includes(new URL(issued.link).hash.slice(1))); assert(!encode(listed).includes('secretHash'));
+  const revoked = await runServiceOperator({ ...noOrigin, command: 'beta-link-revoke', argument: issued.id });
+  assert.equal(revoked.status, 'revoked');
+  const calls = [];
+  for (const [command, argument, expected] of [
+    ['beta-link-issue', 'Synthetic group', { action: 'issue', label: 'Synthetic group' }],
+    ['beta-link-list', undefined, { action: 'list' }],
+    ['beta-link-revoke', issued.id, { action: 'revoke', id: issued.id }],
+  ]) {
+    const result = await runServiceOperator({ ...options, command, argument, controller: { state: async () => ({ active: true }) },
+      request: async (release, route, method, body) => {
+        calls.push(body); assert.equal(route, '/api/operator/beta-links'); assert.equal(method, 'POST'); assert.deepEqual(body, expected); return { synthetic: true };
+      } });
+    assert.deepEqual(result, { synthetic: true });
+  }
+  assert.equal(calls.length, 3);
 });
 
 test('MP15 refused stopped issuance repairs registry and ledger ownership', async t => {

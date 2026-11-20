@@ -21,7 +21,7 @@ export async function servingServer(fixture, extra = {}) {
     taskWorkerOptions: { residency: false },
     progressSources: { clock: () => Date.parse('2026-11-11T12:00:00Z') },
     ...(fixture.profile.storageFormat === 'format2' ? { ownedFormat2: await loadCapacityOwnedRelease(directory) } : {}),
-    multiPicker: { maxCalculators: 1, registryDir: path.join(directory, 'registry'), pickerRoot: path.join(directory, 'pickers'), tombstoneDir: path.join(directory, 'tombstones') },
+    multiPicker: { admission: 'open', maxCalculators: 1, registryDir: path.join(directory, 'registry'), pickerRoot: path.join(directory, 'pickers'), tombstoneDir: path.join(directory, 'tombstones') },
     ...extra });
 }
 export async function servingRequest(app, group, route, body, plugin = false) {

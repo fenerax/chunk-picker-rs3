@@ -1,5 +1,42 @@
 # Multiplayer storage contract
 
+## Beta admission credentials
+
+`registryDir/beta-links.json` is the approved new durable file (2026-11-19),
+owned by `app/storage/beta-links.mjs` under the registry's lifetime writer lock
+and mutation queue. Its JSON schemaVersion is 1. Each record has `id`, SHA-256
+`secretHash`, `createdAt`, `expiresAt`, optional nullable `label`, `status`,
+nullable `terminalAt` and nullable `accountId`. No plaintext token or provider
+subject is stored here. Pending links default to fourteen days; operators can
+set a per-link positive expiry. Revoked, expired and consumed are terminal.
+Issuance limits are 10,000 live pending and 20,000 total records. A rotating
+sixteen-record sweep on issuance, revocation and recovery expires pending rows
+and removes terminal metadata after thirty days. Expiry is always checked on
+use, independently of pruning. Pruning cannot revive a token or free its map.
+
+Writes use `writeRegistryJson`: exclusive mode-0600 temporary file, file fsync,
+atomic replacement and directory fsync. Any uncertain write poisons the registry
+until restart. Redemption runs inside the same queue as login creation and
+operator revocation. A `consuming` intent binds the hash to a freshly allocated
+account ID before registry publication; startup marks it consumed if that
+account exists, otherwise returns it to pending. The intent never expires or
+prunes before reconciliation. The existing registry provisioning saga completes
+the character/map; no registry or ledger version or field changes are needed.
+
+The raw fragment secret is exchanged via a same-origin POST and retained only
+in bounded, expiring in-memory pre-auth state during OAuth. Beta links and hashes
+are credentials: sanitized service captures omit this file entirely. Restore
+removes the destination beta file durably before registry publication, repeating
+that invalidation on interrupted retries. Operators reissue outstanding links
+after restore. A beta-file-only registry directory is allowed through the empty
+target check solely for that invalidation; other payloads still require review
+and removal from the destination before restore. Existing account relinking
+retains its separate procedure.
+Synthetic coverage: `tests/beta-links.test.mjs`,
+`tests/beta-admission-http.test.mjs`, and the interrupted invalidation case in
+`tests/linux-service-crash.test.mjs`. These are implementation evidence, not a
+live deployment or abuse-load result.
+
 ## State ownership and hot command reads
 
 Serialized command replies and state snapshots use field serialization from the

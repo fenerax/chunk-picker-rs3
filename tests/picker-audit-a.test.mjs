@@ -68,7 +68,7 @@ async function fixture(t, { originalSync, enabled = true } = {}) {
   } };
   const dataset = { ...baseDataset, gameDefaults: { members: legacyMembers, masterLabel: 'Player 8' },
     capabilities: { ...baseDataset.capabilities, features: { ...baseDataset.capabilities.features, originalSync: !!originalSync } } };
-  const multiPicker = { registryDir: path.join(root, 'registry'), pickerRoot: path.join(root, 'pickers'), tombstoneDir: path.join(root, 'tombstones') };
+  const multiPicker = { admission: 'open', registryDir: path.join(root, 'registry'), pickerRoot: path.join(root, 'pickers'), tombstoneDir: path.join(root, 'tombstones') };
   app = await createServer({ dataset, dataDir: path.join(root, 'legacy'), definitions, taskMap: {},
     initialState: createGroupState(legacyMembers.map(({ mapId, ...member }) => ({ ...member, sourceMapId: mapId }))), port: 0, loopbackPort: 0, loopbackRole: 'public',
     publicOrigin: origin, signIn: 'optional', signInProvider: provider, multiPicker: enabled ? multiPicker : undefined, originalSync,

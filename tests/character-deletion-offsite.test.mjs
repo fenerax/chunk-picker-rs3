@@ -44,7 +44,7 @@ test('ledger 3 deletion and retired binding survive off-site capture, restore-cl
   await offhostBackup({ ...f, run: serviceRepository(f), config: {}, ping: async () => {} });
   const source = path.join(f.dir, 'remote-payload'), backup = path.join(source, 'snapshot'), root = path.join(f.dir, 'clean-target');
   const target = { ...f.settings, dataDir: path.join(root, 'legacy'), controlDir: path.join(root, 'control'), scratchRoot: path.join(root, 'scratch'), backupDir: path.join(root, 'backups'),
-    multiPicker: Object.fromEntries(['registryDir', 'pickerRoot', 'tombstoneDir'].map(key => [key, path.join(root, key)])) };
+    multiPicker: { admission: 'open', ...Object.fromEntries(['registryDir', 'pickerRoot', 'tombstoneDir'].map(key => [key, path.join(root, key)])) } };
   const targetLedger = path.join(target.multiPicker.tombstoneDir, 'ledger.json'); assert.equal(await exists(targetLedger), false);
   const restored = await restoreServiceStopped({ settings: target, backup, release: f.release, initializeLedger: true, assertStopped: async () => {}, probe: async (_release, dir) => json(path.join(dir, 'state.json')) });
   assert.equal(restored.restored, 2); assert.deepEqual(restored.quarantined, []);
@@ -63,7 +63,7 @@ test('ledger 3 deletion and retired binding survive off-site capture, restore-cl
   }
   await refusesResurrection(target);
   // The rehearsal must rely on the downloaded snapshot/rebuild pair alone.
-  for (const dir of [f.roots.releases, f.roots.packs, f.settings.dataDir, ...Object.values(f.settings.multiPicker)]) await rm(dir, { recursive: true });
+  for (const dir of [f.roots.releases, f.roots.packs, f.settings.dataDir, ...['registryDir', 'pickerRoot', 'tombstoneDir'].map(key => f.settings.multiPicker[key])]) await rm(dir, { recursive: true });
   await rm(f.settings.dataDir + '.dataset.json');
   const scratch = path.join(f.dir, 'rehearsal'), receipt = await rehearseService({ source, scratch });
   assert.equal(receipt.result, 'success'); assert.deepEqual(receipt.ledger, manifest.ledger);

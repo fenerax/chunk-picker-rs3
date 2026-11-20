@@ -17,7 +17,7 @@ const random = seed => max => { seed = (Math.imul(seed, 1664525) + 1013904223) >
 
 async function fixture(t, options = {}) {
   const root = await mkdtemp(path.join(tmpdir(), 'registry-counts-'));
-  const settings = { registryDir: path.join(root, 'registry'), pickerRoot: path.join(root, 'pickers'), tombstoneDir: path.join(root, 'ledger'), ...options };
+  const settings = { admission: 'open', registryDir: path.join(root, 'registry'), pickerRoot: path.join(root, 'pickers'), tombstoneDir: path.join(root, 'ledger'), ...options };
   const file = path.join(settings.registryDir, 'registry.json');
   let registry;
   const f = { settings, file, get registry() { return registry; },
