@@ -271,10 +271,11 @@ and restore. The local retained count is not an off-host retention policy.
 ## Monitor thresholds
 
 The root-owned `/etc/chunk-picker/monitor.json` accepts the settings below;
-`scripts/linux/monitor.example.json` shows their defaults. The monitor unit reads
-`runtime.env`, including `RS3_OPERATOR_CONFIG`, to find the legacy store and
-configured `multiPicker.pickerRoot`. An explicit `dataDir` and optional
-`multiPicker` in monitor settings select those roots instead.
+`scripts/linux/monitor.example.json` shows their defaults. The monitor finds
+the legacy store and configured `multiPicker.pickerRoot` from explicit `dataDir`
+(and optional `multiPicker`) in monitor settings, else from explicit
+`operatorConfig`, else from `RS3_OPERATOR_CONFIG` in `runtime.env`, and finally
+from the documented default `/etc/chunk-picker/operator.json`.
 
 | Setting | Default | Validation and behavior |
 | --- | --- | --- |

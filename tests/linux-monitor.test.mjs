@@ -70,6 +70,39 @@ test('plugin record counts include revoked keys across legacy and dormant roots;
   await writeFile(file, 'x'.repeat(1024 * 1024 + 1)); await assert.rejects(pluginKeyCount(file), /Invalid plugin key count input/);
 });
 
+test('storage collection resolves operator configuration without RS3_OPERATOR_CONFIG', async t => {
+  const root = await fixture(t), dataDir = path.join(root, 'legacy'), pickerRoot = path.join(root, 'pickers');
+  const id = 'p_' + 'b'.repeat(32), owned = path.join(pickerRoot, id);
+  await mkdir(dataDir); await mkdir(owned, { recursive: true });
+  await writeFile(path.join(dataDir, 'state.json'), '{}');
+  await writeFile(path.join(owned, 'state.json'), '{"a":1}');
+  const operatorFile = path.join(root, 'operator.json');
+  await writeFile(operatorFile, JSON.stringify({
+    service: 'chunk-picker.service',
+    current: path.join(root, 'current.json'),
+    dataDir,
+    controlDir: path.join(root, 'control'),
+    scratchRoot: path.join(root, 'scratch'),
+    backupDir: path.join(root, 'backups'),
+    multiPicker: {
+      registryDir: path.join(root, 'registry'),
+      pickerRoot,
+      tombstoneDir: path.join(root, 'tombstones'),
+    },
+  }));
+  const previousEnv = process.env.RS3_OPERATOR_CONFIG;
+  delete process.env.RS3_OPERATOR_CONFIG;
+  t.after(() => {
+    if (previousEnv === undefined) delete process.env.RS3_OPERATOR_CONFIG;
+    else process.env.RS3_OPERATOR_CONFIG = previousEnv;
+  });
+  const fromDefault = await collectStorage({}, { operatorConfig: operatorFile });
+  assert.deepEqual(fromDefault.map(row => row.group), ['legacy', id]);
+  const fromConfig = await collectStorage({ operatorConfig: operatorFile });
+  assert.deepEqual(fromConfig.map(row => row.group), ['legacy', id]);
+  await assert.rejects(collectStorage({ operatorConfig: 'relative/operator.json' }), /absolute operator configuration path/);
+});
+
 test('observer catches inactive writer independently of skipped health, both snapshot ages and delivery age', () => {
   const value = sample(); assert.deepEqual(evaluate(value, {}, now).faults, {});
   value.writerActive = false; value.health = { result: 'skipped' };

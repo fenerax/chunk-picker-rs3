@@ -3,7 +3,7 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { lstat, readFile, readdir, statfs } from 'node:fs/promises';
 import { storageBudget, storageUsage, storagePressure } from '../../app/storage/storage-budget.mjs';
-import { operatorSettings } from './runtime.mjs';
+import { DEFAULT_OPERATOR_CONFIG, operatorSettings } from './runtime.mjs';
 import { hostname } from 'node:os';
 import { isMain } from '../release/vps/entrypoint.mjs';
 import { atomic, directory, encode, exclusive, json } from './files.mjs';
@@ -75,8 +75,8 @@ export async function lockOwnerAlive(lock, { identity = processIdentity, host = 
   } catch { return false; }
 }
 async function optional(file) { try { return await json(file); } catch (error) { if (error.code === 'ENOENT') return null; throw error; } }
-export async function collectStorage(config) {
-  const settings = config.dataDir ? config : await operatorSettings();
+export async function collectStorage(config = {}, { operatorConfig = DEFAULT_OPERATOR_CONFIG } = {}) {
+  const settings = config.dataDir ? config : await operatorSettings(config.operatorConfig ?? (process.env.RS3_OPERATOR_CONFIG || operatorConfig));
   const limits = storageBudget();
   const roots = [{ group: 'legacy', directory: settings.dataDir }];
   const pickerRoot = settings.multiPicker?.pickerRoot;
