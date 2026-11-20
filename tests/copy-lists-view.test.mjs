@@ -171,6 +171,21 @@ test('map owner switches refresh unlocked and eligible pool lists with chunk nam
   assert.equal(f.byId('copy-pool-chunks').parentElement.parentElement, f.counts.children[2]);
 });
 
+test('solo map counts without a group span still attach unlocked and roll-pool copy controls', async t => {
+  const f = fixture(t);
+  f.counts.children = [f.counts.children[0], f.counts.children[2]];
+  f.counts.children[0].dataset = { count: 'unlocked' };
+  f.counts.children[1].dataset = { count: 'pool' };
+  f.counts.querySelector = selector => {
+    const match = /\[data-count=([^\]]+)\]/.exec(selector)?.[1];
+    return f.counts.children.find(child => child.dataset?.count === match) ?? null;
+  };
+  f.view.map(f.members[0], { eligible: [{ id: '2' }], excluded: [], all: [{ id: '1' }, { id: '2' }] });
+  assert.equal(f.byId('copy-unlocked-chunks').parentElement.parentElement, f.counts.children[0]);
+  assert.equal(f.byId('copy-pool-chunks').parentElement.parentElement, f.counts.children[1]);
+  assert.match(await f.copy('copy-pool-chunks'), /^Player — Roll pool chunks \(1\) — .*\n- Draynor \(2\)$/u);
+});
+
 
 test('completed review copy names the observed provider for new and legacy account sync', () => {
   const rows = ['platform-api', 'runemetrics'].map(source => ({ category: 'Quest', task: { label: source },

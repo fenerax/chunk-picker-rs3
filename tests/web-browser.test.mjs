@@ -4440,13 +4440,31 @@ for (const anywhere of [false, true]) test(`count labels: ordinary pool and roll
   h.run(`member().preferences = { rollWarning: true, randomStartAlways: ${anywhere} }; statePools.actor1 = { eligible: [{ id: '12341' }] }; renderState()`);
   assert.equal(h.run('rollCandidateCount()'), anywhere ? 2 : 1);
   const labels = h.nodes.get('map-counts').children.map(node => node.children.filter(item => typeof item === 'string').join(''));
-  assert.ok(labels.includes(' chunks in Player’s ordinary roll pool'));
+  assert.ok(labels.includes(' chunk in Player’s ordinary roll pool'));
+  assert.ok(labels.includes(' unique chunks unlocked by group'));
   assert.equal(labels.includes(' roll-anywhere candidate chunks for Player'), anywhere);
   await h.run('rollChunks(1)');
-  assert.ok(h.find('p', `Roll one chunk for Player from ${anywhere ? '2 roll-anywhere candidate chunks' : '1 chunks in their ordinary roll pool'}?`));
+  assert.ok(h.find('p', `Roll one chunk for Player from ${anywhere ? '2 roll-anywhere candidate chunks' : '1 chunk in their ordinary roll pool'}?`));
   assert.equal(h.calls.length, 0, 'Opening confirmation never rolls');
   h.run("closeDialog(); member().pendingRoll = ['12341']; renderState()");
   assert.equal(h.nodes.get('pick').disabled, true);
+  h.run('state.members = [state.members[0]]; renderState()');
+  const soloLabels = h.nodes.get('map-counts').children.map(node => node.children.filter(item => typeof item === 'string').join(''));
+  assert.equal(soloLabels.some(label => label.includes('unlocked by group')), false, 'solo maps omit redundant group count');
+});
+
+test('connectEvents refreshes coordination and plugin status on reconnect, not initial open', async () => {
+  const h = harness();
+  let coordRefreshes = 0, pluginRefreshes = 0;
+  h.context.duoCoordination = { refresh: () => { coordRefreshes++; } };
+  h.context.gamePlugin = { refresh: () => { pluginRefreshes++; } };
+  h.run('connectEvents()');
+  await h.eventSources[0].emit('open');
+  assert.equal(coordRefreshes, 0, 'startup already refreshed coordination');
+  assert.equal(pluginRefreshes, 0, 'startup already refreshed game plugin');
+  await h.eventSources[0].emit('open');
+  assert.equal(coordRefreshes, 1, 'reconnect refreshes coordination');
+  assert.equal(pluginRefreshes, 1, 'reconnect refreshes game plugin');
 });
 
 for (const showDeathChunks of [false, true]) test(`locked chunk Preview omits death estimates with time warnings ${showDeathChunks ? 'on' : 'off'}`, async () => {

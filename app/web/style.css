@@ -279,7 +279,7 @@ details[open]>summary::before{transform:rotate(45deg)}
 /* DA2-04: navigation keeps its own width; member controls wrap within theirs. */
 .player-controls{min-width:0;flex:0 1 auto;order:1;display:flex;align-items:center;gap:var(--space-6);padding-left:var(--space-6);border-left:var(--border-thin) solid var(--hairline)}
 .member-switch{min-width:0;max-width:100%;flex-wrap:wrap;display:inline-flex;padding:var(--space-legacy-3px);gap:var(--space-legacy-2px);border-radius:var(--radius-pill);background:var(--bg);border:var(--border-thin) solid var(--hairline)}
-.member-switch button{min-width:0;max-width:100%;flex:1 1 7rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border-radius:var(--radius-pill);background:transparent;color:var(--panel-muted,var(--muted));padding:var(--space-2) var(--space-5);font-weight:var(--weight-semibold);font-size:var(--type-body)}
+.member-switch button{min-width:0;max-width:100%;flex:0 1 auto;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border-radius:var(--radius-pill);background:transparent;color:var(--panel-muted,var(--muted));padding:var(--space-2) var(--space-5);font-weight:var(--weight-semibold);font-size:var(--type-body)}
 .member-switch button:hover{color:var(--panel-text,var(--text));filter:none}
 .member-switch button[aria-pressed=true]{background:var(--gold);color:var(--on-gold)}
 .member-switch:empty{display:none}

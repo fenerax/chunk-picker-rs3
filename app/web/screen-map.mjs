@@ -85,9 +85,15 @@ export function createScreenMap(c) {
     c.questMap?.refresh();
     void c.activityLayers.refresh();
     c.mapAvailability.refresh();
-    const count = (value, label) => { const node = c.el('span', undefined, 'map-count'); node.append(c.el('strong', value.toLocaleString()), ` ${label}`); return node; };
-    c.$('map-counts').replaceChildren(count(owner.unlocked.length, `chunks unlocked by ${owner.name}`), count(new Set(projected.members.flatMap(item => item.unlocked)).size, 'unique chunks unlocked by group'), count(c.pool.eligible.length, `chunks in ${owner.name}’s ordinary roll pool`),
-      ...(c.preferences().randomStartAlways ? [count(c.rollCandidateCount(), `roll-anywhere candidate chunks for ${owner.name}`)] : []));
+    const chunkWord = value => value === 1 ? 'chunk' : 'chunks';
+    const count = (value, label, kind) => { const node = c.el('span', undefined, 'map-count'); if (kind && node.dataset) node.dataset.count = kind; node.append(c.el('strong', value.toLocaleString()), ` ${label}`); return node; };
+    const uniqueUnlocked = new Set(projected.members.flatMap(item => item.unlocked)).size;
+    const rollCandidates = c.preferences().randomStartAlways ? c.rollCandidateCount() : 0;
+    c.$('map-counts').replaceChildren(
+      count(owner.unlocked.length, `${chunkWord(owner.unlocked.length)} unlocked by ${owner.name}`, 'unlocked'),
+      ...(projected.members.length > 1 ? [count(uniqueUnlocked, `unique ${chunkWord(uniqueUnlocked)} unlocked by group`, 'group-unlocked')] : []),
+      count(c.pool.eligible.length, `${chunkWord(c.pool.eligible.length)} in ${owner.name}’s ordinary roll pool`, 'pool'),
+      ...(c.preferences().randomStartAlways ? [count(rollCandidates, `roll-anywhere candidate ${chunkWord(rollCandidates)} for ${owner.name}`, 'roll-anywhere')] : []));
     c.copyLists?.map(owner, c.pool);
     c.$('empty-map').hidden = owner.unlocked.length > 0 || owner.pendingRoll.length > 0;
     c.renderLegend();
