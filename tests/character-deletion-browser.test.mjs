@@ -41,7 +41,8 @@ for (const width of [2560, 390]) test(`final-character deletion confirms both ta
     await browser.evaluate(`document.querySelector('dialog[open] button[aria-label="Close dialog"]').click();${open}`);
     assert.equal(await browser.evaluate(`[...document.querySelectorAll('dialog[open] input[type=checkbox]')].every(c=>c.checked)`), true);
     await browser.evaluate(`[...document.querySelector('dialog[open]').querySelectorAll('button')].find(b=>b.textContent==='Confirm deletion').click()`);
-    await until(() => browser.evaluate(`location.pathname==='/characters'&&document.body.innerText.includes('Your login remains available')`));
+    // The page navigates here; a probe landing in the outgoing document can throw, so keep polling.
+    await until(() => browser.evaluate(`location.pathname==='/characters'&&!!document.body?.innerText.includes('Your login remains available')`).catch(() => false));
     assert.equal(posts.length, 2); assert.deepEqual(posts[0], posts[1]); assert.equal((await f.document()).deletions.length, 1);
     await browser.send('Fetch.disable'); browser.listeners.delete(observe);
     assert.equal(await browser.evaluate(`document.documentElement.scrollWidth>innerWidth`), false);
