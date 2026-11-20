@@ -9,8 +9,22 @@ import { isMain } from '../release/vps/entrypoint.mjs';
 import { atomic, directory, encode, exclusive, json } from './files.mjs';
 import { notify, releaseWindow, failureUnits } from './notify.mjs';
 import { processIdentity } from './start-check.mjs';
+import { pluginKeyCount } from './plugin-key-count.mjs';
+import { PLUGIN_KEY_RECORD_LIMIT } from '../../app/plugin-keys.mjs';
 const execute = promisify(execFile), GiB = 1024 ** 3;
-export function evaluate(sample, previous = {}, now = Date.now()) {
+export function monitorSettings(config = {}) {
+  const result = { backupWarningAgeMs: 36 * 3600000, backupCriticalAgeMs: 48 * 3600000,
+    pluginKeyWarningRecords: Math.ceil(PLUGIN_KEY_RECORD_LIMIT * 0.8) };
+  for (const key of Object.keys(result)) if (config[key] !== undefined) result[key] = config[key];
+  for (const [key, value] of Object.entries(result)) {
+    const max = key === 'pluginKeyWarningRecords' ? PLUGIN_KEY_RECORD_LIMIT - 1 : 366 * 86400000;
+    if (!Number.isSafeInteger(value) || value < 1 || value > max) throw new TypeError('Invalid monitor setting: ' + key);
+  }
+  if (result.backupWarningAgeMs >= result.backupCriticalAgeMs) throw new TypeError('Backup warning age must precede critical age.');
+  return result;
+}
+export function evaluate(sample, previous = {}, now = Date.now(), config = {}) {
+  const settings = monitorSettings(config);
   // An unavailable observation proves neither a fault nor a recovery. Partial
   // collection failures conservatively retain all unresolved observations.
   if (sample.unreadable) return { faults: { ...previous.faults, 'monitor-data': 'critical' }, lowRamSince: previous.lowRamSince ?? null };
@@ -18,7 +32,7 @@ export function evaluate(sample, previous = {}, now = Date.now()) {
   if (!sample.writerActive) put('writer-inactive', 'critical');
   const age = at => { const time = Date.parse(at); return !Number.isFinite(time) || time > now + 60000 ? Infinity : now - time; };
   for (const [code, at] of [['backup-source', sample.backup?.snapshotAt], ['offhost-source', sample.offhost?.snapshotAt], ['offhost-delivery', sample.offhost?.lastSuccessAt]]) {
-    const hours = age(at) / 3600000; if (hours >= 36) put(code, hours >= 48 ? 'critical' : 'warning');
+    const elapsed = age(at); if (elapsed >= settings.backupWarningAgeMs) put(code, elapsed >= settings.backupCriticalAgeMs ? 'critical' : 'warning');
   }
   // Every alert must need operator action. Routine backups and deploys hold
   // the marker for minutes, so a live owner alerts only once its operation
@@ -30,6 +44,8 @@ export function evaluate(sample, previous = {}, now = Date.now()) {
   for (const group of sample.storage ?? []) {
     const level = storagePressure(group, group.limits);
     if (level) put('group-storage', level);
+    if (group.pluginKeyRecords >= settings.pluginKeyWarningRecords)
+      put('plugin-key-records', group.pluginKeyRecords >= PLUGIN_KEY_RECORD_LIMIT ? 'critical' : 'warning');
   }
   const lowRamSince = sample.ramBytes < 2 * GiB ? previous.lowRamSince ?? now : null;
   if (sample.ramBytes < GiB) put('ram-low', 'urgent');
@@ -73,7 +89,8 @@ export async function collectStorage(config) {
   const result = [];
   for (const { group, directory } of roots) {
     if (!(await lstat(directory)).isDirectory()) throw new Error('Missing group storage directory.');
-    result.push({ group, ...await storageUsage(directory), limits });
+    result.push({ group, ...await storageUsage(directory), limits,
+      pluginKeyRecords: await pluginKeyCount(path.join(directory, 'plugin-keys.json')) });
   }
   return result;
 }
@@ -99,12 +116,13 @@ export async function collect(config) {
   return sample;
 }
 export async function monitor(config, { sample, now = Date.now(), send, collectSample = collect } = {}) {
+  const settings = monitorSettings(config);
   await directory(config.controlDir);
   return exclusive(path.join(config.controlDir, 'monitor.lock'), async () => {
     const file = path.join(config.controlDir, 'monitor-state.json');
     const previous = await optional(file) ?? {};
     try { sample ??= await collectSample(config); } catch { sample = { unreadable: true }; }
-    const result = evaluate(sample, previous, now);
+    const result = evaluate(sample, previous, now, settings);
     await atomic(file, encode({ ...result, at: new Date(now).toISOString() }));
     await notify({ ...config, faults: result.faults, merge: !!sample.unreadable, window: sample.window, now, ...(send ? { send } : {}) });
     return result;

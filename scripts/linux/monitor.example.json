@@ -1,5 +1,8 @@
 {
   "controlDir": "/var/lib/chunk-picker/control",
   "diskPath": "/var/backups/chunk-picker",
-  "repeatMs": 21600000
+  "repeatMs": 21600000,
+  "backupWarningAgeMs": 129600000,
+  "backupCriticalAgeMs": 172800000,
+  "pluginKeyWarningRecords": 800
 }
