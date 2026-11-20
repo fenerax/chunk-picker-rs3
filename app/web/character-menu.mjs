@@ -28,7 +28,7 @@ export function createCharacterForm({ el, accountId, onCreated, fetch = globalTh
       const value = await response.json();
       if (!response.ok) {
         if (value.code === 'DUPLICATE_CHARACTER_NAME') duplicate.hidden = false;
-        if (response.status >= 400 && response.status < 500) {
+        if (response.status >= 400 && response.status < 500 || response.status === 507 && value.code === 'LOGIN_STORAGE_BUDGET_EXCEEDED') {
           draft.pending = false; storage?.setItem(key, JSON.stringify(draft)); input.disabled = false;
         }
         throw new Error(value.message || 'Character creation was refused.');

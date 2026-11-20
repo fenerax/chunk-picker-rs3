@@ -67,7 +67,7 @@ export function validateGroupInvites(doc) {
   for (const p of doc.pickers) for (const r of p.reservations) if (!doc.groupInvites.some(i => (i.status === 'pending' || i.transaction) && i.id === r.inviteId && i.pickerId === p.id && i.reservationId === r.id && i.expiresAt === r.expiresAt)) bad();
 }
 
-export function createGroupInvites({ read, save, version, issueCharacter, now, caps, point }) {
+export function createGroupInvites({ read, save, version, issueCharacter, now, caps, point, admit = async () => {} }) {
   let cursor = 0;
   const stamp = () => new Date(now()).toISOString();
   const conflict = (doc, i) => {
@@ -182,13 +182,14 @@ export function createGroupInvites({ read, save, version, issueCharacter, now, c
       }
       const p = doc.pickers.find(p => p.id === i.pickerId);
       if (p.memberIds.length >= caps.membersPerPicker || p.seats.length + p.reservations.length > 5) fail('The group seat or member record limit has been reached.');
-      // Allocation is irreversible history, before the registry publication.
-      if (!characterId) { await issueCharacter(c.id); await point('invite-ids', p.id); }
       const rejoining = characterId && departureSoloEligible(doc, accountId, characterId);
       i.status = 'accepted'; i.terminalAt = stamp(); i.acceptingAccountId = accountId; i.acceptingCharacterId = c.id;
       i.transaction = { source: characterId ? c.placement : null, newCharacter: !characterId, memberId: 'm_' + randomUUID().replaceAll('-', ''), runescapeName: c.runescapeName };
       if (rejoining) i.transaction.pastMapId = i.id;
       p.memberIds.push(i.transaction.memberId);
+      await admit(doc);
+      // Refuse storage admission before consuming irreversible character IDs.
+      if (!characterId) { await issueCharacter(c.id); await point('invite-ids', p.id); }
       // Reservation is held until placement is ready; accepted transactions are
       // also counted against capacity. It still has no playable map or character.
       await save(doc); await point('invite-committed', p.id); return structuredClone(i);

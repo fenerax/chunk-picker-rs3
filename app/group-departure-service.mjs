@@ -1,3 +1,4 @@
+import { assertPastMapFits } from './storage/login-storage-budget.mjs';
 const fail = message => { throw Object.assign(new Error(message), { status: 409 }); };
 export function createGroupDepartureService({ registry, using, point = async () => {} }) {
   let queue = Promise.resolve();
@@ -37,6 +38,7 @@ export function createGroupDepartureService({ registry, using, point = async () 
       }
       return using(pickerId, source => source.withGroupAdmission(async () => {
         if (!old && source.store.getInfo().revision !== input.revision) fail('The group changed. Review departure again before confirming.');
+        if (!old) assertPastMapFits(await source.store.backup());
         const d = await registry.beginDeparture(accountId, characterId, pickerId, input);
         return finish(d, source);
       }));

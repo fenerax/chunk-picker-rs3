@@ -415,7 +415,7 @@ export function createPickerRouter({ registry, legacy, openContext, publicOrigin
             const text = pathname.startsWith('/characters/') ? 'This character was deleted, moved, or is unavailable to this login.' : 'You are no longer a member of this group, or the group was deleted.';
             response.writeHead(error.status, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'private, no-store' }); response.end(`<!doctype html><html lang="en"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Map unavailable</title><main><h1>Map unavailable</h1><p>${text}</p><a href="/characters">Open your character menu</a></main></html>`); return;
           }
-          await json(request, response, error.status ?? (badInput ? 400 : 503), { message: error.status ? error.message : badInput ? 'Invalid request.' : 'The picker is unavailable. Retry in a moment.', ...(error.code === 'DUPLICATE_CHARACTER_NAME' ? { code: error.code } : {}) });
+          await json(request, response, error.status ?? (badInput ? 400 : 503), { message: error.status ? error.message : badInput ? 'Invalid request.' : 'The picker is unavailable. Retry in a moment.', ...(['DUPLICATE_CHARACTER_NAME', 'LOGIN_STORAGE_BUDGET_EXCEEDED'].includes(error.code) ? { code: error.code } : {}) });
         }
       } finally { request.off('aborted', disconnected); response.off('close', disconnected); if (receiving.get(receivingId) === request) receiving.delete(receivingId); bindBody?.release(); releaseCheckpoint?.(); releaseImport?.(); releaseImportUser?.(); if (entry) { entry.active--; if (entries.get(entry.id) === entry) idle(entry); } }
     },

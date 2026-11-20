@@ -85,3 +85,84 @@ the file ceiling and over 1,000 times below the byte ceiling. This measures
 retained-file accumulation, not the contents or size of any private game.
 Other cases independently exercise oversized publications, reservations across
 groups, import refusals, preserved downloads and packing under pressure.
+
+## Retained storage per login
+
+Multi-picker mode enforces a retained-map admission quota:
+
+| Environment setting | Default | Meaning |
+| --- | ---: | --- |
+| `RS3_LOGIN_MAX_MAPS` | `20` | Maximum distinct retained picker directories plus frozen Past maps per login |
+
+The value must be a positive safe integer. Programmatic configuration is
+`multiPicker.loginStorage.maxMaps`; an explicit option overrides the environment.
+Linux serving children receive the environment setting. The quota is read when
+opening the multi-picker registry. Twenty maps allows ten current character
+pickers plus ten retained maps, while bounding departure/rejoin churn. It is a
+capacity allowance, not preallocated disk or a deployed load-test result.
+
+Each login is charged once for each default picker it owns or controls through
+a non-viewer membership/current character placement, including retired onboarding
+and rejoin solos, reserved creation and deleting-but-not-yet-deleted pickers.
+Several of its characters in one picker do not multiply that picker. A shared
+picker counts once for each controlling login. Legacy shared-picker storage and
+viewer memberships are excluded. Each registry-held Past map consumes one slot
+for its recorded login, independently of its source picker's lifecycle. Retired
+source directories and frozen snapshots are separate retained objects and both
+count when owned by the login.
+
+The byte allowance follows from existing per-group budgets and a frozen-snapshot
+bound. Let `P` be retained picker directories, `F` frozen Past maps and `C` the
+configured `RS3_STORE_MAX_BYTES` (1 GiB by default). New Past snapshots are checked
+against `C` before departure/rejoin admission. Each consumes at most one group
+budget, including the JSON newline. Thus the save-payload allowance is
+`P × C + sum(Past map bytes) <= (P + F) × C <= maxMaps × C`, or **20 GiB at the
+defaults**. Lower the map quota or the group budget to lower this allowance.
+This is not an exact filesystem quota: existing over-budget records, temporary
+packing copies and separately bounded operational sidecars/metadata may exceed
+the payload allowance. The existing file ceilings, shared free-space reserve
+and operational headroom checks still apply.
+
+Pending creations, departure destinations and pending Past snapshots reserve
+map slots through their existing registry IDs. An invitation reserves the
+destination picker and, on rejoin, the new frozen solo snapshot. The same ID
+deduplicates with its published record, so retries and restart recovery do not
+charge it twice. Joining an already controlled picker uses its existing slot;
+the group budget still bounds roster growth. No new accounting files or fields
+are persisted.
+
+First sign-in, Add character, invite admission (including direct new characters),
+leave/removal, rejoin and membership changes check projected holdings before
+publishing the registry intent or issuing IDs. They use the registry's existing
+transaction queue, so concurrent admissions cannot both spend the last slot.
+The check reads only bounded registry/placement records. It never opens picker
+stores or walks directories. There is no additional queue or publication gate.
+
+Ordinary gameplay saves, private-evidence/sidecar writes and dataset bindings do
+not call the login quota helper. They retain their existing per-group locking
+and budgets, so a held save in one group does not block another group through a
+login gate. Current import/restore routes replace the selected picker; they do
+not create registry maps and use its group budget. Any future import that creates
+a picker must use registry admission before allocating it.
+
+Refusal is HTTP 507 / `LOGIN_STORAGE_BUDGET_EXCEEDED` with a player-facing request
+to delete an unwanted character/group or contact the operator. A login already
+over the map quota keeps its maps, Past maps, History and downloads, but cannot
+add retained maps. Existing maps remain writable under their group budgets.
+Deletion and completion/recovery of admitted transactions remain available after
+lowering the quota. No record is evicted or truncated to make a quota pass.
+Retired/Past map removal is not introduced here; an operator may need to raise
+the allowance when no suitable user-deletable map remains. Shared registry,
+non-reuse ledger, release inputs, operator snapshots/off-site backups and
+diagnostic logs remain server-level operational storage, outside this login
+allowance. No durable file/field, registry/ledger version or gameplay format was
+added. The option-absent single-picker mode keeps its existing group budget.
+
+`tests/login-storage-budget.test.mjs` covers concurrent map admissions, retained
+and pending map counts, snapshot size, over-limit reads/saves/import/deletion,
+independent publications in two groups of the same login and unchanged legacy
+mode. These checks do not establish deployed latency or operational capacity.
+An isolated headless Chrome journey also checked the visible Add character
+refusal, editable name field after refusal/reload and navigation to the existing
+character's map. It used synthetic accounts and temporary stores, not live saves
+or outside-user acceptance.

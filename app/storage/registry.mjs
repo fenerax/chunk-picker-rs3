@@ -11,6 +11,7 @@ import { createGroupHandovers, validateHandovers } from './group-handovers.mjs';
 import { createGroupDepartures, validateDepartures, departureSoloEligible } from './group-departures.mjs';
 import { validateRetirements, migrateRetirements, registryV5, slotKey, reservedRetirementSlots, reservedRetiredCharacters } from './registry-retirements.mjs';
 import { deletionPlan, requireLoginDeletionReady } from './character-deletions.mjs';
+import { createLoginStorageBudget, loginStorageBudget } from './login-storage-budget.mjs';
 import { admissionMode, BETA_LINK_FILE, createBetaLinks } from './beta-links.mjs';
 
 const PICKER = /^p_[0-9a-f]{32}$/;
@@ -198,7 +199,8 @@ async function load(file) {
 
 /** Operator paths only. No HTTP, gameplay state, sign-in, or store is opened here. */
 export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, legacyDir, caps: overrides = {}, now = Date.now,
-  crashPoint, pickerRandomBytes = randomBytes, betaPickerCap, onCapCheck, recoveryOnly = false, admission = 'open' } = {}) {
+  crashPoint, pickerRandomBytes = randomBytes, betaPickerCap, onCapCheck, recoveryOnly = false, loginStorage: storageOptions = {}, admission = 'open' } = {}) {
+  const loginLimits = loginStorageBudget(storageOptions);
   // Storage-only callers can bootstrap fixtures. The service supplies the
   // validated multiPicker policy, whose omitted value is invite-only.
   admissionMode({ admission });
@@ -219,7 +221,7 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
   }
   const releases = [];
   let current, ledger, queue = Promise.resolve(), closed = false, failed = false, closing;
-  let lifecycleCapture = false, betaLinks;
+  let lifecycleCapture = false, retained, betaLinks;
   let providerIndex, capabilityIndex, accountIndex, pickerIndex, memberAccounts, tombstoneIndex, retiredAccounts, issuedIds, capCounts, characterIndex;
   const file = path.join(registryDir, 'registry.json'), ledgerFile = path.join(tombstoneDir, 'ledger.json');
   const timestamp = () => new Date(now()).toISOString();
@@ -443,6 +445,7 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
       let characterId; do { characterId = newCharacterId(); } while (ledger.issuedCharacterIds.includes(characterId));
       const next = copy(current), owner = requireAccount(next, accountId);
       owner.pendingCreation = { requestId, pickerId, characterId, runescapeName, createdAt: timestamp() };
+      retained?.admit(next);
       await save(next, { accounts: [owner], characters: true }); await point('account-recorded', pickerId);
     }
     account = requireAccount(current, accountId);
@@ -492,6 +495,7 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
   }
   const blockedPicker = id => tombstoneIndex.get(id);
   const groupInvites = createGroupInvites({ read: () => current, now, caps, point,
+    admit: next => retained?.admit(next),
     save: next => save(next, { accounts: next.accounts, pickers: next.pickers, characters: true, removedCapabilities: current.capabilities.filter(k => !next.capabilities.some(n => n.kind === k.kind && n.hash === k.hash)) }),
     async version() {
       if (current.schemaVersion >= 3) return;
@@ -521,6 +525,7 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
     versionInvites: () => groupInvites.resumeVersion(),
     save: next => save(next, { accounts: next.accounts, pickers: next.pickers, characters: true }) });
   const departures = createGroupDepartures({ read: () => current, now, point, caps, allocate, pickerRoot, registryDir,
+    admit: next => retained?.admit(next),
     version: () => retirementVersion(),
     async saveLedgerId(id) { if (!issuedIds.has(id)) { const next = copy(ledger); next.issuedPickerIds.push(id); await saveLedger(next); } },
     save: (next, removedCapabilities = []) => save(next, { accounts: next.accounts, pickers: next.pickers, characters: true, removedCapabilities }) });
@@ -665,6 +670,7 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
     for (const release of releases.reverse()) await release().catch(() => {});
     throw failure;
   }
+  if (!recoveryOnly) retained = createLoginStorageBudget({ read: () => current, limits: loginLimits });
   const api = {
     previewBetaLink(secret) { usable(); return betaLinks.preview(secret); },
     listBetaLinks() { return enqueue(() => betaLinks.list()); },
@@ -918,6 +924,7 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
       if (!existing) account.memberships.push(copy(membership));
       if (membership.role !== 'viewer') {
         bindCharacter(next, account, picker, membership.memberId, { requestId: `slot-${picker.id}-${membership.memberId}` });
+        retained.admit(next);
         await saveCharacterBindings(next, { accounts: [account], pickers: [picker] });
       } else await save(next, { accounts: [account] });
       return account;

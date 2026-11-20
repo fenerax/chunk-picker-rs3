@@ -8,6 +8,19 @@ The code audit uses local `origin/main` at `3df54499e0002aede31e88f6ad281842bef0
 
 Only source and documentation were inspected. No credential files, account records, saves, live APIs or server state were read. All examples are synthetic. This document authorizes no implementation, migration, deployment or public sign-up. Changes to durable save, registry or authentication formats, and to recovery contracts, require the owner's OK before implementation.
 
+### Retained storage admission
+
+Retained storage admission is now implemented independently of traffic quotas:
+multi-picker defaults are 20 retained maps per login, including
+controlled shared maps, owned retired solos and frozen Past maps. Admission
+uses registry records in the existing admission transaction; lower limits keep
+existing records, deletion and admitted recovery available. See the current
+[storage budget contract](storage-budgets.md#retained-storage-per-login) for the
+exact scope, pending slots, derived 20 GiB default save-payload allowance and
+operator settings. Ordinary saves keep per-group concurrency. This adds
+no durable fields or registry/ledger versions and does not change single-picker
+mode or establish deployed capacity.
+
 ### Staged beta (owner decision, 2026-11-11)
 
 Start with a capped, invite-only beta of roughly 25–50 groups after the [launch basics](launch-readiness.md) pass, within a load-tested envelope of about 100 active groups. Keep 2,000 active player characters as the design ceiling, to be proven before caps rise beyond demonstrated capacity. This replaces “prove 2,000 before any public launch.” Public sign-up itself still needs the owner's explicit OK. The larger workload and gates below remain the eventual capacity proof, not a prerequisite for this smaller beta. Entity quotas are safety ceilings, not evidence that their populations have been load-tested.
