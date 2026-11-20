@@ -341,7 +341,24 @@ test('plugin review shows beta and unmatched quests; apply is queued and dismiss
   assert.equal(f.c.state.revision, 2);
   f.setPreview(f.proposal('review-two', { id: 1, beta: false })); await f.client.refresh(); await settle();
   assert.doesNotMatch(text(root), /beta world/);
+  assert.match(text(root), /· Live world/);
+  assert.doesNotMatch(text(root), /· World 1\b/);
   await button(root, 'Dismiss snapshot').action(); assert.deepEqual(f.posts.at(-1), { path: '/api/game-plugin/dismiss', body: { previewId: 'review-two' } });
+});
+
+test('world labels distinguish channel-only id 1 from numbered worlds', async t => {
+  const f = fixture(t);
+  f.setKeys([
+    { id: 'live-ch', player: 'one', label: 'Live key', createdAt: '2026-10-19T12:00:00Z', lastUsedAt: '2026-10-19T12:05:00Z', lastWorld: { id: 1, beta: false } },
+    { id: 'beta-ch', player: 'one', label: 'Beta key', createdAt: '2026-10-19T12:00:00Z', lastUsedAt: '2026-10-19T12:05:00Z', lastWorld: { id: 1, beta: true } },
+    { id: 'numbered', player: 'one', label: 'World key', createdAt: '2026-10-19T12:00:00Z', lastUsedAt: '2026-10-19T12:05:00Z', lastWorld: { id: 201, beta: true } },
+  ]);
+  f.setPreview(f.proposal('review-world', { id: 201, beta: true }));
+  const root = await f.open();
+  assert.match(text(root), /· Live world/);
+  assert.match(text(root), /· Beta world/);
+  assert.match(text(root), /· World 201 \(beta\)/);
+  assert.doesNotMatch(text(root), /· World 1\b/);
 });
 
 test('an interrupted review can retry the same unchanged preview', async t => {

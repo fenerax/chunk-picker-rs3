@@ -619,7 +619,7 @@ task engine. `pendingProgress` means a proposal is waiting for
 review, including proposals containing only unmatched/informational quests or
 achievement matches.
 
-`accepts` is exactly `["achievements", "items"]`. `items` is described under
+`accepts` is `["achievements", "items", "item-journal-world", "toolbelt", "pouch", "bank"]`. `items` is described under
 "Worn and backpack items". `achievements` is null before this
 player starts an assembly; otherwise it has exactly `snapshot`, `received` and
 `parts`. `received` counts accepted parts, from 1 to `parts`, and equals `parts`

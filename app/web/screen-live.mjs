@@ -6,7 +6,7 @@ export function createScreenLive(c) {
     const ready = new Set();
     let stopped = false, currentEvents, reconnectTimer;
     c.panelContext?.pickerSession?.registerStop(() => { stopped = true; currentEvents?.close(); clearTimeout(reconnectTimer); clearTimeout(syncRetryTimer); ready.clear(); });
-    let attempts = 0, syncAttempts = 0, syncRetryTimer, latestRevisionEvent;
+    let attempts = 0, syncAttempts = 0, syncRetryTimer, latestRevisionEvent, opened = false;
     open();
     function open() {
       if (stopped) return;
@@ -56,11 +56,15 @@ export function createScreenLive(c) {
         reconnectTimer = setTimeout(open, Math.min(30000, 1000 * 2 ** Math.min(5, attempts++)) + Math.floor(Math.random() * 500));
       });
       events.addEventListener('open', () => {
+        const reconnected = opened;
+        opened = true;
         attempts = 0;
         if (c.pendingCommandPaused?.()) c.saved('Save not confirmed', true);
         else c.saved(c.hasPendingCommand() ? 'Confirming pending save…' : 'Syncing…');
-        void c.duoCoordination?.refresh();
-        void c.gamePlugin?.refresh();
+        if (reconnected) {
+          void c.duoCoordination?.refresh();
+          void c.gamePlugin?.refresh();
+        }
       });
       events.addEventListener('game-plugin', () => void c.gamePlugin?.refresh());
       events.addEventListener('worker', event => c.workerStatus(JSON.parse(event.data)));

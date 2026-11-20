@@ -94,7 +94,7 @@ try {
   const details = screen.el('details'), summary = screen.el('summary', 'About guest mode');
   details.append(summary, screen.el('p', 'Calculations use the server temporarily; your save is never stored there. Groups, invites, progress sync, plugin keys, OBS overlays and cloud backups need an account. Download your guest save before signing in to import it into your new picker.'));
   const signIn = screen.el('a', 'Sign in'); signIn.href = '/auth/signin';
-  const previewLimit = screen.el('small', 'Bulk previews need an account; guests can preview one chunk at a time.'); previewLimit.id = 'guest-preview-limit';
+  const previewLimit = screen.el('small', 'Bulk previews need an account; guests can preview one chunk at a time.', 'sr-only'); previewLimit.id = 'guest-preview-limit';
   banner.append(previewLimit);
   banner.append(notice, screen.button('Export / Import', screen.backupDialog), screen.button('Reload save', () => location.reload()), signIn, details);
   document.querySelector('.topbar').after(banner);

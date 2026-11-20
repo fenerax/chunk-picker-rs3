@@ -99,13 +99,20 @@ export function createGamePlugin(c) {
     dialog?.addEventListener('close', dispose, { once: true });
     dialog?.addEventListener('cancel', clearSecret, { once: true });
     if (dialog) observer?.observe(dialog, { childList: true, subtree: true });
+    function worldLabel(world) {
+      if (!world) return '';
+      const id = typeof world === 'object' ? world.id : world;
+      const beta = typeof world === 'object' && world.beta === true;
+      if (id === 1) return beta ? ' · Beta world' : ' · Live world';
+      return ` · World ${id}${beta ? ' (beta)' : ''}`;
+    }
     function keyRows() {
       const rows = el('div', undefined, 'game-plugin-keys');
       const records = (snapshot.keys ?? []).filter(row => (row.memberId ?? row.player?.id ?? row.player) === memberId);
       if (!records.length) rows.append(el('p', 'No plugin keys for this player.', 'info-meta'));
       for (const record of records) {
         const row = el('div', undefined, 'game-plugin-key');
-        row.append(el('strong', record.label || 'Game plugin key'), el('p', `Created ${date(record.createdAt)} · Last used ${date(record.lastUsedAt)}${record.lastWorld ? ` · World ${record.lastWorld.id ?? record.lastWorld}` : ''}${record.revoked ? ' · Revoked' : ''}`, 'info-meta'));
+        row.append(el('strong', record.label || 'Game plugin key'), el('p', `Created ${date(record.createdAt)} · Last used ${date(record.lastUsedAt)}${worldLabel(record.lastWorld)}${record.revoked ? ' · Revoked' : ''}`, 'info-meta'));
         // The bank's contents only update while it's open in game, so its age is shown.
         if (record.bankSeenAt) row.append(el('p', `Bank as of ${date(record.bankSeenAt)}`, 'info-meta'));
         if (record.diagnostics?.lines?.length) {
@@ -129,7 +136,7 @@ export function createGamePlugin(c) {
     }
     function keyForm() {
       const section = el('section', undefined, 'form-stack');
-      section.append(el('h4', `Plugin keys for ${owner.name}`), el('p', 'Anyone with this key can report game data for this player. Uniquely matched achievements from live worlds tick tasks automatically, with Undo. Levels, quests and other achievement matches wait for review. Keep the key private. You can copy a new key once; create another if you lose it.', 'field-help'), keyRows());
+      section.append(el('h4', `Plugin keys for ${owner.name}`), el('p', 'Anyone with this key can report game data for this player. Uniquely matched achievements and live owned BiS item goals from live worlds tick tasks automatically, with Undo. Levels, quests, wear tasks and other matches wait for review. Keep the key private. You can copy a new key once; create another if you lose it.', 'field-help'), keyRows());
       if (!writable(memberId)) return section;
       const toggle = button(testing() ? 'Turn testing mode off' : 'Turn testing mode on', async () => {
         if (!current() || busy || !writable(memberId)) return;
@@ -178,7 +185,7 @@ export function createGamePlugin(c) {
       const skills = value.skills ?? [], quests = value.quests ?? [], unmatched = value.unmatched?.quests ?? [];
       const items = value.items ?? [], unmappedItems = value.unmappedItems ?? [];
       const section = el('section', undefined, 'game-plugin-review form-stack');
-      section.append(el('h4', `Review plugin progress for ${owner.name}`), el('p', `Received ${date(value.fetchedAt)}${value.world ? ` · World ${value.world.id}` : ''}`, 'info-meta'));
+      section.append(el('h4', `Review plugin progress for ${owner.name}`), el('p', `Received ${date(value.fetchedAt)}${worldLabel(value.world)}`, 'info-meta'));
       if (value.itemRetentionIssue) section.append(el('p', reviewText(value.itemRetentionIssue, 512), 'warning'));
       // World warnings appear once. Rows carry a short tag only when worlds are mixed.
       const worlds = new Set(achievements.map(row => row.world).filter(world => world === 'beta' || world === 'unknown'));
