@@ -1,5 +1,10 @@
 # Picker browser performance harness
 
+The opt-in [invite-only beta load trial](../../docs/perf/beta-load-trial.md)
+provides synthetic multi-character groups, open-loop browser/plugin traffic,
+isolated-host controls and JSON receipts. Start with its scaled smoke; it is
+separate from the older capacity profiles and the default CI suite.
+
 ## Server-only route and save measurements
 
 Run `server-routes.mjs` through the shared heavy-work wrapper with an explicit
