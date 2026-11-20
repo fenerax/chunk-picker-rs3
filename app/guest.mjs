@@ -6,6 +6,7 @@ import { checkRequestOrigin } from './security/request.mjs';
 import { createGuestLimits, guestError } from './guest-limits.mjs';
 import { TASK_WORKER_RESOURCE_LIMITS } from './tasks/worker-limits.mjs';
 import { preparedDefinitionStages } from './dataset-pipeline.mjs';
+import { rewriteHtmlStylesheets } from './stylesheet-bundle.mjs';
 
 const assets = new Map([['/guest/', ['index.html', 'text/html']], ['/guest/guest.mjs', ['guest.mjs', 'text/javascript']],
   ['/guest/guest-save.mjs', ['guest-save.mjs', 'text/javascript']], ['/guest/guest.css', ['guest.css', 'text/css']]]);
@@ -78,7 +79,7 @@ export function createGuestMode({ runtime, publicOrigin, host, limits: limitOpti
         const asset = assets.get(route);
         if (asset && ['GET', 'HEAD'].includes(request.method)) {
           let bytes = await readFile(path.join(runtime.webRoot, asset[0]));
-          if (route === '/guest/') bytes = Buffer.from(bytes.toString('utf8')
+          if (route === '/guest/') bytes = Buffer.from(rewriteHtmlStylesheets(bytes.toString('utf8'), '/app.css')
             .replace('src="/main.mjs"', 'src="/guest/guest.mjs"')
             .replaceAll('href="/', 'href="/guest/')
             .replace('</head>', '<link rel="stylesheet" href="/guest/guest.css"></head>'));

@@ -169,6 +169,15 @@ test('guest solo workflow never changes durable gameplay, registry, auth, backup
   const shell = await (await fetch(origin + '/guest/')).text();
   for (const id of ['map-base', 'map-state', 'active-tasks', 'settings-open', 'chunk-info']) assert.ok(shell.includes(`id="${id}"`), id);
   assert.match(shell, /src="\/guest\/guest.mjs"/);
+  const guestSheets = [...shell.matchAll(/<link\s+rel="stylesheet"\s+href="([^"]+)"/g)].map(match => match[1]);
+  assert.deepEqual(guestSheets, ['/guest/app.css', '/guest/guest.css']);
+  const guestBundle = await fetch(origin + '/guest/app.css');
+  assert.equal(guestBundle.status, 200);
+  assert.match(guestBundle.headers.get('content-type'), /^text\/css/);
+  assert.equal(guestBundle.headers.get('cache-control'), 'private, no-store');
+  const guestBundleCss = await guestBundle.text();
+  assert.match(guestBundleCss, /url\('\/guest\/assets\/fontawesome\/fa-solid-900\.woff2'\)/);
+  assert.match(guestBundleCss, /url\(\/guest\/favicon\.svg\)/);
   assert.equal((await fetch(origin + '/guest/guest.html')).status, 404);
   for (const route of ['/guest/core/state.mjs', '/guest/data/dataset-runtime.json', '/guest/screen-context.mjs', '/guest/art-status.json']) {
     const response = await fetch(origin + route);
