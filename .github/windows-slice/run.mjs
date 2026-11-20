@@ -131,9 +131,47 @@ const run = (files, maxConcurrency, attempt = 1) => {
 };
 const started = Date.now();
 let result = await run(windowsFiles, 2);
+// Preserve redacted attempt-1 failure receipts before isolated retries clear per-file buffers.
+const firstAttemptFailures = new Map(result.files
+  .filter(file => !file.passed)
+  .map(file => {
+    const name = keyOf(file.file);
+    const counts = file.summary?.counts ?? null;
+    const errors = [...(failures.get(name) ?? [])];
+    const errorCodes = [...new Set(errors.flatMap(entry => {
+      const tags = [];
+      for (let current = JSON.parse(entry); current; current = current.cause) {
+        if (current.code && current.code !== '[redacted]') tags.push(current.code);
+        else if (current.failureType && current.failureType !== '[redacted]') tags.push(current.failureType);
+        else if (current.name && current.name !== '[redacted]') tags.push(current.name);
+      }
+      return tags;
+    }))];
+    return [name, { failedTests: counts?.failed ?? null, totalTests: counts?.tests ?? null,
+      wallMs: Math.round(file.processWallMs ?? 0), errorCodes, errorCount: errors.length }];
+  }));
+const flakyReceipts = [];
+const formatFirstFailure = receipt => {
+  if (!receipt) return 'attempt 1 failed';
+  const parts = [];
+  if (Number.isFinite(receipt.failedTests)) parts.push(`${receipt.failedTests}/${receipt.totalTests ?? '?'} failed`);
+  if (receipt.errorCodes?.length) parts.push(`codes: ${receipt.errorCodes.join(', ')}`);
+  else if (receipt.errorCount) parts.push(`${receipt.errorCount} redacted error(s)`);
+  parts.push(`${(receipt.wallMs / 1000).toFixed(1)} s`);
+  return parts.join('; ');
+};
 // The shared flaky policy: a failed file reruns once alone and passes as FLAKY.
 result = await retryFailedFilesOnce({ result, enabled: !result.starved, runIsolated: files => run(files, 1, 2),
-  onFlaky: async file => console.log(`FLAKY ${keyOf(file.file)}: failed, then passed alone`) });
+  onFlaky: async file => {
+    const name = keyOf(file.file);
+    const firstAttempt = firstAttemptFailures.get(name) ?? null;
+    const receipt = formatFirstFailure(firstAttempt);
+    flakyReceipts.push({ file: name, firstAttempt, receipt });
+    console.log(`FLAKY ${name}: failed, then passed alone (${receipt})`);
+    // Surface recovered first-attempt failures as a visible GitHub Actions annotation
+    // using only redacted public error metadata so green retries cannot hide them.
+    console.log(`::warning file=tests/${name},title=Flaky Windows test recovered on isolated retry::tests/${name} failed on attempt 1 (${receipt}) and passed on isolated retry. See windows-ledger.jsonl for the full attempt-1 receipt.`);
+  } });
 
 // Keep the independent spec rerun diagnostic only, outside the verdict/ledger.
 for (const file of result.starved ? [] : result.files.filter(item => !item.passed)) {
@@ -146,8 +184,10 @@ for (const file of result.starved ? [] : result.files.filter(item => !item.passe
 
 const rows = result.files.map(file => ({ file: keyOf(file.file), passed: file.passed, flaky: file.flaky === true,
   counts: file.summary?.counts ?? null, processWallMs: Math.round(file.processWallMs ?? 0) })).sort((a, b) => a.file.localeCompare(b.file));
+const sortedFlaky = flakyReceipts.sort((a, b) => a.file.localeCompare(b.file));
 const summary = { schema: 'rs3-windows-slice-v1', node: process.version, passed: result.passed === true, starved: result.starved === true,
   wallMs: Date.now() - started, maxActive: result.maxActive, counts: result.summary?.counts ?? null,
+  flakyFiles: sortedFlaky,
   notRun: windowsFiles.filter(name => !rows.some(row => row.file === name)), files: rows };
 await writeFile(path.join(work, 'windows-slice.json'), JSON.stringify(summary, null, 2) + '\n');
 await writeFile(path.join(work, 'windows.json'), JSON.stringify({ schema: 'rs3-test-coverage-v1', lane: 'windows',
@@ -158,10 +198,15 @@ await writeFile(path.join(work, 'windows.json'), JSON.stringify({ schema: 'rs3-t
 }, null, 2) + '\n');
 
 const c = summary.counts ?? {};
-const lines = [`### Windows slice: ${summary.passed ? 'passed' : 'FAILED'}`, '',
+const flakyHeading = sortedFlaky.length ? ` (${sortedFlaky.length} flaky ${sortedFlaky.length === 1 ? 'file' : 'files'} recovered on retry)` : '';
+const lines = [`### Windows slice: ${summary.passed ? 'passed' : 'FAILED'}${flakyHeading}`, '',
   `${rows.length}/${windowsFiles.length} files, ${c.tests ?? '?'} tests, ${c.passed ?? '?'} pass, ${c.failed ?? '?'} fail, ${c.skipped ?? '?'} skipped, ${(summary.wallMs / 1000).toFixed(0)} s, Node ${process.version}`, '',
   '| File | Result | Tests | Fail | Skipped | Seconds |', '|---|---|---:|---:|---:|---:|',
   ...rows.map(row => `| ${row.file} | ${row.passed ? (row.flaky ? 'FLAKY' : 'pass') : 'FAIL'} | ${row.counts?.tests ?? ''} | ${row.counts?.failed ?? ''} | ${row.counts?.skipped ?? ''} | ${(row.processWallMs / 1000).toFixed(1)} |`)];
+if (sortedFlaky.length) {
+  lines.push('', '#### Recovered first-attempt failures (FLAKY)',
+    ...sortedFlaky.map(item => `- \`tests/${item.file}\`: attempt 1 ${item.receipt}; passed on isolated retry (see \`windows-ledger.jsonl\`)`));
+}
 if (summary.notRun.length) lines.push('', 'Not run: ' + summary.notRun.join(', '));
 if (process.env.GITHUB_STEP_SUMMARY) await appendFile(process.env.GITHUB_STEP_SUMMARY, lines.join('\n') + '\n');
 console.log('\n' + lines.join('\n'));

@@ -127,6 +127,18 @@ export async function runAdaptive({files, onAdmit, onEvent, onFile}) {
   }
   const receipt = readFileLedger(bytes).receipts.find(row => row.firstAttempt.outcome === 'fail');
   assert.equal(receipt.retry.outcome, 'pass');
+  const annotation = output.split('\n').find(line => line.startsWith('::warning '));
+  assert.ok(annotation, 'recovered first failure emits a visible GitHub Actions warning annotation');
+  assert.ok(annotation.includes(`file=${receipt.file}`), annotation);
+  assert.ok(annotation.includes('ERR_ASSERTION') && annotation.includes('ENOENT') && annotation.includes('EIO'), annotation);
+  assert.match(output, /Recovered first-attempt failures \(FLAKY\)/);
+  const sliceSummary = JSON.parse(await readFile(path.join(work, 'windows-slice.json'), 'utf8'));
+  assert.equal(sliceSummary.flakyFiles.length, 1);
+  assert.equal(sliceSummary.flakyFiles[0].file, path.basename(receipt.file));
+  assert.deepEqual(sliceSummary.flakyFiles[0].firstAttempt.errorCodes, ['ERR_ASSERTION', 'ENOENT', 'EIO']);
+  for (const value of secretShapedValues) {
+    assert.ok(!JSON.stringify(sliceSummary).includes(value), value);
+  }
   for (const line of lines.slice(0, secretShapedValues.length * 2)) {
     for (let error = JSON.parse(line.trim()); error; error = error.cause) {
       assert.equal(error.message, '[redacted]'); assert.equal(error.name, '[redacted]');
