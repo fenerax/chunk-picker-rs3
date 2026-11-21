@@ -860,6 +860,46 @@ test('processing closure warm-start falls back to cold cycle detection when an u
   assert.deepEqual(comparable(warmSecond), comparable(coldSecond));
 });
 
+test('processing closure warm-start falls back to cold discovery when seeded outputs affect Boosting level ranking', () => {
+  for (const competitorLevel of [1, 2]) {
+    const data = fixture({
+      Crafting: {
+        'Boost producer': recipe(20, ['Raw'], 'Craft tonic', { Primary: true }),
+        'Competing recipe': recipe(competitorLevel, ['Raw', 'Tool'], 'Basic item', { Primary: true }),
+      },
+      Extra: {
+        'Use tonic': { Items: ['Craft tonic'] },
+      },
+    }, {}, {
+      chunks: {
+        '1': { Spawn: { Raw: 1 }, Connect: { '2': true } },
+        '2': { Spawn: { Tool: 1 }, Connect: { '1': true } },
+      },
+      walkableChunksF2P: ['1', '2'],
+      codeItems: {
+        boostItems: { Crafting: { 'Craft tonic': 20 } },
+      },
+    });
+    const options = { metadataCorrections: false, equipmentCorrections: false, cacheWalking: false, incrementalUnlocks: false };
+    const comparable = result => {
+      const copy = structuredClone(result);
+      delete copy.metrics.elapsedMs;
+      delete copy.metrics.unlockCalculation;
+      return copy;
+    };
+    const warmEngine = createTaskEngine(data, options);
+    const first = warmEngine.evaluate(saved({ Boosting: true }, { unlocked: ['1'] }), 'a');
+    assert.equal(row(first, 'Extra', 'Use tonic').status, 'available');
+
+    const secondState = saved({ Boosting: true }, { unlocked: ['1', '2'] });
+    const warmSecond = warmEngine.evaluate(secondState, 'a');
+    const coldSecond = createTaskEngine(data, options).evaluate(secondState, 'a');
+    assert.equal(row(warmSecond, 'Extra', 'Use tonic').status, 'blocked', `competitorLevel=${competitorLevel}`);
+    assert.equal(row(warmSecond, 'Crafting', 'Boost producer').sourceEligible, false, `competitorLevel=${competitorLevel}`);
+    assert.deepEqual(comparable(warmSecond), comparable(coldSecond), `competitorLevel=${competitorLevel}`);
+  }
+});
+
 test('per-entity base source cache invalidates when a task gate opens mid-evaluation', () => {
   const data = fixture({
     Crafting: { 'Forge key': recipe(1, ['Raw'], 'Vault key') },

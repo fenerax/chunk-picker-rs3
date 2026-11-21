@@ -1767,13 +1767,47 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
         const previous = setWinners.get(task.record.Set);
         if (!previous || Number(task.record.Priority ?? Infinity) < Number(previous.record.Priority ?? Infinity)) setWinners.set(task.record.Set, task);
       }
+      const hasSeededProcessingBoost = () => {
+        if (!boostingEnabled) return false;
+        for (const skill of processingSkills) {
+          for (const source of Object.keys(code.boostItems?.[skill] ?? {})) {
+            const [name, field = 'items'] = source.split('~');
+            if (field === 'items') {
+              if (items.has(name) && !sourceList(name).some(s => s.processingMode !== 'multi' && s.kind !== 'task' && s.kind !== 'reward')) return true;
+            } else if (access[field]?.has(name)) {
+              return true;
+            }
+          }
+        }
+        return false;
+      };
+      const buildClosureInvariant = (candidateRows, proc) => {
+        if (Object.keys(proc.sourceExclusions).length > 0 || hasSeededProcessingBoost()) return null;
+        const parts = [];
+        const winners = [...setWinners.entries()].map(([setName, task]) => `${setName}=${task.key}`).sort();
+        parts.push(winners.join('|'));
+        const skillSig = [];
+        for (const skill of processingSkills) if (skillCaps[skill]) skillSig.push(`${skill}:${passive[skill]}:${trained.has(skill) ? 1 : 0}`);
+        parts.push(skillSig.join('|'));
+        parts.push((proc.conditionalTaskIds ?? []).join(','));
+        parts.push((proc.groupMembers ?? []).join('|'));
+        const avail = [];
+        for (let i = 0; i < candidateRows.length; i++) {
+          const row = candidateRows[i];
+          if (row.status === 'available' && !row.personalCompleted && recipeIds.has(row.id)) {
+            avail.push(`${row.id}:${proc.effectiveLevels[row.id] ?? row.level}:${row.processingPrimary ? 1 : 0}`);
+          }
+        }
+        parts.push(avail.join(','));
+        return parts.join('\n');
+      };
       if (projectOnly) {
         if (expectedClosure) {
           const noOutclassed = setWinners.size === expectedClosure.setWinners.length
             && expectedClosure.setWinners.every(([setName, winnerKey]) => setWinners.get(setName)?.key === winnerKey);
-          if (!noOutclassed) {
+          if (!noOutclassed || hasSeededProcessingBoost()) {
             if (projectionFast) { obligationCache.release(); ownRootProofs.clear(); }
-            return { speculativeMiss: true, noRetraction: false };
+            return { speculativeMiss: true };
           }
           const checksBeforeSelection = counters.checks, dependenciesBeforeSelection = counters.dependencyChecks;
           const processingRows = [];
@@ -1797,13 +1831,15 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
           counters.dependencyChecks = dependenciesBeforeSelection;
           const specAdmitted = new Set(specProcessing.eligibleTaskIds.filter(id => recipeIds.has(id)));
           const specMulti = new Set(specProcessing.multiTaskIds.filter(id => recipeIds.has(id)));
-          const noSuppressedNoXp = Object.keys(specProcessing.sourceExclusions).length === 0;
-          const noRetraction = noSuppressedNoXp
+          const specInvariant = buildClosureInvariant(processingRows, specProcessing);
+          const exactMatch = specInvariant !== null && specInvariant === expectedClosure.invariant
+            && specAdmitted.size === expectedClosure.admitted.size
+            && specMulti.size === expectedClosure.multiAdmitted.size
             && [...expectedClosure.admitted].every(id => specAdmitted.has(id))
             && [...expectedClosure.multiAdmitted].every(id => specMulti.has(id));
-          if (!noRetraction || specAdmitted.size !== expectedClosure.admitted.size || specMulti.size !== expectedClosure.multiAdmitted.size) {
+          if (!exactMatch) {
             if (projectionFast) { obligationCache.release(); ownRootProofs.clear(); }
-            return { speculativeMiss: true, noRetraction, specAdmitted, specMulti };
+            return { speculativeMiss: true };
           }
         }
         break;
@@ -1931,7 +1967,6 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
         metrics: { ...counters, elapsedMs: performance.now() - started },
       };
       Object.defineProperty(baselineResult, 'processing', { value: processing });
-      resultSetWinners.set(baselineResult, setWinners);
       return baselineResult;
     }
     const proofSubject = howRequest?.closure && compiled.find(task => task.id === howRequest.taskId);
@@ -2055,10 +2090,37 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
       processingBaseCollections: { value: replay.baseCollections }, processingFinalizations: { value: replay.finalizations },
       processingIncrementalPasses: { value: replay.incrementalPasses }, processingFallbacks: { value: replay.fullDiscovery ? 1 : 0 },
       processingRawAccessEvaluations: { value: replay.rawAccessEvaluations } });
-    resultSetWinners.set(result, setWinners);
+    const closureInvariant = (() => {
+      if (Object.keys(processing.sourceExclusions).length > 0) return null;
+      if (boostingEnabled) {
+        for (const skill of processingSkills) {
+          for (const source of Object.keys(code.boostItems?.[skill] ?? {})) {
+            const [name, field = 'items'] = source.split('~');
+            if (field === 'items') {
+              if (items.has(name) && !sourceList(name).some(s => s.processingMode !== 'multi' && s.kind !== 'task' && s.kind !== 'reward')) return null;
+            } else if (access[field]?.has(name)) {
+              return null;
+            }
+          }
+        }
+      }
+      const winners = [...setWinners.entries()].map(([setName, task]) => `${setName}=${task.key}`).sort();
+      const skillSig = [];
+      for (const skill of processingSkills) if (skillCaps[skill]) skillSig.push(`${skill}:${passive[skill]}:${trained.has(skill) ? 1 : 0}`);
+      const avail = [];
+      for (let i = 0; i < rows.length; i++) {
+        const row = rows[i];
+        if (row.status === 'available' && !row.personalCompleted && recipeIds.has(row.id)) {
+          avail.push(`${row.id}:${processing.effectiveLevels[row.id] ?? row.level}:${row.processingPrimary ? 1 : 0}`);
+        }
+      }
+      return [winners.join('|'), skillSig.join('|'), (processing.conditionalTaskIds ?? []).join(','),
+        (processing.groupMembers ?? []).join('|'), avail.join(',')].join('\n');
+    })();
+    resultClosureMeta.set(result, { setWinners, invariant: closureInvariant });
     return result;
   }
-  const resultSetWinners = new WeakMap();
+  const resultClosureMeta = new WeakMap();
   const dependencyBases = new Map();
   function forgetDependencyBase(key) {
     const bytes = dependencyBases.get(key);
@@ -2104,8 +2166,8 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
     eligibilityBudget.touch(best.bytes);
     return deserialize(best.bytes);
   }
-  function storeClosureSeed(key, state, admitted, multiAdmitted, winnersMap) {
-    if (!eligibilityBudget || eligibilityBudget.byteLimit === 0 || (admitted.size === 0 && multiAdmitted.size === 0)) return;
+  function storeClosureSeed(key, state, admitted, multiAdmitted, meta) {
+    if (!eligibilityBudget || eligibilityBudget.byteLimit === 0 || !meta?.invariant || (admitted.size === 0 && multiAdmitted.size === 0)) return;
     const unlocked = state.members.map(owner => [...new Set(owner.unlocked)]);
     const signature = unlocked.map(list => list.join(',')).join('|');
     const list = closureSeeds.get(key) ?? [];
@@ -2114,7 +2176,8 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
     const payload = {
       admitted: [...admitted],
       multiAdmitted: [...multiAdmitted],
-      setWinners: winnersMap ? [...winnersMap].map(([setName, task]) => [setName, task.key]) : [],
+      setWinners: meta.setWinners ? [...meta.setWinners].map(([setName, task]) => [setName, task.key]) : [],
+      invariant: meta.invariant,
     };
     const bytes = serialize(payload);
     const cost = bytes.buffer.byteLength + 128 + 2 * (key.length + signature.length);
@@ -2205,44 +2268,29 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
     let admitted = new Set(), multiAdmitted = new Set(), result;
     const canSeedClosure = !options?.howRequest && !options?.[TRANSPORT_BASELINE] && !dependencyMemo && ownershipShape && recipeIds.size > 0 && eligibilityBudget?.byteLimit > 0;
     const seedKey = canSeedClosure ? eligibilityInputKey({ ...state, members: state.members.map(owner => ({ ...owner, unlocked: [] })) }, memberId, undefined, ownedCatalogueSemantics) : undefined;
-    let seedAdmittedList = null, seedMultiList = null;
     if (canSeedClosure) {
       const closureSeed = findClosureSeed(seedKey, state);
       if (closureSeed) {
         const seededAdmitted = new Set(closureSeed.admitted.filter(id => recipeIds.has(id)));
         const seededMulti = new Set(closureSeed.multiAdmitted.filter(id => recipeIds.has(id)));
         const speculative = evaluatePass(state, memberId, options, seededAdmitted, seededMulti, replay, true,
-          { admitted: seededAdmitted, multiAdmitted: seededMulti, setWinners: closureSeed.setWinners });
+          { admitted: seededAdmitted, multiAdmitted: seededMulti, setWinners: closureSeed.setWinners, invariant: closureSeed.invariant });
         const specResult = speculative.next().value;
-        if (specResult.speculativeMiss) {
-          if (specResult.noRetraction) {
-            admitted = specResult.specAdmitted;
-            multiAdmitted = specResult.specMulti;
-            seedAdmittedList = [...seededAdmitted];
-            seedMultiList = [...seededMulti];
-          }
-        } else {
+        if (!specResult.speculativeMiss) {
           const specAdmitted = new Set(specResult.processing.eligibleTaskIds.filter(id => recipeIds.has(id)));
           const specMulti = new Set(specResult.processing.multiTaskIds.filter(id => recipeIds.has(id)));
-          const specWinners = resultSetWinners.get(specResult);
-          const noOutclassed = specWinners?.size === closureSeed.setWinners.length
-            && closureSeed.setWinners.every(([setName, winnerKey]) => specWinners.get(setName)?.key === winnerKey);
-          const noSuppressedNoXp = Object.keys(specResult.processing.sourceExclusions).length === 0;
-          const noRetraction = noOutclassed && noSuppressedNoXp
+          const specMeta = resultClosureMeta.get(specResult);
+          const exactMatch = specMeta?.invariant && specMeta.invariant === closureSeed.invariant
+            && specAdmitted.size === seededAdmitted.size
+            && specMulti.size === seededMulti.size
             && [...seededAdmitted].every(id => specAdmitted.has(id))
             && [...seededMulti].every(id => specMulti.has(id));
-          if (noRetraction && specAdmitted.size === seededAdmitted.size && specMulti.size === seededMulti.size) {
+          if (exactMatch) {
             Object.defineProperty(specResult.metrics, 'processingPasses', { value: 1, configurable: true });
             specResult.metrics.elapsedMs = performance.now() - started;
             specResult.diagnostics.push(...specResult.processing.diagnostics);
-            storeClosureSeed(seedKey, state, specAdmitted, specMulti, specWinners);
+            storeClosureSeed(seedKey, state, specAdmitted, specMulti, specMeta);
             return finish(specResult);
-          }
-          if (noRetraction) {
-            admitted = specAdmitted;
-            multiAdmitted = specMulti;
-            seedAdmittedList = [...seededAdmitted];
-            seedMultiList = [...seededMulti];
           }
         }
       }
@@ -2253,7 +2301,6 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
     let retainedClosure = false;
     function restartFullDiscovery() {
       replay.fullDiscovery = true;
-      seedAdmittedList = null; seedMultiList = null;
       admitted = new Set(); multiAdmitted = new Set(); seen.clear();
       retainedClosure = false;
       evaluation = evaluatePass(state, memberId, options, admitted, multiAdmitted, replay);
@@ -2262,11 +2309,6 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
     for (let pass = 0; pass <= recipeIds.size + 2; pass++) {
       const next = new Set(processing.eligibleTaskIds.filter(id => recipeIds.has(id)));
       const nextMulti = new Set(processing.multiTaskIds.filter(id => recipeIds.has(id)));
-      if (seedAdmittedList && (!seedAdmittedList.every(id => next.has(id)) || !seedMultiList.every(id => nextMulti.has(id)))) {
-        restartFullDiscovery();
-        pass = -1;
-        continue;
-      }
       const signature = JSON.stringify([[...next].sort(), [...nextMulti].sort()]);
       if (next.size === admitted.size && [...next].every(id => admitted.has(id)) && nextMulti.size === multiAdmitted.size && [...nextMulti].every(id => multiAdmitted.has(id))) {
         if (!replay.fullDiscovery || retainedClosure) {
@@ -2289,7 +2331,7 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
         Object.defineProperty(result.metrics, 'processingPasses', { value: pass + 1, configurable: true });
         result.metrics.elapsedMs = performance.now() - started;
         result.diagnostics.push(...result.processing.diagnostics);
-        if (canSeedClosure) storeClosureSeed(seedKey, state, finalAdmitted, finalMulti, resultSetWinners.get(result));
+        if (canSeedClosure) storeClosureSeed(seedKey, state, finalAdmitted, finalMulti, resultClosureMeta.get(result));
         return finish(result);
       }
       if (seen.has(signature)) {

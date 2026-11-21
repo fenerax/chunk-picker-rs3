@@ -167,5 +167,10 @@ export function selectProcessingSources(rows, itemRows, training, rules, definit
   }
   const multiTaskIds = enabled(rules, 'Multi Step Processing') ? [...candidates].filter(id => !eligible.has(id)
     && (training?.[byId.get(id).category]?.primary || training?.[byId.get(id).category]?.manualPrimary)) : [];
-  return { eligibleTaskIds: [...eligible], multiTaskIds, effectiveLevels, diagnostics, sourceExclusions };
+  const result = { eligibleTaskIds: [...eligible], multiTaskIds, effectiveLevels, diagnostics, sourceExclusions };
+  Object.defineProperties(result, {
+    conditionalTaskIds: { value: [...conditional].sort() },
+    groupMembers: { value: [...groups.entries()].map(([key, list]) => `${key}=${list.map(row => row.id).join(',')}`).sort() },
+  });
+  return result;
 }
