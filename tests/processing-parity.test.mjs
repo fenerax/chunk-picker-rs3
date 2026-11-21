@@ -825,6 +825,41 @@ test('processing closure warm-start reuses stable closures across previews and f
   }
 });
 
+test('processing closure warm-start falls back to cold cycle detection when an unlock exposes a competing NoXp recipe', () => {
+  const data = fixture({
+    Crafting: {
+      'Compete A': { Level: 1, Items: ['Raw A'], Output: 'Shared noxp', NoXp: true, Primary: false },
+      'Compete B': { Level: 1, Items: ['Raw B'], Output: 'Shared noxp', NoXp: true, Primary: false },
+    },
+    Extra: {
+      'Use shared noxp': { Items: ['Shared noxp'] },
+    },
+  }, {}, {
+    chunks: {
+      '1': { Spawn: { 'Raw A': 1 }, Connect: { '2': true } },
+      '2': { Spawn: { 'Raw B': 1 }, Connect: { '1': true } },
+    },
+    walkableChunksF2P: ['1', '2'],
+  });
+  const options = { metadataCorrections: false, equipmentCorrections: false, cacheWalking: false, incrementalUnlocks: false };
+  const comparable = result => {
+    const copy = structuredClone(result);
+    delete copy.metrics.elapsedMs;
+    delete copy.metrics.unlockCalculation;
+    return copy;
+  };
+  const warmEngine = createTaskEngine(data, options);
+  const first = warmEngine.evaluate(saved({}, { unlocked: ['1'] }), 'a');
+  assert.equal(row(first, 'Extra', 'Use shared noxp').status, 'available');
+
+  const secondState = saved({}, { unlocked: ['1', '2'] });
+  const warmSecond = warmEngine.evaluate(secondState, 'a');
+  const coldSecond = createTaskEngine(data, options).evaluate(secondState, 'a');
+  assert.equal(row(warmSecond, 'Extra', 'Use shared noxp').status, 'blocked');
+  assert.ok(warmSecond.diagnostics.some(entry => entry.kind === 'processing-source-cycle'));
+  assert.deepEqual(comparable(warmSecond), comparable(coldSecond));
+});
+
 test('per-entity base source cache invalidates when a task gate opens mid-evaluation', () => {
   const data = fixture({
     Crafting: { 'Forge key': recipe(1, ['Raw'], 'Vault key') },

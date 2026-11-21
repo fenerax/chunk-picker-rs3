@@ -1797,7 +1797,9 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
           counters.dependencyChecks = dependenciesBeforeSelection;
           const specAdmitted = new Set(specProcessing.eligibleTaskIds.filter(id => recipeIds.has(id)));
           const specMulti = new Set(specProcessing.multiTaskIds.filter(id => recipeIds.has(id)));
-          const noRetraction = [...expectedClosure.admitted].every(id => specAdmitted.has(id))
+          const noSuppressedNoXp = Object.keys(specProcessing.sourceExclusions).length === 0;
+          const noRetraction = noSuppressedNoXp
+            && [...expectedClosure.admitted].every(id => specAdmitted.has(id))
             && [...expectedClosure.multiAdmitted].every(id => specMulti.has(id));
           if (!noRetraction || specAdmitted.size !== expectedClosure.admitted.size || specMulti.size !== expectedClosure.multiAdmitted.size) {
             if (projectionFast) { obligationCache.release(); ownRootProofs.clear(); }
@@ -2225,7 +2227,8 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
           const specWinners = resultSetWinners.get(specResult);
           const noOutclassed = specWinners?.size === closureSeed.setWinners.length
             && closureSeed.setWinners.every(([setName, winnerKey]) => specWinners.get(setName)?.key === winnerKey);
-          const noRetraction = noOutclassed
+          const noSuppressedNoXp = Object.keys(specResult.processing.sourceExclusions).length === 0;
+          const noRetraction = noOutclassed && noSuppressedNoXp
             && [...seededAdmitted].every(id => specAdmitted.has(id))
             && [...seededMulti].every(id => specMulti.has(id));
           if (noRetraction && specAdmitted.size === seededAdmitted.size && specMulti.size === seededMulti.size) {
