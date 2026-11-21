@@ -26,7 +26,9 @@ export function createPickerCheckpoint({ serialize, entries, registry }) {
     timings() { return { ...timing }; },
     counts() {
       const pickers = registry.listPickers(), available = pickers.filter(p => p.lifecycle === 'active');
-      const open = entries.size + 1;
+      // Reservations fence storage/capacity while factories run; health counts
+      // only contexts that passed publication (including ones still draining).
+      const open = [...entries.values()].filter(entry => entry.published).length + 1;
       return { registry: 'ready', pickers: pickers.length, active: available.length,
         openContexts: open, dormantContexts: Math.max(0, available.length - open), checkpoint: capturing };
     },

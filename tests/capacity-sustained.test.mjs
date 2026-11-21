@@ -280,6 +280,24 @@ test('both profiles get separate labelled speed verdicts and observed caps in th
   assert.match(sustainedMarkdown(reportFixture()),/"status": "unavailable"/);
 });
 
+test('sustained reports count factory receipts separately from preparation and close',()=>{
+  for(const memoryProfile of ['default','budget-672']) {
+    const result=reportFixture(memoryProfile),before=evaluateSustained(result);
+    result.contextOpens=[0,1].flatMap(generation=>[
+      {memoryProfile,generation,pickerId:'synthetic',openId:1,phase:'factory',status:'completed',totalMs:10},
+      {memoryProfile,generation,pickerId:'synthetic',openId:1,phase:'prepare',status:generation?'prepare-failed':'prepared',totalMs:20},
+      {memoryProfile,generation,pickerId:'synthetic',openId:1,phase:'close',status:generation?'close-failed':'closed',totalMs:30},
+    ]);
+    assert.deepEqual(evaluateSustained(result),before,'lifecycle receipts do not multiply workload cold-open counts');
+    const report=sustainedMarkdown(result);
+    assert.match(report,/Factory opens: \*\*2\*\*/);
+    assert.match(report,/\| factory \| 2 \| 2 \| 10\.00 \/ 10\.00 \/ 10\.00 \| none \|/);
+    assert.match(report,/\| prepare \| 2 \| 2 \| 20\.00 \/ 20\.00 \/ 20\.00 \| prepare-failed: 1 \|/);
+    assert.match(report,/\| close \| 2 \| 2 \| 30\.00 \/ 30\.00 \/ 30\.00 \| close-failed: 1 \|/);
+    assert.equal(evaluateSustained(result).coldOpen.groups,2);
+  }
+});
+
 test('budget profile gates require HTTP proof in both generations and never label unverified speed verdicts',()=>{
   const verified=reportFixture('budget-672');
   assert.equal(evaluateSustained(verified).memoryProfile.status,'pass');

@@ -15,6 +15,7 @@ import { writeRunManifest, writeRunResults } from './run-artifacts.mjs';
 import { assertFixtureCopyDestination } from './fixture-paths.mjs';
 import { requireResidency } from './residency.mjs';
 import { cpuProfileExecArgv } from './cpu-profile.mjs';
+import { contextOpenReceipt } from './context-receipts.mjs';
 
 const root=fileURLToPath(new URL('../../../',import.meta.url));
 const args=parseRunOptions();
@@ -129,7 +130,7 @@ try {
   let generation=0,restarting=false;
   const attach=(child,childGeneration=generation)=>child.on('message',m=>{
     const receivedAt=performance.now(),elapsedMs=runStart===undefined?null:receivedAt-runStart;
-    if(m.type==='context-open')contextOpens.push({...m,memoryProfile:profile.memoryProfile,residency:profile.residency,generation:childGeneration,receivedAt,elapsedMs,phase:sustainedPhase(profile,elapsedMs)});
+    if(m.type==='context-open')contextOpens.push(contextOpenReceipt(m,{profile,generation:childGeneration,receivedAt,elapsedMs}));
     if(m.type==='admission')admissionTransitions.push({...m,memoryProfile:profile.memoryProfile,residency:profile.residency,generation:childGeneration,receivedAt,elapsedMs,phase:sustainedPhase(profile,elapsedMs)});
     if(['sample','sample-health','sample-diagnostics','sample-heap','sample-error'].includes(m.type)) {
       const receipt={...m,generation:childGeneration,receivedAt,elapsedMs};
