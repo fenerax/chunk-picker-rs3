@@ -30,6 +30,27 @@ export function cutoffProbability(value, fallback = '1/1000') {
   return rate === '1/0' ? 0 : parseDropRate(rate);
 }
 
+/** Compile a rule-scoped rate predicate once per evaluation. */
+export function compileRateCutoff(rules, kind = 'rare') {
+  const primary = kind === 'primary';
+  const ids = primary ? ['secondaryPrimaryNum', 'Secondary Primary Amount'] : ['rareDropNum', 'Rare Drop Amount', 'rareDropThreshold'];
+  const id = ids.find(key => Object.hasOwn(rules, key));
+  const value = id === undefined ? taskRuleCutoffDefaults[ids[0]] : rules[id];
+  const rate = taskRuleCutoff(value) ?? taskRuleCutoff(primary ? taskRuleCutoffDefaults.secondaryPrimaryNum : taskRuleCutoffDefaults.rareDropNum);
+  const nonFinite = kind === 'rare';
+  if (rate === '1/0') return probability => !Number.isFinite(probability) ? nonFinite : true;
+  const threshold = parseDropRate(rate);
+  const flag = rules[primary ? 'Secondary Primary Inclusive' : 'Rare Drop Inclusive'];
+  const inclusive = typeof flag === 'boolean' ? flag : primary;
+  const absThreshold = Math.abs(threshold);
+  return probability => {
+    if (!Number.isFinite(probability)) return nonFinite;
+    const absProb = Math.abs(probability);
+    const equal = Math.abs(probability - threshold) <= Number.EPSILON * (absProb > absThreshold ? absProb : absThreshold) * 4;
+    return inclusive ? equal || probability > threshold : !equal && probability > threshold;
+  };
+}
+
 /** All threshold consumers use the same conversion, sentinel and equality rule. */
 export function passesRateCutoff(probability, rules, kind = 'rare') {
   if (!Number.isFinite(probability)) return kind === 'rare';

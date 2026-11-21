@@ -21,7 +21,7 @@ import { playerControlSkills, resolvePlayerControls } from '../core/player-contr
 import { progressBelongsToMember, observedSkills } from '../core/game-progress.mjs';
 import { configureAutomaticTransport, registerAutomaticTransportEngineFactory, automaticTransportEnabled, hasUnledgeredAutomaticTransportCaches } from '../core/automatic-transport.mjs';
 import { taskRuleCutoffDefaults, taskRuleDiagnostics } from '../data/settings.mjs';
-import { parseDropRate, composeDropRates, passesRateCutoff as evaluateRateCutoff, rateEvidence } from './rates.mjs';
+import { parseDropRate, composeDropRates, compileRateCutoff, passesRateCutoff as evaluateRateCutoff, rateEvidence } from './rates.mjs';
 import { evaluatePartnerConnections } from '../core/territory.mjs';
 import { effectiveSectionOverrides } from '../core/rules.mjs';
 import { createSurfaceEligibility } from '../core/cache-surface.mjs';
@@ -541,7 +541,7 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
     }
     evaluationPrepared = true;
   }
-  function* evaluatePass(state, memberId, { ownItemQueries = [], reuseObligations = true, howRequest, [TRANSPORT_BASELINE]: transportBaseline = false } = {}, admitted = new Set(), multiAdmitted = new Set(), replay, projectOnly = false) {
+  function* evaluatePass(state, memberId, { ownItemQueries = [], reuseObligations = true, howRequest, [TRANSPORT_BASELINE]: transportBaseline = false } = {}, admitted = new Set(), multiAdmitted = new Set(), replay, projectOnly = false, expectedClosure = null) {
     const started = performance.now();
     const sourceMembershipBlocker = replay.membership.source, itemMembershipBlocker = replay.membership.item;
     const member = state.members.find(value => value.id === memberId);
@@ -607,14 +607,13 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
       || task.tags.some(tag => !PRESENTATION_RULES.has(tag) && !MAYBE_PRIMARY.has(tag) && !on(rules, tag))
       || task.level > 1 && task.tags.includes('InsidePOH Primary') && !on(rules, 'InsidePOH', true)
       || member.taskStatus?.[task.id]?.backlogged));
-    // Rules are fixed throughout this evaluation. Source probabilities recur
-    // across methods, provenance queries and fixed-point passes.
-    const cutoffCache = replay.cutoffCache ??= { rare: new Map(), primary: new Map() };
-    const passesRateCutoff = (probability, currentRules, kind = 'rare') => {
-      const cache = cutoffCache[kind];
-      if (!cache.has(probability)) cache.set(probability, evaluateRateCutoff(probability, currentRules, kind));
-      return cache.get(probability);
-    };
+    // Rules are fixed throughout this evaluation. Compile both rate cutoffs
+    // once so source checks reduce to a single floating-point comparison.
+    const rareCutoff = replay.rareCutoff ??= compileRateCutoff(rules, 'rare');
+    const primaryCutoff = replay.primaryCutoff ??= compileRateCutoff(rules, 'primary');
+    const passesRateCutoff = (probability, currentRules, kind = 'rare') =>
+      currentRules === rules ? (kind === 'primary' ? primaryCutoff(probability) : rareCutoff(probability))
+        : evaluateRateCutoff(probability, currentRules, kind);
     const memo = replay.dependencyMemo;
     const watched = (name, value) => {
       memo?.root(name, () => value);
@@ -951,7 +950,7 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
         const reads = new Map();
         const tasks = { has(key) { const present = observeCapabilityTask(key); reads.set(key, present); return present; } };
         entry = { reads, value: collectBaseItemSources(definitions, access, { validTasks: tasks, rules,
-          expansionCache: replay.expansions, membershipChecks: replay.membership, proof }) };
+          expansionCache: replay.expansions, entityCache: replay.entitySources, membershipChecks: replay.membership, proof }) };
         replay.baseCollections++;
         entries.push(entry); baseMemo.set(view, entries);
       }
@@ -1032,7 +1031,7 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
       lastMergedBaseLen.set(name, list.length);
       if (allOwn) lastMergedAllOwn.set(name, true);
     }
-    let lastMergedOwnAccess = cachedAccess.own, lastMergedOwnObjects = previousBaseOwnObjects, lastMergedProducedSize = 0;
+    let lastMergedOwnAccess = cachedAccess.own, lastMergedOwnObjects = previousBaseOwnObjects, lastMergedProducedSig = '';
     let items = watched('items', new Set(base.items)), sources = watched('sources', initialSources);
     const manualItems = [...Object.entries(legacy.manualMonsters?.Items ?? {}).map(([name, primary]) => [decodeLegacyText(name), primary, 'manual']), ...Object.keys(legacy.manualEquipment ?? {}).map(name => [decodeLegacyText(name), false, 'drop'])];
     const declaredNames = new Set(manualItems.map(([name]) => name));
@@ -1557,17 +1556,19 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
       if (task.dialogueSupply && check(task).length) return false;
       if (sourceLocationBlocker(task.sourceLocations, access)) return false;
       if (processingTasks.has(task) && !admitted.has(task.id) && !completedTask(task) && !(multi && multiAdmitted.has(task.id))) return false;
+      let modes = publications.get(task);
+      const previousPublication = modes?.get(multi);
+      if (previousPublication && previousPublication.access === cachedAccess && previousPublication.settled) return false;
       let changed = false;
       const own = obligation(task);
       const primary = !multi && !!primaryEligible(task);
-      let modes = publications.get(task);
-      const previousPublication = modes?.get(multi);
       if (previousPublication && previousPublication.access === cachedAccess && previousPublication.own === own
         && previousPublication.primary === primary && sameTaskReads(previousPublication)) return false;
       const reads = publicationReads = new Map();
       const remember = () => {
         if (!modes) { modes = new Map(); publications.set(task, modes); }
-        modes.set(multi, { access: cachedAccess, own, primary, reads });
+        const settled = !task.dialogueSupply && own && (multi || primary || !task.record.Primary) && reads.size === 0 && !task.record['Output Object'];
+        modes.set(multi, { access: cachedAccess, own, primary, reads, settled });
         publicationReads = undefined;
       };
       if (own && !ownTaskKeys.has(task.key)) { ownTaskKeys.add(task.key); obligationCache.clear(); changed = true; }
@@ -1697,7 +1698,11 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
         if (!baseUnchanged) {
           const baseFlags = computeBaseOwnership();
           const sameOwn = cachedAccess.own === lastMergedOwnAccess && previousBaseOwnObjects === lastMergedOwnObjects;
-          const sameProduced = producedObjects.size === lastMergedProducedSize;
+          let yieldingProducedSig = '';
+          for (const [objName, source] of producedObjects) {
+            if (definitions.objectItems?.[objName]) yieldingProducedSig += `${objName}:${source.locations.join(',')}\0`;
+          }
+          const sameProduced = yieldingProducedSig === lastMergedProducedSig;
           const canSkipUnchanged = !proof && sameProduced;
           let baseKeys = previousBaseEntry.sourceKeys;
           for (const name of base.items) if (!items.has(name)) { items.add(name); wakeList(itemWatchers, name); changed = true; }
@@ -1723,7 +1728,7 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
           }
           lastMergedOwnAccess = cachedAccess.own;
           lastMergedOwnObjects = previousBaseOwnObjects;
-          lastMergedProducedSize = producedObjects.size;
+          lastMergedProducedSig = yieldingProducedSig;
         }
         changed = updateSkills() || changed;
         changed = updatePoints() || changed;
@@ -1767,7 +1772,83 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
         const previous = setWinners.get(task.record.Set);
         if (!previous || Number(task.record.Priority ?? Infinity) < Number(previous.record.Priority ?? Infinity)) setWinners.set(task.record.Set, task);
       }
-      if (projectOnly) break;
+      const hasSeededProcessingBoost = () => {
+        if (!boostingEnabled) return false;
+        for (const skill of processingSkills) {
+          for (const source of Object.keys(code.boostItems?.[skill] ?? {})) {
+            const [name, field = 'items'] = source.split('~');
+            if (field === 'items') {
+              if (items.has(name) && !sourceList(name).some(s => s.processingMode !== 'multi' && s.kind !== 'task' && s.kind !== 'reward')) return true;
+            } else if (access[field]?.has(name)) {
+              return true;
+            }
+          }
+        }
+        return false;
+      };
+      const buildClosureInvariant = (candidateRows, proc) => {
+        if (Object.keys(proc.sourceExclusions).length > 0 || hasSeededProcessingBoost()) return null;
+        const parts = [];
+        const winners = [...setWinners.entries()].map(([setName, task]) => `${setName}=${task.key}`).sort();
+        parts.push(winners.join('|'));
+        const skillSig = [];
+        for (const skill of processingSkills) if (skillCaps[skill]) skillSig.push(`${skill}:${passive[skill]}:${trained.has(skill) ? 1 : 0}`);
+        parts.push(skillSig.join('|'));
+        parts.push((proc.conditionalTaskIds ?? []).join(','));
+        parts.push((proc.groupMembers ?? []).join('|'));
+        const avail = [];
+        for (let i = 0; i < candidateRows.length; i++) {
+          const row = candidateRows[i];
+          if (row.status === 'available' && !row.personalCompleted && recipeIds.has(row.id)) {
+            avail.push(`${row.id}:${proc.effectiveLevels[row.id] ?? row.level}:${row.processingPrimary ? 1 : 0}`);
+          }
+        }
+        parts.push(avail.join(','));
+        return parts.join('\n');
+      };
+      if (projectOnly) {
+        if (expectedClosure) {
+          const noOutclassed = setWinners.size === expectedClosure.setWinners.length
+            && expectedClosure.setWinners.every(([setName, winnerKey]) => setWinners.get(setName)?.key === winnerKey);
+          if (!noOutclassed || hasSeededProcessingBoost()) {
+            if (projectionFast) { obligationCache.release(); ownRootProofs.clear(); }
+            return { speculativeMiss: true };
+          }
+          const checksBeforeSelection = counters.checks, dependenciesBeforeSelection = counters.dependencyChecks;
+          const processingRows = [];
+          for (const task of processingRowsForDiscovery) {
+            const personalCompleted = completedTask(task);
+            if (uniqueTaskKeys && staticBlocked.has(task) && !personalCompleted) continue;
+            const blocked = valid.has(task.key) ? membershipByTask.get(task).length > 0 || f2p && task.record['Not F2P']
+              : check(task).length > 0;
+            const winner = setWinners.get(task.record.Set);
+            const unavailable = blocked || task.category === 'Extra' && winner && winner.key !== task.key && valid.has(task.key);
+            if (unavailable && !personalCompleted
+              && !(valid.has(task.key) && ['Nonskill', 'Farming'].includes(task.category))) continue;
+            processingRows.push({ id: task.id, category: task.category, rawLabel: task.rawLabel, level: task.level, record: task.record,
+              personalCompleted, processingPrimary: !unavailable && !!primaryEligible(task, true), status: unavailable ? 'blocked' : 'available' });
+          }
+          const specProcessing = selectProcessingSources(processingRows, [...items].map(name => ({ name, sources: sourceList(name) })),
+            Object.fromEntries(Object.keys(skillCaps).map(skill => [skill, { passiveLevel: passive[skill], primary: trained.has(skill),
+              manualPrimary: playerControls.primaryOverrides[skill] === true }])), rules, definitions,
+            processingAccess(), ordinaryProcessingInput);
+          counters.checks = checksBeforeSelection;
+          counters.dependencyChecks = dependenciesBeforeSelection;
+          const specAdmitted = new Set(specProcessing.eligibleTaskIds.filter(id => recipeIds.has(id)));
+          const specMulti = new Set(specProcessing.multiTaskIds.filter(id => recipeIds.has(id)));
+          const specInvariant = buildClosureInvariant(processingRows, specProcessing);
+          const exactMatch = specInvariant !== null && specInvariant === expectedClosure.invariant
+            && specAdmitted.size === expectedClosure.admitted.size
+            && specMulti.size === expectedClosure.multiAdmitted.size
+            && [...expectedClosure.admitted].every(id => specAdmitted.has(id))
+            && [...expectedClosure.multiAdmitted].every(id => specMulti.has(id));
+          if (!exactMatch) {
+            if (projectionFast) { obligationCache.release(); ownRootProofs.clear(); }
+            return { speculativeMiss: true };
+          }
+        }
+        break;
+      }
       // Frontier discovery needs availability and declared recipe facts, not the
       // expensive public explanations, source provenance and equipment result.
       // Suspend here so only the stable replay builds that final projection.
@@ -2014,13 +2095,107 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
       processingBaseCollections: { value: replay.baseCollections }, processingFinalizations: { value: replay.finalizations },
       processingIncrementalPasses: { value: replay.incrementalPasses }, processingFallbacks: { value: replay.fullDiscovery ? 1 : 0 },
       processingRawAccessEvaluations: { value: replay.rawAccessEvaluations } });
+    const closureInvariant = (() => {
+      if (Object.keys(processing.sourceExclusions).length > 0) return null;
+      if (boostingEnabled) {
+        for (const skill of processingSkills) {
+          for (const source of Object.keys(code.boostItems?.[skill] ?? {})) {
+            const [name, field = 'items'] = source.split('~');
+            if (field === 'items') {
+              if (items.has(name) && !sourceList(name).some(s => s.processingMode !== 'multi' && s.kind !== 'task' && s.kind !== 'reward')) return null;
+            } else if (access[field]?.has(name)) {
+              return null;
+            }
+          }
+        }
+      }
+      const winners = [...setWinners.entries()].map(([setName, task]) => `${setName}=${task.key}`).sort();
+      const skillSig = [];
+      for (const skill of processingSkills) if (skillCaps[skill]) skillSig.push(`${skill}:${passive[skill]}:${trained.has(skill) ? 1 : 0}`);
+      const avail = [];
+      for (let i = 0; i < rows.length; i++) {
+        const row = rows[i];
+        if (row.status === 'available' && !row.personalCompleted && recipeIds.has(row.id)) {
+          avail.push(`${row.id}:${processing.effectiveLevels[row.id] ?? row.level}:${row.processingPrimary ? 1 : 0}`);
+        }
+      }
+      return [winners.join('|'), skillSig.join('|'), (processing.conditionalTaskIds ?? []).join(','),
+        (processing.groupMembers ?? []).join('|'), avail.join(',')].join('\n');
+    })();
+    resultClosureMeta.set(result, { setWinners, invariant: closureInvariant });
     return result;
   }
+  const resultClosureMeta = new WeakMap();
   const dependencyBases = new Map();
   function forgetDependencyBase(key) {
     const bytes = dependencyBases.get(key);
     dependencyBases.delete(key);
     if (bytes) eligibilityBudget.forget(bytes);
+  }
+  const closureSeeds = new Map();
+  function forgetClosureSeed(key, token) {
+    const list = closureSeeds.get(key);
+    if (!list) return;
+    const index = list.findIndex(entry => entry.bytes === token);
+    if (index === -1) return;
+    list.splice(index, 1);
+    if (!list.length) closureSeeds.delete(key);
+    eligibilityBudget.forget(token);
+  }
+  function clearClosureSeeds() {
+    for (const [key, list] of [...closureSeeds]) {
+      for (const entry of [...list]) forgetClosureSeed(key, entry.bytes);
+    }
+  }
+  function findClosureSeed(key, state) {
+    const list = closureSeeds.get(key);
+    if (!list?.length) return null;
+    const currentSets = state.members.map(owner => owner.unlocked.length > 8 ? new Set(owner.unlocked) : null);
+    let best = null, bestCount = -1;
+    for (let i = 0; i < list.length; i++) {
+      const entry = list[i];
+      if (entry.unlocked.length !== state.members.length) continue;
+      let ok = true, count = 0;
+      for (let m = 0; m < entry.unlocked.length; m++) {
+        const sub = entry.unlocked[m], sup = state.members[m].unlocked, supSet = currentSets[m];
+        if (sub.length > sup.length) { ok = false; break; }
+        for (let j = 0; j < sub.length; j++) {
+          if (supSet ? !supSet.has(sub[j]) : !sup.includes(sub[j])) { ok = false; break; }
+        }
+        if (!ok) break;
+        count += sub.length;
+      }
+      if (ok && count > bestCount) { best = entry; bestCount = count; }
+    }
+    if (!best) return null;
+    eligibilityBudget.touch(best.bytes);
+    return deserialize(best.bytes);
+  }
+  function storeClosureSeed(key, state, admitted, multiAdmitted, meta) {
+    if (!eligibilityBudget || eligibilityBudget.byteLimit === 0 || !meta?.invariant || (admitted.size === 0 && multiAdmitted.size === 0)) return;
+    const unlocked = state.members.map(owner => [...new Set(owner.unlocked)]);
+    const signature = unlocked.map(list => list.join(',')).join('|');
+    const list = closureSeeds.get(key) ?? [];
+    const existing = list.find(entry => entry.signature === signature);
+    if (existing) { eligibilityBudget.touch(existing.bytes); return; }
+    const payload = {
+      admitted: [...admitted],
+      multiAdmitted: [...multiAdmitted],
+      setWinners: meta.setWinners ? [...meta.setWinners].map(([setName, task]) => [setName, task.key]) : [],
+      invariant: meta.invariant,
+    };
+    const bytes = serialize(payload);
+    const cost = bytes.buffer.byteLength + 128 + 2 * (key.length + signature.length);
+    if (list.length >= 4) forgetClosureSeed(key, list[0].bytes);
+    if (!closureSeeds.has(key) && closureSeeds.size >= 8) {
+      const oldestKey = closureSeeds.keys().next().value;
+      const oldestList = closureSeeds.get(oldestKey);
+      if (oldestList) for (const item of [...oldestList]) forgetClosureSeed(oldestKey, item.bytes);
+    }
+    if (!eligibilityBudget.admit(bytes, () => forgetClosureSeed(key, bytes), { cost })) return;
+    const target = closureSeeds.get(key) ?? [];
+    target.push({ bytes, unlocked, signature });
+    closureSeeds.set(key, target);
   }
   function computeEligibility(state, memberId, options) {
     const started = performance.now();
@@ -2052,7 +2227,7 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
       }
       return result;
     };
-    const replay = { dependencyMemo, access: [], rawAccess: new Map(), transportMemo: {}, surfaceEligibility: new WeakMap(), spatialFailures: new WeakMap(), base: new Map(), baseOwnership: new WeakMap(), expansions: new Map(), accessEvaluations: 0, rawAccessEvaluations: 0, baseCollections: 0,
+    const replay = { dependencyMemo, access: [], rawAccess: new Map(), transportMemo: {}, surfaceEligibility: new WeakMap(), spatialFailures: new WeakMap(), base: new Map(), baseOwnership: new WeakMap(), expansions: new Map(), entitySources: new Map(), accessEvaluations: 0, rawAccessEvaluations: 0, baseCollections: 0,
       incrementalPasses: 0, finalizations: 0 };
     const memberItems = new Map(), memberSources = new Map(), accessSources = new Map();
     replay.membership = {
@@ -2096,6 +2271,35 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
         new Set(closure.multiTaskIds.filter(id => recipeIds.has(id))), replay, true).next().value;
     }
     let admitted = new Set(), multiAdmitted = new Set(), result;
+    const canSeedClosure = !options?.howRequest && !options?.[TRANSPORT_BASELINE] && !dependencyMemo && ownershipShape && recipeIds.size > 0 && eligibilityBudget?.byteLimit > 0;
+    const seedKey = canSeedClosure ? eligibilityInputKey({ ...state, members: state.members.map(owner => ({ ...owner, unlocked: [] })) }, memberId, undefined, ownedCatalogueSemantics) : undefined;
+    if (canSeedClosure) {
+      const closureSeed = findClosureSeed(seedKey, state);
+      if (closureSeed) {
+        const seededAdmitted = new Set(closureSeed.admitted.filter(id => recipeIds.has(id)));
+        const seededMulti = new Set(closureSeed.multiAdmitted.filter(id => recipeIds.has(id)));
+        const speculative = evaluatePass(state, memberId, options, seededAdmitted, seededMulti, replay, true,
+          { admitted: seededAdmitted, multiAdmitted: seededMulti, setWinners: closureSeed.setWinners, invariant: closureSeed.invariant });
+        const specResult = speculative.next().value;
+        if (!specResult.speculativeMiss) {
+          const specAdmitted = new Set(specResult.processing.eligibleTaskIds.filter(id => recipeIds.has(id)));
+          const specMulti = new Set(specResult.processing.multiTaskIds.filter(id => recipeIds.has(id)));
+          const specMeta = resultClosureMeta.get(specResult);
+          const exactMatch = specMeta?.invariant && specMeta.invariant === closureSeed.invariant
+            && specAdmitted.size === seededAdmitted.size
+            && specMulti.size === seededMulti.size
+            && [...seededAdmitted].every(id => specAdmitted.has(id))
+            && [...seededMulti].every(id => specMulti.has(id));
+          if (exactMatch) {
+            Object.defineProperty(specResult.metrics, 'processingPasses', { value: 1, configurable: true });
+            specResult.metrics.elapsedMs = performance.now() - started;
+            specResult.diagnostics.push(...specResult.processing.diagnostics);
+            storeClosureSeed(seedKey, state, specAdmitted, specMulti, specMeta);
+            return finish(specResult);
+          }
+        }
+      }
+    }
     const seen = new Map();
     let evaluation = evaluatePass(state, memberId, options, admitted, multiAdmitted, replay);
     let processing = evaluation.next().value;
@@ -2132,6 +2336,7 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
         Object.defineProperty(result.metrics, 'processingPasses', { value: pass + 1, configurable: true });
         result.metrics.elapsedMs = performance.now() - started;
         result.diagnostics.push(...result.processing.diagnostics);
+        if (canSeedClosure) storeClosureSeed(seedKey, state, finalAdmitted, finalMulti, resultClosureMeta.get(result));
         return finish(result);
       }
       if (seen.has(signature)) {
@@ -2212,7 +2417,7 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
       usefulGates, nexusDestinations, slayerGates, slayerEntranceTasks, catalogue, processingSetFields, emptyProcessingAccess,
       outputGates, producers, declaredOutputRoots, processingTasks, recipeIds, processingBoostFields,
       processingRowsForDiscovery, capabilitySeeds, primarySkillTasks, pointTasks, unsupportedTasks, accessRetentionRoots(definitions)],
-    release() { eligibilityCache.clear(); for (const key of dependencyBases.keys()) forgetDependencyBase(key); releaseAccessRetention(definitions); },
+    release() { eligibilityCache.clear(); clearClosureSeeds(); for (const key of dependencyBases.keys()) forgetDependencyBase(key); releaseAccessRetention(definitions); },
     eligibilityProofKey: (state, memberId, options) => eligibilityInputKey(projectedState(state), memberId, options, ownedCatalogueSemantics),
     exportEligibilityProof: (key, maxBytes) => eligibilityCache.exportProof(key, maxBytes),
     exportEligibilityProofChunk: (key, maxBytes, offset, proofId) => eligibilityCache.exportProofChunk(key, maxBytes, offset, proofId),

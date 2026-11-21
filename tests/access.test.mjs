@@ -3,6 +3,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { buildAccessIndex, calculateAccess, collectBaseItemSources } from '../app/tasks/access.mjs';
+import { compileRateCutoff, passesRateCutoff } from '../app/tasks/rates.mjs';
 
 const state = (unlocked = ['100', '200'], extra = {}) => ({ rules: {}, members: [{ id: 'm', unlocked, ...extra }, { id: 'r', unlocked: ['200'] }] });
 const definitions = () => ({ chunks: {
@@ -329,5 +330,36 @@ test('saved personal and legacy area grants cannot override members-only admissi
     assert(free.diagnostics.some(row => row.code === 'members-only-area' && row.location === 'New Varrock'));
     doc.rules['content.f2p'] = false;
     assert(calculateAccess(index, doc, 'm').areas.has('New Varrock'));
+  }
+});
+
+test('compileRateCutoff matches passesRateCutoff across cutoffs, sentinels, inclusivity and ULP boundaries', () => {
+  const ruleCases = [
+    {},
+    { rareDropNum: '1/0' },
+    { secondaryPrimaryNum: '1/0' },
+    { rareDropNum: '1/100', 'Rare Drop Inclusive': true },
+    { rareDropNum: '1/100', 'Rare Drop Inclusive': false },
+    { rareDropThreshold: '1/1000', 'Rare Drop Inclusive': false },
+    { secondaryPrimaryNum: '1/25', 'Secondary Primary Inclusive': true },
+    { secondaryPrimaryNum: '1/25', 'Secondary Primary Inclusive': false },
+    { rareDropNum: 'invalid-cutoff' },
+  ];
+  const probabilities = [
+    NaN, null, undefined, Infinity, -Infinity, 0, 1,
+    1 / 100, (1 / 10) * (1 / 10),
+    (1 / 100) * (1 + Number.EPSILON * 3), (1 / 100) * (1 + Number.EPSILON * 5),
+    (1 / 100) * (1 - Number.EPSILON * 3), (1 / 100) * (1 - Number.EPSILON * 5),
+    1 / 25, (1 / 25) * (1 + Number.EPSILON * 5), (1 / 25) * (1 - Number.EPSILON * 5),
+    1 / 1000, 1 / 1001,
+  ];
+  for (const kind of ['rare', 'primary', 'other']) {
+    for (const rules of ruleCases) {
+      const compiled = compileRateCutoff(rules, kind);
+      for (const probability of probabilities) {
+        assert.equal(compiled(probability), passesRateCutoff(probability, rules, kind),
+          `kind=${kind} rules=${JSON.stringify(rules)} probability=${String(probability)}`);
+      }
+    }
   }
 });

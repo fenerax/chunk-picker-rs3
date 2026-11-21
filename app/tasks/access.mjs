@@ -5,7 +5,7 @@ import { resolveTaskRules, taskRuleEnabled } from './rule-defaults.mjs';
 import { membershipSourceBlocker } from '../data/access-policy.mjs';
 import { sourceMembershipBlocker as evaluateSourceMembership } from '../data/source-membership.mjs';
 import { itemMembershipBlocker as evaluateItemMembership } from './membership.mjs';
-import { parseDropRate, composeDropRates, passesRateCutoff, rateEvidence } from './rates.mjs';
+import { parseDropRate, composeDropRates, compileRateCutoff, rateEvidence } from './rates.mjs';
 import { buildWorld } from '../data/world.mjs';
 import { applyCacheTopology } from '../data/cache-topology.mjs';
 import { applyCacheResources } from '../data/cache-resources.mjs';
@@ -770,14 +770,14 @@ export function baseItemSourceView(access, definitions) {
 const BACKLOG_KIND_BY_REASON = { drop: 'monsters', object: 'objects', shop: 'shops', spawn: 'spawns' };
 const MEMBERSHIP_KIND_BY_REASON = { drop: 'Monster', object: 'Object', shop: 'Shop' };
 
-export function collectBaseItemSources(definitions, access, { rules = {}, validTasks = new Set(), expansionCache, membershipChecks, proof } = {}) {
+export function collectBaseItemSources(definitions, access, { rules = {}, validTasks = new Set(), expansionCache, entityCache, membershipChecks, proof } = {}) {
   const sourceMembershipBlocker = membershipChecks?.source ?? evaluateSourceMembership;
   const accessSourceBlocker = membershipChecks?.accessSource ?? ((kind, name, location, freeOnly) =>
     membershipSourceBlocker(kind, name, location, freeOnly) ?? sourceMembershipBlocker(kind, name, freeOnly));
   const itemMembershipBlocker = membershipChecks?.item ?? evaluateItemMembership;
   const result = { items: new Set(), sources: new Map(), diagnostics: [] };
   const { gates, tables, parseRate } = compileItems(definitions);
-  const cutoffCache = new Map();
+  const rareCutoff = compileRateCutoff(rules, 'rare');
   const backloggedSources = access.backloggedSources ?? normalizedBacklogs(rules.backloggedSources);
   const hasBacklogs = Boolean(
     backloggedSources && (
@@ -791,12 +791,24 @@ export function collectBaseItemSources(definitions, access, { rules = {}, validT
   const f2p = rules.F2P ?? true;
   const checkRareDrop = rules['Rare Drop'] === false;
   const effigiesEnabled = taskRuleEnabled(rules, ANCIENT_EFFIGIES_RULE);
+  let entityRecorder = null;
+  let entityValidTasks = validTasks;
+  const emitDiagnostic = (code, detail) => {
+    if (entityRecorder) entityRecorder.diagnostics.push({ code, detail });
+    diagnostic(result.diagnostics, code, detail);
+  };
+  const recordSource = (item, reason) => {
+    result.items.add(item);
+    let list = result.sources.get(item);
+    if (!list) { list = []; result.sources.set(item, list); }
+    list.push(reason);
+  };
   const add = (item, reason) => {
     const timingRules = activityTimingSourceRules(item, reason.source);
     if (timingRules.length) {
       const disabled = timingRules.filter(rule => !taskRuleEnabled(rules, rule));
       if (disabled.length) {
-        diagnostic(result.diagnostics, 'activity-rule-disabled', { item, source: reason.source, rules: disabled,
+        emitDiagnostic('activity-rule-disabled', { item, source: reason.source, rules: disabled,
           detail: `Turned off in Rules: ${disabled.join(', ')}.` });
         return;
       }
@@ -804,7 +816,7 @@ export function collectBaseItemSources(definitions, access, { rules = {}, validT
     if (hasBacklogs) {
       const sourceKind = BACKLOG_KIND_BY_REASON[reason.kind];
       if (backloggedSources.items?.[item] || backloggedSources[sourceKind]?.[reason.source]) {
-        diagnostic(result.diagnostics, 'source-backlogged', { item, source: reason.source, kind: reason.kind });
+        emitDiagnostic('source-backlogged', { item, source: reason.source, kind: reason.kind });
         return;
       }
     }
@@ -821,13 +833,13 @@ export function collectBaseItemSources(definitions, access, { rules = {}, validT
         }
       }
       if (membership) {
-        diagnostic(result.diagnostics, 'members-only-source', { item, source: reason.source, kind: reason.kind,
+        emitDiagnostic('members-only-source', { item, source: reason.source, kind: reason.kind,
           location: reason.location, detail: membership.detail, evidence: membership.evidence, verifiedOn: membership.verifiedOn });
         return;
       }
       const itemMembership = itemMembershipBlocker(item, f2p, definitions);
       if (itemMembership) {
-        diagnostic(result.diagnostics, itemMembership.code, { ...itemMembership, source: reason.source,
+        emitDiagnostic(itemMembership.code, { ...itemMembership, source: reason.source,
           sourceKind: reason.kind, location: reason.location });
         return;
       }
@@ -840,18 +852,24 @@ export function collectBaseItemSources(definitions, access, { rules = {}, validT
         const suffix = selector?.endsWith('-source') ? '-source' : selector?.endsWith('-npc') ? '-npc' : null;
         const applies = selector === undefined || selector === '' || selector === reason.source || (suffix && reason.source.toLowerCase().includes(selector.slice(0, -suffix.length).toLowerCase()));
         if (applies && gate.effigies && !effigiesEnabled) {
-          diagnostic(result.diagnostics, 'item-rule-disabled', { item, source: reason.source, rule: ANCIENT_EFFIGIES_RULE,
+          emitDiagnostic('item-rule-disabled', { item, source: reason.source, rule: ANCIENT_EFFIGIES_RULE,
             detail: `Turned off in Rules: ${ANCIENT_EFFIGIES_RULE}.` });
           return;
         }
-        if (applies && !taskRequirements(gate.gate, validTasks, result.diagnostics, { item, source: reason.source })) return;
+        if (applies) {
+          const passed = taskRequirements(gate.gate, entityValidTasks, entityRecorder ? entityRecorder.gateDiagnostics : result.diagnostics, { item, source: reason.source });
+          if (entityRecorder && entityRecorder.gateDiagnostics.length) {
+            for (const entry of entityRecorder.gateDiagnostics) {
+              const { code, ...detail } = entry;
+              emitDiagnostic(code, detail);
+            }
+            entityRecorder.gateDiagnostics.length = 0;
+          }
+          if (!passed) return;
+        }
       }
     }
-    if (checkRareDrop && reason.kind === 'drop') {
-      let allowed = cutoffCache.get(reason.probability);
-      if (allowed === undefined) { allowed = passesRateCutoff(reason.probability, rules); cutoffCache.set(reason.probability, allowed); }
-      if (!allowed) return;
-    }
+    if (checkRareDrop && reason.kind === 'drop' && !rareCutoff(reason.probability)) return;
     if (proof) {
       const requirements = (itemGates ?? []).filter(gate => {
         const selector = gate.source, suffix = selector?.endsWith('-source') ? '-source' : selector?.endsWith('-npc') ? '-npc' : null;
@@ -861,10 +879,8 @@ export function collectBaseItemSources(definitions, access, { rules = {}, validT
       if (reason.kind === 'shop' && stock) requirements.push(stock[reason.location] ?? stock[reason.location.split('-')[0]]);
       proof.source(item, reason, requirements);
     }
-    result.items.add(item);
-    let list = result.sources.get(item);
-    if (!list) { list = []; result.sources.set(item, list); }
-    list.push(reason);
+    if (entityRecorder) entityRecorder.sources.push([item, reason]);
+    recordSource(item, reason);
   };
   for (const [item, quantity] of access.spawns) for (const location of access.locations.get(`Spawn:${item}`) ?? []) add(item, { kind: 'spawn', source: location, location, quantity: accessDetails.get(access)?.spawnQuantities.get(`${item}\u0000${location}`) ?? quantity });
   for (const shop of access.shops) {
@@ -891,9 +907,9 @@ export function collectBaseItemSources(definitions, access, { rules = {}, validT
   const multipliedQuantity = (parent, child) => /^\d+$/.test(String(parent)) && /^\d+$/.test(String(child)) ? String(Number(parent) * Number(child)) : `${parent} × ${child}`;
   let expansionEvents, expansionReads;
   const publishExpansion = (item, reason) => expansionEvents ? expansionEvents.push({ item, reason }) : add(item, reason);
-  const expansionDiagnostic = (code, detail) => expansionEvents ? expansionEvents.push({ code, detail }) : diagnostic(result.diagnostics, code, detail);
+  const expansionDiagnostic = (code, detail) => expansionEvents ? expansionEvents.push({ code, detail }) : emitDiagnostic(code, detail);
   const expansionTask = key => {
-    const present = validTasks.has(key);
+    const present = entityValidTasks.has(key);
     expansionReads?.set(key, present);
     return present;
   };
@@ -904,7 +920,7 @@ export function collectBaseItemSources(definitions, access, { rules = {}, validT
       const key = `${item}\0${typeof quantity}:${quantity}\0${typeof rate}:${rate}\0${reason.kind}\0${reason.source}\0${reason.location}`;
       let list = expansionCache.get(key);
       let entry = list?.find(entry => entry.quantity === quantity && entry.rate === rate
-        && (entry.reads.size === 0 || [...entry.reads].every(([key, present]) => validTasks.has(key) === present)));
+        && (entry.reads.size === 0 || [...entry.reads].every(([key, present]) => entityValidTasks.has(key) === present)));
       if (!entry) {
         expansionEvents = []; expansionReads = new Map();
         flatten(item, quantity, rate, reason, path, combined, false);
@@ -919,7 +935,7 @@ export function collectBaseItemSources(definitions, access, { rules = {}, validT
       for (let i = 0; i < entry.events.length; i++) {
         const event = entry.events[i];
         if (event.item !== undefined) add(event.item, { ...event.reason });
-        else diagnostic(result.diagnostics, event.code, event.detail);
+        else emitDiagnostic(event.code, event.detail);
       }
       return;
     }
@@ -943,24 +959,59 @@ export function collectBaseItemSources(definitions, access, { rules = {}, validT
       } else expansionDiagnostic('unsupported-drop-record', { source: reason.source, table: item, item: child });
     }
   };
+  const runCachedEntity = (cacheKey, emitFn) => {
+    if (!entityCache || proof) { emitFn(); return; }
+    let list = entityCache.get(cacheKey);
+    if (list) {
+      for (let i = 0; i < list.length; i++) {
+        const entry = list[i];
+        let ok = true;
+        for (const [k, present] of entry.reads) if (validTasks.has(k) !== present) { ok = false; break; }
+        if (ok) {
+          for (let j = 0; j < entry.sources.length; j++) {
+            const [item, reason] = entry.sources[j];
+            recordSource(item, reason);
+          }
+          for (let j = 0; j < entry.diagnostics.length; j++) {
+            const d = entry.diagnostics[j];
+            diagnostic(result.diagnostics, d.code, d.detail);
+          }
+          return;
+        }
+      }
+    }
+    const reads = new Map();
+    entityRecorder = { sources: [], diagnostics: [], gateDiagnostics: [] };
+    entityValidTasks = { has(key) { const present = validTasks.has(key); reads.set(key, present); return present; } };
+    try {
+      emitFn();
+      const recorded = { reads, sources: entityRecorder.sources, diagnostics: entityRecorder.diagnostics };
+      if (!list) { list = []; entityCache.set(cacheKey, list); }
+      list.push(recorded);
+    } finally {
+      entityRecorder = null; entityValidTasks = validTasks;
+    }
+  };
   if (rules.Skiller !== true) for (const monster of access.monsters) {
     if (rules.Boss === false && has(definitions.codeItems?.bossMonsters, monster)) continue;
     const monsterDrops = definitions.drops?.[monster];
     if (!monsterDrops) continue; // No-drop monsters are legitimate.
     const locs = access.locations.get(`Monster:${monster}`);
     if (!locs) continue;
-    for (const location of locs) for (const item of Object.keys(monsterDrops)) {
-      const quantities = monsterDrops[item];
-      if (!quantities || typeof quantities !== 'object') continue;
-      for (const quantity of Object.keys(quantities)) flatten(item, quantity, quantities[quantity], { kind: 'drop', source: monster, location });
-    }
+    for (const location of locs) runCachedEntity(`M\0${monster}\0${location}`, () => {
+      for (const item of Object.keys(monsterDrops)) {
+        const quantities = monsterDrops[item];
+        if (!quantities || typeof quantities !== 'object') continue;
+        for (const quantity of Object.keys(quantities)) flatten(item, quantity, quantities[quantity], { kind: 'drop', source: monster, location });
+      }
+    });
   }
   for (const object of access.objects) {
     const objItems = definitions.objectItems?.[object];
     if (!objItems) continue;
     const locs = access.locations.get(`Object:${object}`);
     if (!locs) continue;
-    for (const location of locs) {
+    for (const location of locs) runCachedEntity(`O\0${object}\0${location}`, () => {
       for (const item of Object.keys(objItems)) {
         const yields = objItems[item];
         const reason = { kind: 'object', source: object, location };
@@ -975,11 +1026,11 @@ export function collectBaseItemSources(definitions, access, { rules = {}, validT
           for (const quantity of Object.keys(yields)) {
             const rate = yields[quantity];
             if (typeof rate === 'string') flatten(item, quantity, rate, reason);
-            else diagnostic(result.diagnostics, 'unsupported-object-yield', { source: object, item, condition: quantity });
+            else emitDiagnostic('unsupported-object-yield', { source: object, item, condition: quantity });
           }
-        } else diagnostic(result.diagnostics, 'unsupported-object-yield', { source: object, item });
+        } else emitDiagnostic('unsupported-object-yield', { source: object, item });
       }
-    }
+    });
   }
   return result;
 }

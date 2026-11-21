@@ -87,9 +87,9 @@ if (!isMainThread) {
   };
   if (sizes) {
     rules['/tasks/fact-projection.mjs'].push('index', 'resolutions');
-    rules['/tasks/engine.mjs'].push('memberItems', 'memberSources', 'accessSources', 'itemMembership', 'membershipOutputRoots');
+    rules['/tasks/engine.mjs'].push('memberItems', 'memberSources', 'accessSources', 'itemMembership', 'membershipOutputRoots', 'closureSeeds');
     rules['/tasks/presentation.mjs'].push('names', 'tokens', 'legacyFields', 'legacyCategories');
-    rules['/tasks/access.mjs'].push('parsedRates', 'cutoffCache');
+    rules['/tasks/access.mjs'].push('parsedRates');
     rules['/tasks/time-estimates.mjs'] = ['skillCache'];
     rules['/tasks/collection.mjs'] = ['satisfaction'];
     rules['/tasks/identity.mjs'] = ['materialized', 'mappedLabels'];
@@ -141,12 +141,11 @@ if (!isMainThread) {
     }
     if (sizes && match === '/core/transport-access.mjs') source = source.replace('entries = new Map()', `entries = globalThis[Symbol.for('rs3.engineCacheProbe')]('/core/transport-access.mjs:routes-and-graphs', new Map())`);
     if (sizes && match === '/tasks/engine.mjs') {
-      for (const name of ['rawAccess','surfaceEligibility','spatialFailures','base','baseOwnership','expansions']) {
+      for (const name of ['rawAccess','surfaceEligibility','spatialFailures','base','baseOwnership','expansions','entitySources']) {
         const regex = new RegExp(`\\b${name}: new (WeakMap|Map)\\(\\)`, 'g');
         source = source.replace(regex, (_, type) => `${name}: globalThis[Symbol.for('rs3.engineCacheProbe')](${JSON.stringify(match + ':replay.' + name)}, new ${type}())`);
       }
       source = source.replace('replay.outputCache ??= new Map()', `replay.outputCache ??= globalThis[Symbol.for('rs3.engineCacheProbe')]('/tasks/engine.mjs:replay.outputCache', new Map())`);
-      source = source.replace('rare: new Map(), primary: new Map()', `rare: globalThis[Symbol.for('rs3.engineCacheProbe')]('/tasks/engine.mjs:rare-cutoff', new Map()), primary: globalThis[Symbol.for('rs3.engineCacheProbe')]('/tasks/engine.mjs:primary-cutoff', new Map())`);
     }
     return { ...result, source };
   } });
