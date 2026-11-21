@@ -8,13 +8,13 @@ import { serialize, deserialize } from 'node:v8';
 import { createDependencyMemo } from './dependency-memo.mjs';
 import { retainedDataBytes } from './retained-data.mjs';
 import { boundedMemoryOption, serviceMemoryBudget } from '../service-memory-budget.mjs';
-import { accessRetentionRoots, accessRetentionVersion, releaseAccessRetention } from './access.mjs';
+import { accessRetentionRoots, accessRetentionState, accessRetentionVersion, releaseAccessRetention } from './access.mjs';
 import { hasResidentIdentities } from '../core/resident-copy.mjs';
 import { datasetValue } from '../dataset-runtime.mjs';
 import { prepareTaskDefinitions } from '../dataset-pipeline.mjs';
 import { requireSelectedDataset } from '../dataset-runtime.mjs';
 import { importedXpAllocations, xpChoiceAllocation } from '../core/xp-choices.mjs';
-import { splitEffigyGate, buildAccessIndex, calculateAccess, collectBaseItemSources, baseItemSourceView, walkingConnections, copyAccess } from './access.mjs';
+import { splitEffigyGate, buildAccessIndex, calculateAccess, collectBaseItemSources, baseItemSourceView, walkingConnections, copyAccess, copyMutableAccess } from './access.mjs';
 import { decodeLegacyText, hasGameplayMigration, projectMemberTaskFacts } from './migration.mjs';
 import { playerControlSkills, resolvePlayerControls } from '../core/player-controls.mjs';
 import { progressBelongsToMember, observedSkills } from '../core/game-progress.mjs';
@@ -249,11 +249,19 @@ export function createTaskEngine(definitions, options = {}) {
     let completed = false;
     try { const result = operation(compiled); completed = true; return result; }
     finally {
-      const version = compiled.retentionVersion();
-      if (!completed || versions.get(compiled) !== version) {
-        versions.set(compiled, version); trimVariants();
+      const next = compiled.retentionState();
+      const prev = versions.get(compiled);
+      if (!completed || !prev || prev.structural !== next.structural) {
+        versions.set(compiled, next); trimVariants();
         // Versions never keep an evicted engine alive.
         for (const key of versions.keys()) if (![...variants.values()].includes(key)) versions.delete(key);
+      } else if (next.parsedRatesBytes !== prev.parsedRatesBytes) {
+        const delta = next.parsedRatesBytes - prev.parsedRatesBytes;
+        versions.set(compiled, next);
+        if (delta > 0) {
+          retainedBytes += Math.ceil(delta / 8) * 8;
+          if (variantByteLimit !== null && retainedBytes > variantByteLimit) trimVariants();
+        } else trimVariants();
       }
     }
   }
@@ -455,13 +463,14 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
 
   let evaluationPrepared = false, processingTasks, recipeIds, processingBoostFields,
     processingRowsForDiscovery, capabilitySeeds, primarySkillTasks, pointTasks, unsupportedTasks;
-  function includeCapabilityTask(task, tasks) {
+  function includeCapabilityTask(task, tasks, onAdd) {
     if (!task || tasks.has(task)) return;
     tasks.add(task);
+    onAdd?.(task);
     for (const dependency of task.dependencies) for (const name of dependency.alternatives ?? [dependency.clean]) {
-      includeCapabilityTask(byKey.get(keyOf(dependency.category, name.split('--')[0])), tasks);
+      includeCapabilityTask(byKey.get(keyOf(dependency.category, name.split('--')[0])), tasks, onAdd);
     }
-    for (const id of task.completedDependencies) includeCapabilityTask(byId.get(id), tasks);
+    for (const id of task.completedDependencies) includeCapabilityTask(byId.get(id), tasks, onAdd);
   }
   function prepareEvaluation() {
     if (evaluationPrepared) return;
@@ -476,6 +485,7 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
       return itemMembership.get(name);
     };
     for (const task of compiled) {
+      task.hasOutputs = Boolean(task.record.Output || task.record['Output Object'] || task.record.Reward);
       const itemBlockers = taskItemMembershipBlockers(task.record, task.category, definitions, task.rawLabel, itemBlockerFor, membershipOutputRoots);
       const source = evaluateSourceMembership('Task', task.rawLabel, true, task.category);
       task.membershipBlockers = [...itemBlockers,
@@ -617,6 +627,7 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
     const releaseSlayerLock = reason => {
       if (!effectiveSlayerLock) return false;
       effectiveSlayerLock = null; slayerLockRelease = reason; caps.Slayer = unlockedSlayerCap;
+      wakeList(skillWatchers, 'Slayer');
       return true;
     };
     const releaseForTargets = access => {
@@ -648,9 +659,124 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
       && task.record.QuestPoints !== undefined && (!member.questProgress?.[task.id]
         || progressBelongsToMember(member.questProgress[task.id], member)))
       .flatMap(task => [task.record.BaseQuest, plainLabel(task.rawLabel).replace(/ Complete the quest$/, '')].filter(Boolean));
+    const proof = howRequest ? createHowCapture({ state, memberId, definitions, byKey, completedTask, limits: howRequest.limits, deadline: howRequest.deadline }) : null;
+    const useWatchers = !proof && !memo && uniqueTaskKeys;
+    const activeMask = useWatchers ? new Uint32Array((compiled.length + 31) >>> 5) : null;
+    const parkedState = useWatchers ? new Uint8Array(compiled.length) : null;
+    const parkedDepCost = useWatchers ? new Uint16Array(compiled.length) : null;
+    const itemWatchers = useWatchers ? new Map() : null;
+    const skillWatchers = useWatchers ? new Map() : null;
+    const taskWatchers = useWatchers ? new Map() : null;
+    const spatialWatchers = useWatchers ? new Map() : null;
+    const seenSpatial = useWatchers ? new Set() : null;
+    let parkedChecks = 0, parkedDepChecks = 0, inScanLoop = false, currentScanOrder = -1, lastFailedReq = null, lastFailedNeed = null, lastFailedDep = null;
+    const boostingEnabled = on(rules, 'Boosting', false);
+    const isTaskEligible = task => (!discoveryTasks || discoveryTasks.has(task)) && !valid.has(task.key) && (!processingTasks.has(task) || admitted.has(task.id)) && !staticBlocked.has(task);
+    const setActive = order => { activeMask[order >>> 5] |= 1 << (order & 31); };
+    const clearActive = order => { activeMask[order >>> 5] &= ~(1 << (order & 31)); };
+    const watchAdd = (map, key, order) => {
+      let list = map.get(key);
+      if (!list) { list = []; map.set(key, list); }
+      list.push(order);
+    };
+    const parkOrder = (order, depCost) => {
+      clearActive(order);
+      if (!parkedState[order]) {
+        parkedState[order] = 1;
+        parkedDepCost[order] = depCost;
+        parkedChecks++;
+        parkedDepChecks += depCost;
+      }
+    };
+    const wakeOrder = order => {
+      if (!parkedState[order]) return;
+      parkedState[order] = 0;
+      const depCost = parkedDepCost[order];
+      parkedChecks--;
+      parkedDepChecks -= depCost;
+      if (inScanLoop && order > currentScanOrder) {
+        counters.checks--;
+        counters.dependencyChecks -= depCost;
+      }
+      if (isTaskEligible(compiled[order])) setActive(order);
+    };
+    const wakeList = (map, key) => {
+      if (!map) return;
+      const list = map.get(key);
+      if (!list) return;
+      map.delete(key);
+      for (let i = 0; i < list.length; i++) wakeOrder(list[i]);
+    };
+    const syncSpatialWatchers = () => {
+      if (!useWatchers) return;
+      const visit = (prefix, set) => {
+        for (const name of set) {
+          const key = prefix + name;
+          if (!seenSpatial.has(key)) { seenSpatial.add(key); wakeList(spatialWatchers, key); }
+        }
+      };
+      visit('C:', access.bases);
+      visit('C:', access.sections);
+      visit('C:', access.areas);
+      visit('O:', access.objects);
+      visit('N:', access.npcs);
+      visit('M:', access.monsters);
+      visit('S:', access.shops);
+      if (access.monsters.size > 0 && !seenSpatial.has('M:*')) {
+        seenSpatial.add('M:*');
+        wakeList(spatialWatchers, 'M:*');
+      }
+    };
+    const parkFailedTask = task => {
+      const order = task.order;
+      if (lastFailedReq) {
+        const req = lastFailedReq;
+        if (req.alias && !req.alternatives && req.clean !== 'Monster[+]') return;
+        const names = req.alternatives ?? [req.clean];
+        const field = req.field;
+        if (field === 'Items') {
+          for (let i = 0; i < names.length; i++) watchAdd(itemWatchers, names[i], order);
+          parkOrder(order, task.completedDependencies.length);
+          return;
+        }
+        const prefix = field === 'Chunks' ? 'C:' : field === 'Objects' ? 'O:' : field === 'NPCs' ? 'N:' : field === 'Shops' ? 'S:'
+          : field === 'Monsters' || field === 'Monster' ? 'M:' : field === 'Mix' ? 'X:' : null;
+        if (prefix) {
+          for (let i = 0; i < names.length; i++) {
+            const name = names[i];
+            if (prefix === 'X:') { watchAdd(spatialWatchers, 'N:' + name, order); watchAdd(spatialWatchers, 'M:' + name, order); }
+            else if (prefix === 'M:' && name === 'Monster[+]') watchAdd(spatialWatchers, 'M:*', order);
+            else watchAdd(spatialWatchers, prefix + name, order);
+          }
+          parkOrder(order, task.completedDependencies.length);
+          return;
+        }
+      }
+      if (lastFailedNeed && (!boostingEnabled || task.record.NoBoost)) {
+        watchAdd(skillWatchers, lastFailedNeed[0], order);
+        parkOrder(order, task.completedDependencies.length + task.dependencies.length);
+        return;
+      }
+      if (lastFailedDep) {
+        const dep = lastFailedDep;
+        if (!(task.category === 'Slayer' && dep.category === 'Quest')) {
+          const names = dep.alternatives ?? [dep.clean];
+          for (let i = 0; i < names.length; i++) {
+            const raw = names[i].split('--')[0];
+            if (raw === task.rawLabel && dep.category === task.category) continue;
+            watchAdd(taskWatchers, keyOf(dep.category, raw), order);
+          }
+        }
+        parkOrder(order, task.completedDependencies.length + task.dependencies.length);
+      }
+    };
     function admitTask(task) {
       if (proof) proof.task(task, proofEnvironment());
       valid.add(task.key);
+      if (useWatchers) {
+        clearActive(task.order);
+        wakeList(taskWatchers, task.key);
+      }
       let first = 0, last = validRows.length;
       while (first < last) {
         const middle = (first + last) >>> 1;
@@ -664,7 +790,9 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
     function observeCapabilityTask(key) {
       const task = byKey.get(key);
       if (discoveryTasks && task && !discoveryTasks.has(task)) {
-        includeCapabilityTask(task, discoveryTasks);
+        includeCapabilityTask(task, discoveryTasks, useWatchers ? added => {
+          if (!parkedState[added.order] && isTaskEligible(added)) setActive(added.order);
+        } : undefined);
         discoveryExpanded = true;
       }
       return valid.has(key);
@@ -673,7 +801,6 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
     // is neutral in the retained proof and applied only by the final overlay.
     const challengeSatisfied = () => false;
     for (const task of compiled) if (completedTask(task)) { valid.add(task.key); validRows.push(task); }
-    const proof = howRequest ? createHowCapture({ state, memberId, definitions, byKey, completedTask, limits: howRequest.limits, deadline: howRequest.deadline }) : null;
     if (proof) for (const task of compiled) if (completedTask(task)) proof.task(task);
     const discoveryRows = uniqueTaskKeys && discoveryTasks
       ? processingRowsForDiscovery.filter(task => !staticBlocked.has(task) || completedTask(task))
@@ -682,8 +809,10 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
     let blockedCheckCount = 0;
     for (const task of compiled) {
       if (multiAdmitted.has(task.id)) multiRows.push(task);
-      if (!uniqueTaskKeys || !staticBlocked.has(task)) checkableTasks.push(task);
-      else if (!discoveryTasks && !valid.has(task.key) && (!processingTasks.has(task) || admitted.has(task.id))) blockedCheckCount++;
+      if (!uniqueTaskKeys || !staticBlocked.has(task)) {
+        checkableTasks.push(task);
+        if (useWatchers && isTaskEligible(task)) setActive(task.order);
+      } else if (!discoveryTasks && !valid.has(task.key) && (!processingTasks.has(task) || admitted.has(task.id))) blockedCheckCount++;
     }
     const shared = state.rules?.['access.shared'] !== false && state.members.some(owner => owner.id !== memberId && owner.unlocked?.length);
     let ownAccess, connections, connectionKey, access;
@@ -747,15 +876,15 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
       if (!eligibility) { eligibility = createSurfaceEligibility(world, claimed, overrides, { f2p }); cache.set(key, eligibility); }
       return eligibility;
     }
-    function refreshAccess() {
+    function refreshAccess(copyLocations = false) {
       // State and rules stay fixed throughout this evaluation. Only observed
       // task reads can affect the previous raw result; when a short-circuiting
       // gate changes, recompute and observe the newly visited dependencies.
       cachedAccess = cachedAccess && sameTaskReads(cachedAccess) ? cachedAccess : proof ? undefined : replay.access.find(sameTaskReads);
       if (cachedAccess) {
         for (const key of cachedAccess.reads.keys()) observeCapabilityTask(key);
-        ownAccess = copyAccess(cachedAccess.own);
-        access = cachedAccess.shared === cachedAccess.own ? ownAccess : copyAccess(cachedAccess.shared);
+        ownAccess = copyMutableAccess(cachedAccess.own, copyLocations);
+        access = cachedAccess.shared === cachedAccess.own ? ownAccess : copyMutableAccess(cachedAccess.shared, copyLocations);
         connections = cachedAccess.connections;
         return;
       }
@@ -766,8 +895,8 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
       cachedAccess = { own: ownAccess, shared: access, connections, reads: accessTaskReads, order: accessTaskOrder };
       if (!proof) replay.access.push(cachedAccess);
       // Slayer restrictions and produced objects mutate only these copies.
-      ownAccess = copyAccess(cachedAccess.own);
-      access = cachedAccess.shared === cachedAccess.own ? ownAccess : copyAccess(cachedAccess.shared);
+      ownAccess = copyMutableAccess(cachedAccess.own, copyLocations);
+      access = cachedAccess.shared === cachedAccess.own ? ownAccess : copyMutableAccess(cachedAccess.shared, copyLocations);
     }
     function calculateFreshAccess() {
       ownAccess = memoAccess(accessIndex, state, memberId);
@@ -814,7 +943,7 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
     // memo private: a later proof must capture its own evidence from scratch.
     const baseMemo = proof ? new Map() : replay.base;
     function collectSources() {
-      const view = baseItemSourceView(access);
+      const view = baseItemSourceView(access, definitions);
       const entries = baseMemo.get(view) ?? [];
       let entry = entries.find(sameTaskReads);
       if (!entry) {
@@ -826,8 +955,8 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
         entries.push(entry); baseMemo.set(view, entries);
       }
       for (const key of entry.reads.keys()) observeCapabilityTask(key);
-      const ownObjects = JSON.stringify([...producedObjects.keys()].map(name => [name,
-        [...(ownAccess.locations.get(`Object:${name}`) ?? [])]]));
+      const ownObjects = producedObjects.size ? JSON.stringify([...producedObjects.keys()].map(name => [name,
+        [...(ownAccess.locations.get(`Object:${name}`) ?? [])]])) : '';
       const alias = access === ownAccess;
       if (entry === previousBaseEntry && cachedAccess.own === previousBaseOwn && ownObjects === previousBaseOwnObjects
         && alias === previousBaseAlias) {
@@ -837,43 +966,73 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
       baseUnchanged = false;
       previousBaseEntry = entry; previousBaseOwn = cachedAccess.own;
       previousBaseOwnObjects = ownObjects; previousBaseAlias = alias;
-      return previousBase = { items: new Set(entry.value.items), diagnostics: [...entry.value.diagnostics],
-        sources: new Map([...entry.value.sources].map(([name, sources]) => [name, sources.map(source => ({ ...source }))])) };
+      return previousBase = entry.value;
     }
     let base = collectSources();
     const ownSource = source => source.own === true;
     const baseSourceKinds = { drop: 'Monster', shop: 'Shop', object: 'Object', spawn: 'Spawn' };
-    const markBaseSources = () => {
+    const computeBaseOwnership = () => {
       const alias = access === ownAccess;
-      const entries = alias ? null : replay.baseOwnership.get(previousBaseEntry) ?? [];
-      const ownership = alias ? undefined : entries.find(value => value.own === previousBaseOwn && value.objects === previousBaseOwnObjects);
-      const flags = alias ? null : ownership?.flags ?? new Map();
+      if (alias) {
+        for (const name of base.sources.keys()) ownItems.add(name);
+        return null;
+      }
+      const entries = replay.baseOwnership.get(previousBaseEntry) ?? [];
+      const ownership = entries.find(value => value.own === previousBaseOwn && value.objects === previousBaseOwnObjects);
+      if (ownership) {
+        for (const name of ownership.ownItemNames) ownItems.add(name);
+        return ownership.flags;
+      }
+      const flags = new Map(), ownItemNames = [];
+      const ownLocSets = new Map();
       for (const [name, list] of base.sources) {
-        const saved = ownership?.flags.get(name), values = !alias && !ownership ? [] : null;
+        const values = new Array(list.length);
         let anyOwn = false;
         for (let index = 0; index < list.length; index++) {
           const source = list[index];
-          let own = alias || saved?.[index];
-          if (!alias && !saved) {
-            const locations = ownAccess.locations.get(`${baseSourceKinds[source.kind]}:${source.kind === 'spawn' ? name : source.source}`);
-            own = (Array.isArray(locations) ? locations.includes(source.location)
-              : locations instanceof Set ? locations.has(source.location) : locations ? [...locations].includes(source.location) : false)
-              || source.kind === 'shop' && ownLocation(source.location);
-          }
-          source.own = own;
+          const locKey = `${baseSourceKinds[source.kind]}:${source.kind === 'spawn' ? name : source.source}`;
+          const locations = ownAccess.locations.get(locKey);
+          let own;
+          if (!locations) own = false;
+          else if (locations instanceof Set) own = locations.has(source.location);
+          else if (Array.isArray(locations)) {
+            if (locations.length <= 4) own = locations.includes(source.location);
+            else {
+              let set = ownLocSets.get(locKey);
+              if (!set) { set = new Set(locations); ownLocSets.set(locKey, set); }
+              own = set.has(source.location);
+            }
+          } else own = [...locations].includes(source.location);
+          if (!own && source.kind === 'shop') own = ownLocation(source.location);
           anyOwn ||= own;
-          if (!alias && !ownership) values.push(own);
+          values[index] = own;
         }
-        if (anyOwn) ownItems.add(name);
-        if (!alias && !ownership) flags.set(name, values);
+        if (anyOwn) { ownItems.add(name); ownItemNames.push(name); }
+        flags.set(name, values);
       }
-      if (!alias && !ownership) {
-        entries.push({ own: previousBaseOwn, objects: previousBaseOwnObjects, flags });
-        replay.baseOwnership.set(previousBaseEntry, entries);
-      }
+      entries.push({ own: previousBaseOwn, objects: previousBaseOwnObjects, flags, ownItemNames });
+      replay.baseOwnership.set(previousBaseEntry, entries);
+      return flags;
     };
-    markBaseSources();
-    let items = watched('items', new Set(base.items)), sources = watched('sources', new Map(base.sources));
+    const initialFlags = computeBaseOwnership();
+    const initialSources = new Map();
+    const lastMergedBaseLen = new Map();
+    const lastMergedAllOwn = new Map();
+    for (const [name, list] of base.sources) {
+      const saved = initialFlags?.get(name);
+      const copy = new Array(list.length);
+      let allOwn = true;
+      for (let i = 0; i < list.length; i++) {
+        const own = saved ? saved[i] : true;
+        if (!own) allOwn = false;
+        copy[i] = { ...list[i], own };
+      }
+      initialSources.set(name, copy);
+      lastMergedBaseLen.set(name, list.length);
+      if (allOwn) lastMergedAllOwn.set(name, true);
+    }
+    let lastMergedOwnAccess = cachedAccess.own, lastMergedOwnObjects = previousBaseOwnObjects, lastMergedProducedSize = 0;
+    let items = watched('items', new Set(base.items)), sources = watched('sources', initialSources);
     const manualItems = [...Object.entries(legacy.manualMonsters?.Items ?? {}).map(([name, primary]) => [decodeLegacyText(name), primary, 'manual']), ...Object.keys(legacy.manualEquipment ?? {}).map(name => [decodeLegacyText(name), false, 'drop'])];
     const declaredNames = new Set(manualItems.map(([name]) => name));
     for (const [name, primary] of Object.entries(state.legacy?.gameplayMigration?.randomLootSources?.[member.sourceMapId]?.Items ?? {})) {
@@ -905,8 +1064,10 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
     passive.Combat = Math.max(passive.Combat, combatLevelFromSkills(passive, { f2p }));
     const levels = watched('levels', { ...passive }), trained = new Set(), ownTraining = new Set(), trainingVia = new Map();
     const refreshSlayerLevel = () => {
+      const prev = levels.Slayer;
       passive.Slayer = Math.min(caps.Slayer, Math.max(passive.Slayer, Number(playerControls.passiveLevels.Slayer ?? 1), observedProgress.Slayer?.level ?? 1, Number(playerControls.slayerLock?.level ?? 1), ...compiled.filter(task => task.category === 'Slayer' && completedTask(task)).map(task => task.level)));
       levels.Slayer = trained.has('Slayer') ? caps.Slayer : passive.Slayer;
+      if (levels.Slayer > prev) wakeList(skillWatchers, 'Slayer');
     };
     let points = { QuestPointsNeeded: 0, KudosNeeded: 0, CombatScoreNeeded: 0, TotalLevelNeeded: 0, TotalVirtualLevelNeeded: 0 };
     const counters = { passes: 0, checks: 0, dependencyChecks: 0, accessPasses: 0 };
@@ -1119,6 +1280,7 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
       }, counters);
     }
     function checkFresh(task, explain = false) {
+      if (!explain) { lastFailedReq = null; lastFailedNeed = null; lastFailedDep = null; }
       if (!explain && staticBlocked.has(task)) return unavailableCheck;
       const { record, category } = task;
       const blockers = explain ? [] : null;
@@ -1194,8 +1356,9 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
         // Any still-missing local condition proves the same boolean rejection,
         // without revisiting earlier successful item/provenance requirements.
         // Raw spatial fields cannot change through Slayer/object publication.
-        if (failed && (failed.raw === cachedAccess.shared || !requirementAvailable(failed.requirement, task))) return unavailableCheck;
-        if (replay.spatialFailures.get(cachedAccess.shared)?.has(task)) return unavailableCheck;
+        if (failed && (failed.raw === cachedAccess.shared || !requirementAvailable(failed.requirement, task))) { lastFailedReq = failed.requirement; return unavailableCheck; }
+        const spatialFailure = replay.spatialFailures.get(cachedAccess.shared)?.get(task);
+        if (spatialFailure) { lastFailedReq = spatialFailure; return unavailableCheck; }
       }
       for (const requirement of task.requirements) if (!requirementAvailable(requirement, task)) {
         add(explain ? requirement.alias && !requirement.alternatives && requirement.clean !== 'Monster[+]' ? 'unsupported' : requirement.field.toLowerCase() : undefined, explain ? `${requirement.field}: ${requirement.displayLabel}${requirement.count > 1 ? ` (need ${requirement.count} distinct alternatives)` : ''}.` : undefined);
@@ -1207,6 +1370,7 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
             if (!failures) replay.spatialFailures.set(raw, failures = new Map());
             failures.set(task, requirement);
           }
+          lastFailedReq = requirement;
           return unavailableCheck;
         }
       }
@@ -1217,6 +1381,7 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
           // The original boolean path visits every declared dependency after
           // local conditions pass, even when training already proves rejection.
           counters.dependencyChecks += task.dependencies.length;
+          lastFailedNeed = failed;
           return unavailableCheck;
         }
         failedTrainingNeeds.delete(task);
@@ -1236,7 +1401,7 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
           add('training', explain ? `${skill} ${required} needs an accessible primary training method or personal level/completion evidence; currently reachable level ${levels[skill] ?? 1}.${disconnectedExplanation()}` : undefined);
         }
       }
-      if (!explain && failedNeed) failedTrainingNeeds.set(task, failedNeed);
+      if (!explain && failedNeed) { failedTrainingNeeds.set(task, failedNeed); lastFailedNeed = failedNeed; }
       for (const dependency of task.dependencies) {
         counters.dependencyChecks++;
         const names = dependency.alternatives ?? [dependency.clean];
@@ -1251,7 +1416,10 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
           if (relaxed.has(raw) || (category === 'Slayer' && cat === 'Quest' ? target && completedTask(target) : valid.has(targetKey))) hits.add(targetKey);
         }
         if (names.every(name => name.split('--')[0] === task.rawLabel && dependency.category === category)) continue;
-        if (hits.size < dependency.count) add(explain ? names.every(name => !byKey.has(keyOf(dependency.category, name.split('--')[0]))) ? 'unsupported' : category === 'Slayer' && dependency.category === 'Quest' ? 'personal-completion' : 'tasks' : undefined, explain ? `Requires ${dependency.displayLabel} (${dependency.category})${category === 'Slayer' && dependency.category === 'Quest' ? ' with personal completion evidence' : ''}.` : undefined);
+        if (hits.size < dependency.count) {
+          if (!explain && !lastFailedDep) lastFailedDep = dependency;
+          add(explain ? names.every(name => !byKey.has(keyOf(dependency.category, name.split('--')[0]))) ? 'unsupported' : category === 'Slayer' && dependency.category === 'Quest' ? 'personal-completion' : 'tasks' : undefined, explain ? `Requires ${dependency.displayLabel} (${dependency.category})${category === 'Slayer' && dependency.category === 'Quest' ? ' with personal completion evidence' : ''}.` : undefined);
+        }
       }
       for (const name of ['QuestPointsNeeded', 'KudosNeeded', 'CombatScoreNeeded', 'TotalLevelNeeded', 'TotalVirtualLevelNeeded']) if (record[name] !== undefined && points[name] < record[name]) add('points', explain ? `${name}: needs ${record[name]}, reachable ${points[name]}.` : undefined);
       if (task.requirementAlternatives.length && !task.requirementAlternatives.some(clause =>
@@ -1272,26 +1440,53 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
       return explain ? blockers : blocked ? unavailableCheck : availableCheck;
     }
     const sourceIndexes = new Map();
-    const sourceKey = source => JSON.stringify([sourceName(source), sourceType(source), source.taskId, source.location, source.rate, source.quantity, JSON.stringify(source.tables)]);
-    function addSource(name, source) {
-      const list = sources.get(name) ?? [];
+    const sameTables = (a, b) => a === b || Array.isArray(a) && Array.isArray(b) && a.length === b.length && a.every((v, i) => v === b[i]);
+    const sourceKey = source => `${sourceName(source)}\0${sourceType(source)}\0${source.taskId ?? ''}\0${source.location ?? ''}\0${source.rate ?? ''}\0${source.quantity ?? ''}\0${source.tables ? source.tables.join('\x01') : ''}`;
+    const matchesSource = (value, source, sName, sType) => sourceName(value) === sName && sourceType(value) === sType
+      && value.taskId === source.taskId && value.location === source.location && value.rate === source.rate && value.quantity === source.quantity
+      && sameTables(value.tables, source.tables);
+    function addSource(name, source, ownOverride, precomputedKey, cloneOnInsert = false) {
+      let list = sources.get(name);
+      if (!list) list = [];
       let index = sourceIndexes.get(name);
       if (!index) {
         index = new Map(); sourceIndexes.set(name, index);
-        for (const value of list) {
-          const key = sourceKey(value), bucket = index.get(key) ?? [];
-          bucket.push(value); index.set(key, bucket);
+        for (let i = 0; i < list.length; i++) {
+          const value = list[i], key = sourceKey(value);
+          const slot = index.get(key);
+          if (slot === undefined) index.set(key, value);
+          else if (Array.isArray(slot)) slot.push(value);
+          else index.set(key, [slot, value]);
         }
       }
-      const key = sourceKey(source), bucket = index.get(key) ?? [];
-      // Keep the original strict predicate: JSON keys can collide for null,
+      const key = precomputedKey ?? sourceKey(source);
+      const slot = index.get(key);
+      // Keep the original strict predicate: string keys can collide for null,
       // undefined or nonfinite quantities, and the first match is authoritative.
-      const existing = bucket.find(value => sourceName(value) === sourceName(source) && sourceType(value) === sourceType(source)
-        && value.taskId === source.taskId && value.location === source.location && value.rate === source.rate && value.quantity === source.quantity
-        && JSON.stringify(value.tables) === JSON.stringify(source.tables));
-      if (!existing) { list.push(source); memo?.invalidate(list); sources.set(name, list); bucket.push(source); index.set(key, bucket); obligationCache.clear(); return true; }
-      if (source.own === true && existing.own !== true) { existing.own = true; memo?.invalidate(list); ownItems.add(name); obligationCache.clear(); return true; }
-      if (source.primary === true && existing.primary !== true) { existing.primary = true; memo?.invalidate(list); obligationCache.clear(); return true; }
+      const sName = sourceName(source), sType = sourceType(source);
+      let existing;
+      if (slot !== undefined) {
+        if (Array.isArray(slot)) {
+          for (let i = 0; i < slot.length; i++) {
+            if (matchesSource(slot[i], source, sName, sType)) { existing = slot[i]; break; }
+          }
+        } else if (matchesSource(slot, source, sName, sType)) {
+          existing = slot;
+        }
+      }
+      const own = ownOverride !== undefined ? ownOverride : source.own;
+      if (!existing) {
+        const record = cloneOnInsert ? { ...source, own } : source;
+        list.push(record); memo?.invalidate(list); sources.set(name, list);
+        if (slot === undefined) index.set(key, record);
+        else if (Array.isArray(slot)) slot.push(record);
+        else index.set(key, [slot, record]);
+        obligationCache.clear();
+        wakeList(itemWatchers, name);
+        return true;
+      }
+      if (own === true && existing.own !== true) { existing.own = true; memo?.invalidate(list); ownItems.add(name); obligationCache.clear(); wakeList(itemWatchers, name); return true; }
+      if (source.primary === true && existing.primary !== true) { existing.primary = true; memo?.invalidate(list); obligationCache.clear(); wakeList(itemWatchers, name); return true; }
       return false;
     }
     function primaryEligible(task, forSelection = false) {
@@ -1401,7 +1596,7 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
     function updateSkills() {
       let changed = false;
       const seed = (skill, own = true, task) => {
-        if (!trained.has(skill)) { if (proof) proof.seed(skill, own, task, proofEnvironment()); trained.add(skill); levels[skill] = caps[skill]; changed = true; }
+        if (!trained.has(skill)) { if (proof) proof.seed(skill, own, task, proofEnvironment()); trained.add(skill); levels[skill] = caps[skill]; wakeList(skillWatchers, skill); changed = true; }
         if (own) ownTraining.add(skill);
         else {
           const locations = task?.requirements.flatMap(requirement => (requirement.alternatives ?? [requirement.clean]).flatMap(name => {
@@ -1452,7 +1647,7 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
       let changed = false;
       for (const [skill, amount] of Object.entries(xp)) if (caps[skill]) {
         const next = Math.min(caps[skill], experienceLevel(amount));
-        if (next > passive[skill]) { passive[skill] = next; if (!trained.has(skill)) levels[skill] = next; changed = true; }
+        if (next > passive[skill]) { passive[skill] = next; if (!trained.has(skill)) { levels[skill] = next; wakeList(skillWatchers, skill); } changed = true; }
       }
       return changed;
     }
@@ -1475,7 +1670,7 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
         counters.passes++; changed = false;
         memo?.nextPass();
         obligationCache.clear();
-        refreshAccess(); counters.accessPasses++;
+        refreshAccess(producedObjects.size > 0); counters.accessPasses++;
         if (refreshBossGates(gateItem)) changed = true;
         restrictGatedBosses(access);
         if (access !== ownAccess) restrictGatedBosses(ownAccess);
@@ -1488,19 +1683,71 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
           access.objects.add(name); access.locations.set(`Object:${name}`, new Set(source.locations));
           if (source.own) { ownAccess.objects.add(name); ownAccess.locations.set(`Object:${name}`, new Set(source.locations.filter(ownLocation))); }
         }
+        syncSpatialWatchers();
         base = collectSources();
         if (!baseUnchanged) {
-          markBaseSources();
-          for (const name of base.items) if (!items.has(name)) { items.add(name); changed = true; }
-          for (const [name, list] of base.sources) for (const source of list) addSource(name, source);
+          const baseFlags = computeBaseOwnership();
+          const sameOwn = cachedAccess.own === lastMergedOwnAccess && previousBaseOwnObjects === lastMergedOwnObjects;
+          const sameProduced = producedObjects.size === lastMergedProducedSize;
+          const canSkipUnchanged = !proof && sameProduced;
+          let baseKeys = previousBaseEntry.sourceKeys;
+          for (const name of base.items) if (!items.has(name)) { items.add(name); wakeList(itemWatchers, name); changed = true; }
+          for (const [name, list] of base.sources) {
+            if (canSkipUnchanged && list.length === lastMergedBaseLen.get(name) && (sameOwn || lastMergedAllOwn.get(name) === true)) continue;
+            const saved = baseFlags?.get(name);
+            let keys = baseKeys?.get(name);
+            if (!keys) {
+              if (!baseKeys) previousBaseEntry.sourceKeys = baseKeys = new Map();
+              keys = new Array(list.length);
+              for (let i = 0; i < list.length; i++) keys[i] = sourceKey(list[i]);
+              baseKeys.set(name, keys);
+            }
+            let allOwn = true;
+            for (let i = 0; i < list.length; i++) {
+              const own = saved ? saved[i] : true;
+              if (!own) allOwn = false;
+              addSource(name, list[i], own, keys[i], true);
+            }
+            lastMergedBaseLen.set(name, list.length);
+            if (allOwn) lastMergedAllOwn.set(name, true);
+            else lastMergedAllOwn.delete(name);
+          }
+          lastMergedOwnAccess = cachedAccess.own;
+          lastMergedOwnObjects = previousBaseOwnObjects;
+          lastMergedProducedSize = producedObjects.size;
         }
         changed = updateSkills() || changed;
         changed = updatePoints() || changed;
-        for (const task of uniqueTaskKeys ? validRows : compiled) if (uniqueTaskKeys || valid.has(task.key)) changed = materialize(task) || changed;
+        for (const task of uniqueTaskKeys ? validRows : compiled) if ((uniqueTaskKeys || valid.has(task.key)) && (task.hasOutputs || !ownTaskKeys.has(task.key))) changed = materialize(task) || changed;
         counters.checks += blockedCheckCount;
-        for (const task of checkableTasks) if ((!discoveryTasks || discoveryTasks.has(task)) && !valid.has(task.key) && (!processingTasks.has(task) || admitted.has(task.id)) && check(task).length === 0) {
-          admitTask(task); changed = true;
-          materialize(task);
+        if (useWatchers) {
+          counters.checks += parkedChecks;
+          counters.dependencyChecks += parkedDepChecks;
+          inScanLoop = true;
+          for (let w = 0; w < activeMask.length; w++) {
+            let word = activeMask[w];
+            while (word !== 0) {
+              const bit = 31 - Math.clz32(word & -word);
+              const order = (w << 5) + bit;
+              currentScanOrder = order;
+              const task = compiled[order];
+              if (check(task).length === 0) {
+                admitTask(task); changed = true;
+                materialize(task);
+              } else {
+                parkFailedTask(task);
+              }
+              word = activeMask[w] & (~0 << (bit + 1));
+              if (bit === 31) break;
+            }
+          }
+          inScanLoop = false;
+          currentScanOrder = -1;
+        } else {
+          for (const task of checkableTasks) if ((!discoveryTasks || discoveryTasks.has(task)) && !valid.has(task.key) && (!processingTasks.has(task) || admitted.has(task.id)) && check(task).length === 0) {
+            admitTask(task); changed = true;
+            materialize(task);
+          }
         }
         for (const task of multiRows) if (!valid.has(task.key) && check(task).length === 0) changed = materialize(task, true) || changed;
         if (discoveryExpanded) { changed = true; discoveryExpanded = false; }
@@ -1538,6 +1785,9 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
       const continuation = yield processing;
       if (!continuation) break;
       admitted = continuation.admitted;
+      if (useWatchers) for (const task of processingTasks) {
+        if (admitted.has(task.id) && !parkedState[task.order] && isTaskEligible(task)) setActive(task.order);
+      }
     }
     let disconnectedDetail;
     function disconnectedExplanationValue() {
@@ -1554,6 +1804,10 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
       smithingPrimary = on(rules, 'Smithing by Smelting', false) || access.objects.has('Anvil') || access.objects.has('Rusted anvil');
     // How consumes only the subject's status after the complete capability
     // replay. Other rows' display/source projections cannot change its proof.
+    const nonOwnItems = new Set();
+    for (const [name, list] of sources) {
+      for (let i = 0; i < list.length; i++) if (list[i].own !== true) { nonOwnItems.add(name); break; }
+    }
     const proofSubject = howRequest?.closure && compiled.find(task => task.id === howRequest.taskId);
     const rows = (proofSubject ? [proofSubject] : compiled).map(task => {
       const blockers = valid.has(task.key) ? membershipByTask.get(task).slice() : check(task, true);
@@ -1607,16 +1861,21 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
       for (const [skill, level] of task.presentationNeeds) if (level > passive[skill] && trained.has(skill) && !ownTraining.has(skill)) {
         partnerTraining.push(`${skill} training available via ${[...(trainingVia.get(skill) ?? [])].join(' and ')}'s connected chunks.`);
       }
-      for (const requirement of task.itemRequirements) if (!ownRequirement(requirement, task, new Set(), false) && requirementAvailable(requirement, task)) {
-        partnerSupplies.push(`${requirement.displayLabel} comes from ${sharedOwner} connected chunks.`);
-        // Share the proof already used above. An alias counts distinct choices,
-        // never units; consumers need not recalculate task source policies.
+      if (nonOwnItems.size) for (const requirement of task.itemRequirements) {
         const names = requirement.alternatives ?? [requirement.clean];
-        const needed = names.filter(name => hasItem(name, record, task.category) && !hasItem(name, record, task.category, true));
-        partnerItemNeeds.push({ requirement: requirement.displayLabel, count: requirement.count,
-          ownCount: names.filter(name => hasItem(name, record, task.category, true)).length,
-          items: needed, sources: Object.fromEntries(needed.map(name => [name, sourceList(name)
-            .filter(source => source.own === false && source.processingMode !== 'multi' && matchesItemSources([source], record, task.category, name))])) });
+        let maybeNonOwn = false;
+        for (let i = 0; i < names.length; i++) if (nonOwnItems.has(names[i])) { maybeNonOwn = true; break; }
+        if (!maybeNonOwn) continue;
+        if (!ownRequirement(requirement, task, undefined, false) && requirementAvailable(requirement, task)) {
+          partnerSupplies.push(`${requirement.displayLabel} comes from ${sharedOwner} connected chunks.`);
+          // Share the proof already used above. An alias counts distinct choices,
+          // never units; consumers need not recalculate task source policies.
+          const needed = names.filter(name => hasItem(name, record, task.category) && !hasItem(name, record, task.category, true));
+          partnerItemNeeds.push({ requirement: requirement.displayLabel, count: requirement.count,
+            ownCount: names.filter(name => hasItem(name, record, task.category, true)).length,
+            items: needed, sources: Object.fromEntries(needed.map(name => [name, sourceList(name)
+              .filter(source => source.own === false && source.processingMode !== 'multi' && matchesItemSources([source], record, task.category, name))])) });
+        }
       }
       const explanation = blockers.length ? blockers.map(value => value.detail).join(' ') : taskSources.length ? 'You can reach the required locations, item sources, prerequisite tasks and training methods.' : completed.has(task.id) ? 'You recorded completing this task in-game.' : 'All listed requirements are met.';
       const sourceEligible = !processingTasks.has(task) || admitted.has(task.id) || completedTask(task);
@@ -1872,6 +2131,10 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
   return Object.freeze({ catalogue, prepare: prepareEvaluation, evaluate, how,
     accessIndex: () => accessIndex,
     retentionVersion: () => `${evaluationPrepared}:${!!accessIndex}:${accessRetentionVersion(definitions)}`,
+    retentionState: () => {
+      const access = accessRetentionState(definitions);
+      return { structural: `${evaluationPrepared}:${!!accessIndex}:${access.ready}`, parsedRatesBytes: access.parsedRatesBytes };
+    },
     retentionRoots: () => [definitions, accessBranches, accessIndex, entrances, compiled, byKey, byId, compileDiagnostics,
       usefulGates, nexusDestinations, slayerGates, slayerEntranceTasks, catalogue, processingSetFields, emptyProcessingAccess,
       outputGates, producers, declaredOutputRoots, processingTasks, recipeIds, processingBoostFields,

@@ -38,6 +38,13 @@ export function copyAccess(access) {
   return copy;
 }
 
+export function copyMutableAccess(access, copyLocations = false) {
+  const copy = { ...access, monsters: new Set(access.monsters), objects: new Set(access.objects), diagnostics: [...access.diagnostics],
+    ...(copyLocations ? { locations: new Map(access.locations) } : {}) };
+  if (accessDetails.has(access)) accessDetails.set(copy, accessDetails.get(access));
+  return copy;
+}
+
 function decodeProfile(value) {
   if (Array.isArray(value)) return value.map(decodeProfile);
   if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([key, child]) => [decodeLegacyText(key).replace(/^\*fb\*_/, ''), decodeProfile(child)]));
@@ -715,11 +722,17 @@ function compileItems(definitions) {
     gates.get(item).push({ source, ...split });
   }
   const parsedRates = new Map();
+  let parsedRatesBytes = 0;
   const parseRate = raw => {
-    if (!parsedRates.has(raw)) parsedRates.set(raw, parseDropRate(raw));
-    return parsedRates.get(raw);
+    let value = parsedRates.get(raw);
+    if (value === undefined && !parsedRates.has(raw)) {
+      value = parseDropRate(raw);
+      parsedRates.set(raw, value);
+      parsedRatesBytes += 64 + (typeof raw === 'string' ? 32 + 2 * raw.length : 0);
+    }
+    return value;
   };
-  const index = { gates, tables: definitions.codeItems?.dropTables ?? {}, parseRate, parsedRates };
+  const index = { gates, tables: definitions.codeItems?.dropTables ?? {}, parseRate, parsedRates, get parsedRatesBytes() { return parsedRatesBytes; } };
   itemCache.set(definitions, index);
   return index;
 }
@@ -727,24 +740,35 @@ function compileItems(definitions) {
 // Explicitly expose data held by the WeakMap while its definitions are live.
 export const accessRetentionRoots = definitions => itemCache.get(definitions);
 export const accessRetentionVersion = definitions => itemCache.has(definitions) ? itemCache.get(definitions).parsedRates.size : -1;
+export const accessRetentionState = definitions => {
+  const cached = itemCache.get(definitions);
+  return cached ? { ready: true, parsedRatesBytes: cached.parsedRatesBytes } : { ready: false, parsedRatesBytes: 0 };
+};
 export const releaseAccessRetention = definitions => itemCache.delete(definitions);
 
 /** Spawn, shop and monster sources only; crafting belongs to the task engine. */
 /** Exact resource inputs read by the base collector, excluding task gates and
  * fixed definition/rule inputs. Keep iteration order and private per-location
  * spawn quantities: equal aggregate spawns alone do not imply equal sources. */
-export function baseItemSourceView(access) {
+export function baseItemSourceView(access, definitions) {
   const quantity = value => typeof value === 'number' ? ['number', String(value)]
     : value === undefined ? ['undefined'] : ['value', value];
   const locations = (kind, name) => [...(access.locations.get(`${kind}:${name}`) ?? [])];
+  const drops = definitions?.drops, objectItems = definitions?.objectItems;
+  const monsters = drops ? [...access.monsters].filter(name => drops[name]) : [...access.monsters];
+  const objects = objectItems ? [...access.objects].filter(name => objectItems[name]) : [...access.objects];
   return JSON.stringify([
     [...access.bases], [...access.sections], [...access.areas], access.backloggedSources,
     [...access.spawns].map(([name, amount]) => [name, locations('Spawn', name).map(location => [location,
       quantity(accessDetails.get(access)?.spawnQuantities.get(`${name}\u0000${location}`) ?? amount)])]),
-    ...[['Shop', access.shops], ['Monster', access.monsters], ['Object', access.objects]]
-      .map(([kind, names]) => [...names].map(name => [name, locations(kind, name)])),
+    [...access.shops].map(name => [name, locations('Shop', name)]),
+    monsters.map(name => [name, locations('Monster', name)]),
+    objects.map(name => [name, locations('Object', name)]),
   ]);
 }
+
+const BACKLOG_KIND_BY_REASON = { drop: 'monsters', object: 'objects', shop: 'shops', spawn: 'spawns' };
+const MEMBERSHIP_KIND_BY_REASON = { drop: 'Monster', object: 'Object', shop: 'Shop' };
 
 export function collectBaseItemSources(definitions, access, { rules = {}, validTasks = new Set(), expansionCache, membershipChecks, proof } = {}) {
   const sourceMembershipBlocker = membershipChecks?.source ?? evaluateSourceMembership;
@@ -755,53 +779,81 @@ export function collectBaseItemSources(definitions, access, { rules = {}, validT
   const { gates, tables, parseRate } = compileItems(definitions);
   const cutoffCache = new Map();
   const backloggedSources = access.backloggedSources ?? normalizedBacklogs(rules.backloggedSources);
+  const hasBacklogs = Boolean(
+    backloggedSources && (
+      Object.keys(backloggedSources.items ?? {}).length
+      || Object.keys(backloggedSources.monsters ?? {}).length
+      || Object.keys(backloggedSources.objects ?? {}).length
+      || Object.keys(backloggedSources.shops ?? {}).length
+      || Object.keys(backloggedSources.spawns ?? {}).length
+    )
+  );
+  const f2p = rules.F2P ?? true;
+  const checkRareDrop = rules['Rare Drop'] === false;
+  const effigiesEnabled = taskRuleEnabled(rules, ANCIENT_EFFIGIES_RULE);
   const add = (item, reason) => {
-    const disabled = activityTimingSourceRules(item, reason.source).filter(rule => !taskRuleEnabled(rules, rule));
-    if (disabled.length) {
-      diagnostic(result.diagnostics, 'activity-rule-disabled', { item, source: reason.source, rules: disabled,
-        detail: `Turned off in Rules: ${disabled.join(', ')}.` });
-      return;
-    }
-    const sourceKind = { drop: 'monsters', object: 'objects', shop: 'shops', spawn: 'spawns' }[reason.kind];
-    if (backloggedSources.items?.[item] || backloggedSources[sourceKind]?.[reason.source]) {
-      diagnostic(result.diagnostics, 'source-backlogged', { item, source: reason.source, kind: reason.kind });
-      return;
-    }
-    const f2p = rules.F2P ?? true;
-    const membershipKind = { drop: 'Monster', object: 'Object', shop: 'Shop' }[reason.kind];
-    const membership = (membershipKind && accessSourceBlocker(membershipKind, reason.source, reason.location, f2p))
-      || (reason.kind === 'shop' && (membershipSourceBlocker('ShopItem', item, reason.source, f2p)
-        ?? sourceMembershipBlocker('ShopItem', item, f2p, reason.source)))
-      || [...(reason.kind === 'drop' ? [reason.source] : []), ...(reason.tables ?? [])]
-        .map(source => sourceMembershipBlocker('DropItem', item, f2p, source)).find(Boolean);
-    if (membership) {
-      diagnostic(result.diagnostics, 'members-only-source', { item, source: reason.source, kind: reason.kind,
-        location: reason.location, detail: membership.detail, evidence: membership.evidence, verifiedOn: membership.verifiedOn });
-      return;
-    }
-    const itemMembership = itemMembershipBlocker(item, f2p, definitions);
-    if (itemMembership) {
-      diagnostic(result.diagnostics, itemMembership.code, { ...itemMembership, source: reason.source,
-        sourceKind: reason.kind, location: reason.location });
-      return;
-    }
-    for (const gate of gates.get(item) ?? []) {
-      const selector = gate.source;
-      const suffix = selector?.endsWith('-source') ? '-source' : selector?.endsWith('-npc') ? '-npc' : null;
-      const applies = selector === undefined || selector === '' || selector === reason.source || (suffix && reason.source.toLowerCase().includes(selector.slice(0, -suffix.length).toLowerCase()));
-      if (applies && gate.effigies && !taskRuleEnabled(rules, ANCIENT_EFFIGIES_RULE)) {
-        diagnostic(result.diagnostics, 'item-rule-disabled', { item, source: reason.source, rule: ANCIENT_EFFIGIES_RULE,
-          detail: `Turned off in Rules: ${ANCIENT_EFFIGIES_RULE}.` });
+    const timingRules = activityTimingSourceRules(item, reason.source);
+    if (timingRules.length) {
+      const disabled = timingRules.filter(rule => !taskRuleEnabled(rules, rule));
+      if (disabled.length) {
+        diagnostic(result.diagnostics, 'activity-rule-disabled', { item, source: reason.source, rules: disabled,
+          detail: `Turned off in Rules: ${disabled.join(', ')}.` });
         return;
       }
-      if (applies && !taskRequirements(gate.gate, validTasks, result.diagnostics, { item, source: reason.source })) return;
     }
-    if (rules['Rare Drop'] === false && reason.kind === 'drop') {
-      if (!cutoffCache.has(reason.probability)) cutoffCache.set(reason.probability, passesRateCutoff(reason.probability, rules));
-      if (!cutoffCache.get(reason.probability)) return;
+    if (hasBacklogs) {
+      const sourceKind = BACKLOG_KIND_BY_REASON[reason.kind];
+      if (backloggedSources.items?.[item] || backloggedSources[sourceKind]?.[reason.source]) {
+        diagnostic(result.diagnostics, 'source-backlogged', { item, source: reason.source, kind: reason.kind });
+        return;
+      }
+    }
+    if (f2p) {
+      const membershipKind = MEMBERSHIP_KIND_BY_REASON[reason.kind];
+      let membership = (membershipKind && accessSourceBlocker(membershipKind, reason.source, reason.location, f2p))
+        || (reason.kind === 'shop' && (membershipSourceBlocker('ShopItem', item, reason.source, f2p)
+          ?? sourceMembershipBlocker('ShopItem', item, f2p, reason.source)));
+      if (!membership && reason.kind === 'drop') membership = sourceMembershipBlocker('DropItem', item, f2p, reason.source);
+      if (!membership && reason.tables) {
+        for (let i = 0; i < reason.tables.length; i++) {
+          membership = sourceMembershipBlocker('DropItem', item, f2p, reason.tables[i]);
+          if (membership) break;
+        }
+      }
+      if (membership) {
+        diagnostic(result.diagnostics, 'members-only-source', { item, source: reason.source, kind: reason.kind,
+          location: reason.location, detail: membership.detail, evidence: membership.evidence, verifiedOn: membership.verifiedOn });
+        return;
+      }
+      const itemMembership = itemMembershipBlocker(item, f2p, definitions);
+      if (itemMembership) {
+        diagnostic(result.diagnostics, itemMembership.code, { ...itemMembership, source: reason.source,
+          sourceKind: reason.kind, location: reason.location });
+        return;
+      }
+    }
+    const itemGates = gates.get(item);
+    if (itemGates) {
+      for (let i = 0; i < itemGates.length; i++) {
+        const gate = itemGates[i];
+        const selector = gate.source;
+        const suffix = selector?.endsWith('-source') ? '-source' : selector?.endsWith('-npc') ? '-npc' : null;
+        const applies = selector === undefined || selector === '' || selector === reason.source || (suffix && reason.source.toLowerCase().includes(selector.slice(0, -suffix.length).toLowerCase()));
+        if (applies && gate.effigies && !effigiesEnabled) {
+          diagnostic(result.diagnostics, 'item-rule-disabled', { item, source: reason.source, rule: ANCIENT_EFFIGIES_RULE,
+            detail: `Turned off in Rules: ${ANCIENT_EFFIGIES_RULE}.` });
+          return;
+        }
+        if (applies && !taskRequirements(gate.gate, validTasks, result.diagnostics, { item, source: reason.source })) return;
+      }
+    }
+    if (checkRareDrop && reason.kind === 'drop') {
+      let allowed = cutoffCache.get(reason.probability);
+      if (allowed === undefined) { allowed = passesRateCutoff(reason.probability, rules); cutoffCache.set(reason.probability, allowed); }
+      if (!allowed) return;
     }
     if (proof) {
-      const requirements = (gates.get(item) ?? []).filter(gate => {
+      const requirements = (itemGates ?? []).filter(gate => {
         const selector = gate.source, suffix = selector?.endsWith('-source') ? '-source' : selector?.endsWith('-npc') ? '-npc' : null;
         return selector === undefined || selector === '' || selector === reason.source || suffix && reason.source.toLowerCase().includes(selector.slice(0, -suffix.length).toLowerCase());
       }).map(gate => gate.gate);
@@ -810,8 +862,9 @@ export function collectBaseItemSources(definitions, access, { rules = {}, validT
       proof.source(item, reason, requirements);
     }
     result.items.add(item);
-    if (!result.sources.has(item)) result.sources.set(item, []);
-    result.sources.get(item).push(reason);
+    let list = result.sources.get(item);
+    if (!list) { list = []; result.sources.set(item, list); }
+    list.push(reason);
   };
   for (const [item, quantity] of access.spawns) for (const location of access.locations.get(`Spawn:${item}`) ?? []) add(item, { kind: 'spawn', source: location, location, quantity: accessDetails.get(access)?.spawnQuantities.get(`${item}\u0000${location}`) ?? quantity });
   for (const shop of access.shops) {
@@ -848,63 +901,84 @@ export function collectBaseItemSources(definitions, access, { rules = {}, validT
     // A literal leaf already needs only admission and one source record.
     // Memoize table traversal without wrapping ordinary drops in replay events.
     if (expansionCache && !path.length && cacheRoot && has(tables, item)) {
-      const key = JSON.stringify([item, typeof quantity, quantity, typeof rate, rate, reason.kind, reason.source, reason.location]);
-      const entries = expansionCache.get(key) ?? [];
-      let entry = entries.find(entry => entry.quantity === quantity && entry.rate === rate
-        && [...entry.reads].every(([key, present]) => validTasks.has(key) === present));
+      const key = `${item}\0${typeof quantity}:${quantity}\0${typeof rate}:${rate}\0${reason.kind}\0${reason.source}\0${reason.location}`;
+      let list = expansionCache.get(key);
+      let entry = list?.find(entry => entry.quantity === quantity && entry.rate === rate
+        && (entry.reads.size === 0 || [...entry.reads].every(([key, present]) => validTasks.has(key) === present)));
       if (!entry) {
         expansionEvents = []; expansionReads = new Map();
         flatten(item, quantity, rate, reason, path, combined, false);
         entry = { quantity, rate, events: expansionEvents, reads: expansionReads };
-        entries.push(entry); expansionCache.set(key, entries);
+        if (!list) { list = []; expansionCache.set(key, list); }
+        list.push(entry);
         expansionEvents = undefined; expansionReads = undefined;
       }
       // Expansion only memoizes arithmetic and table traversal. Admission and
       // its diagnostics still run against today's task gates/source rules, in
       // the original candidate/diagnostic order, with fresh mutable reasons.
-      for (const event of entry.events) {
+      for (let i = 0; i < entry.events.length; i++) {
+        const event = entry.events[i];
         if (event.item !== undefined) add(event.item, { ...event.reason });
         else diagnostic(result.diagnostics, event.code, event.detail);
       }
       return;
     }
     if (!has(tables, item)) {
-      if (/DropTable/.test(item)) { expansionDiagnostic('missing-drop-table', { source: reason.source, table: item }); return; }
+      if (item.includes('DropTable')) { expansionDiagnostic('missing-drop-table', { source: reason.source, table: item }); return; }
       publishExpansion(item, { ...reason, quantity, rate, probability: combined, ...rateEvidence(rate, combined), ...(path.length ? { tables: path } : {}) }); return;
     }
     if (path.includes(item)) { expansionDiagnostic('drop-table-cycle', { source: reason.source, table: item, path }); return; }
-    if (['RareDropTable+', 'GemDropTable+', 'GemDropTableLegends+', 'WildernessDropTable+'].includes(item) && rules.RDT === false) return;
+    if ((item === 'RareDropTable+' || item === 'GemDropTable+' || item === 'GemDropTableLegends+' || item === 'WildernessDropTable+') && rules.RDT === false) return;
     if (item === 'GemDropTableLegends+' && !expansionTask("Quest\u0000~|Legends' Quest|~ Complete the quest")) return;
-    for (const [child, value] of entries(tables[item])) {
+    const table = tables[item];
+    if (table && typeof table === 'object') for (const child of Object.keys(table)) {
+      const value = table[child];
       if (typeof value === 'string') {
-        const [childRate, childQuantity = '1'] = value.split('@');
+        const at = value.indexOf('@');
+        const childRate = at === -1 ? value : value.slice(0, at);
+        const childQuantity = at === -1 ? '1' : value.slice(at + 1);
         flatten(child, multipliedQuantity(quantity, childQuantity), `${rate} × ${childRate}`, reason, [...path, item], composeDropRates(combined, parseRate(childRate)));
       } else if (value && typeof value === 'object') {
-        for (const [childQuantity, childRate] of entries(value)) flatten(child, multipliedQuantity(quantity, childQuantity), `${rate} × ${childRate}`, reason, [...path, item], composeDropRates(combined, parseRate(childRate)));
+        for (const childQuantity of Object.keys(value)) flatten(child, multipliedQuantity(quantity, childQuantity), `${rate} × ${value[childQuantity]}`, reason, [...path, item], composeDropRates(combined, parseRate(value[childQuantity])));
       } else expansionDiagnostic('unsupported-drop-record', { source: reason.source, table: item, item: child });
     }
   };
   if (rules.Skiller !== true) for (const monster of access.monsters) {
     if (rules.Boss === false && has(definitions.codeItems?.bossMonsters, monster)) continue;
-    if (!definitions.drops?.[monster]) continue; // No-drop monsters are legitimate.
-    for (const location of access.locations.get(`Monster:${monster}`) ?? []) for (const [item, quantities] of entries(definitions.drops[monster])) {
-      for (const [quantity, rate] of entries(quantities)) flatten(item, quantity, rate, { kind: 'drop', source: monster, location });
+    const monsterDrops = definitions.drops?.[monster];
+    if (!monsterDrops) continue; // No-drop monsters are legitimate.
+    const locs = access.locations.get(`Monster:${monster}`);
+    if (!locs) continue;
+    for (const location of locs) for (const item of Object.keys(monsterDrops)) {
+      const quantities = monsterDrops[item];
+      if (!quantities || typeof quantities !== 'object') continue;
+      for (const quantity of Object.keys(quantities)) flatten(item, quantity, quantities[quantity], { kind: 'drop', source: monster, location });
     }
   }
-  for (const object of access.objects) for (const location of access.locations.get(`Object:${object}`) ?? []) {
-    for (const [item, yields] of entries(definitions.objectItems?.[object])) {
-      const reason = { kind: 'object', source: object, location };
-      if (yields === false) continue;
-      if (yields === true || typeof yields === 'number') add(item, { ...reason, quantity: yields === true ? 1 : yields });
-      else if (typeof yields === 'string') {
-        const [rate, quantity = '1'] = yields.split('@');
-        flatten(item, quantity, rate, reason);
-      } else if (yields && typeof yields === 'object') {
-        for (const [quantity, rate] of entries(yields)) {
-          if (typeof rate === 'string') flatten(item, quantity, rate, reason);
-          else diagnostic(result.diagnostics, 'unsupported-object-yield', { source: object, item, condition: quantity });
-        }
-      } else diagnostic(result.diagnostics, 'unsupported-object-yield', { source: object, item });
+  for (const object of access.objects) {
+    const objItems = definitions.objectItems?.[object];
+    if (!objItems) continue;
+    const locs = access.locations.get(`Object:${object}`);
+    if (!locs) continue;
+    for (const location of locs) {
+      for (const item of Object.keys(objItems)) {
+        const yields = objItems[item];
+        const reason = { kind: 'object', source: object, location };
+        if (yields === false) continue;
+        if (yields === true || typeof yields === 'number') add(item, { ...reason, quantity: yields === true ? 1 : yields });
+        else if (typeof yields === 'string') {
+          const at = yields.indexOf('@');
+          const rate = at === -1 ? yields : yields.slice(0, at);
+          const quantity = at === -1 ? '1' : yields.slice(at + 1);
+          flatten(item, quantity, rate, reason);
+        } else if (yields && typeof yields === 'object') {
+          for (const quantity of Object.keys(yields)) {
+            const rate = yields[quantity];
+            if (typeof rate === 'string') flatten(item, quantity, rate, reason);
+            else diagnostic(result.diagnostics, 'unsupported-object-yield', { source: object, item, condition: quantity });
+          }
+        } else diagnostic(result.diagnostics, 'unsupported-object-yield', { source: object, item });
+      }
     }
   }
   return result;
