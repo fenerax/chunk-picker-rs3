@@ -28,7 +28,7 @@ function receipts() {
 async function fixture(t, { coldStartsGlobal = 4, maxOpenContexts = 8, observeAdmission = () => {} } = {}) {
   const root = await mkdtemp(path.join(tmpdir(), 'parallel-picker-'));
   const events = receipts(), gates = [], owners = new Set(), calls = [], contexts = [];
-  const factories = new Map(), preparations = new Map(), closes = new Map(), pickers = new Map(), deletions = new Map();
+  const factories = new Map(), preparations = new Map(), closes = new Map(), revocations = new Map(), pickers = new Map(), deletions = new Map();
   const timers = new Map(); let timerId = 0;
   const clock = {
     setTimeout(callback) { const id = ++timerId; timers.set(id, callback); return id; },
@@ -91,7 +91,12 @@ async function fixture(t, { coldStartsGlobal = 4, maxOpenContexts = 8, observeAd
           })();
         },
         fenceDeletion() { assert.equal(closing, undefined, 'closed sidecars cannot be fenced again'); fenced = true; },
-        fenceRevokedSessions() {}, async revokeDeletion() { assert.equal(closing, undefined, 'closed sidecars cannot be revoked again'); fenced = true; },
+        fenceRevokedSessions() {},
+        async revokeDeletion() {
+          assert.equal(closing, undefined, 'closed sidecars cannot be revoked again');
+          fenced = true; events.push({ event: 'revoke-context', pickerId: id });
+          await revocations.get(id)?.promise;
+        },
         close() {
           if (closing) return closing;
           fenced = true;
@@ -116,7 +121,7 @@ async function fixture(t, { coldStartsGlobal = 4, maxOpenContexts = 8, observeAd
   function defer() { const gate = Promise.withResolvers(); gates.push(gate); return gate; }
   function hold(phase, id) {
     const gate = defer();
-    ({ factory: factories, prepare: preparations, close: closes })[phase].set(id, gate); return gate;
+    ({ factory: factories, prepare: preparations, close: closes, revoke: revocations })[phase].set(id, gate); return gate;
   }
   function send(id, { account = id, route = '/api/state', body } = {}) {
     if (!pickers.has(id)) pickers.set(id, { id, kind: 'default', ownerAccountId: account, lifecycle: 'active', provisioning: 'ready' });
@@ -518,4 +523,80 @@ test('shutdown cancels shared waiters and drains all late factories and closes b
   assert.deepEqual(f.calls, ['a', 'b']);
   assert.equal(f.events.rows.filter(row => row.event === 'closed').length, 2);
   assert.equal(f.events.rows.filter(row => row.event === 'released').length, 3);
+});
+
+for (const phase of ['published', 'opening']) test(`failed revokeDeletion still closes context on shutdown without advancing deletion (${phase})`, async t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const f = await fixture(t);
+  await mkdir(f.registry.pickerDirectory('a'));
+  assert.equal((await f.send('a').done).status, 200);
+  const review = await f.send('a', { route: '/api/deletion?kind=picker&picker=a' }).done;
+  const { reviewToken } = JSON.parse(review.text);
+  let factory, pendingOpen;
+  if (phase === 'opening') {
+    t.mock.timers.tick(600000); await f.wait('closed', 'a');
+    f.events.rows.length = 0;
+    factory = f.hold('factory', 'a');
+    pendingOpen = f.send('a'); await f.wait('factory', 'a');
+  }
+  const revoke = f.hold('revoke', 'a');
+  f.deletions.set('del-fail-' + phase, { id: 'del-fail-' + phase, kind: 'picker', targets: [{ pickerId: 'a', characterId: 'a', memberId: 'owner' }], groups: ['a'], completedAt: null });
+  const deletion = f.send('a', { route: '/api/deletion?kind=picker&picker=a', body: { requestId: 'del-fail-' + phase, reviewToken, confirmed: true, finalGroupConfirmed: true } });
+  await f.wait('tombstone', 'a');
+  factory?.resolve();
+  await f.wait('revoke-context', 'a');
+  revoke.reject(new Error('Synthetic revoke failure'));
+  assert.equal((await deletion.done).status, 503);
+  if (pendingOpen) assert.equal((await pendingOpen.done).status, 403);
+  assert.equal(f.events.rows.some(row => row.event === 'revoked' && row.pickerId === 'a'), false, 'failed revocation cannot advance tombstone past revoked');
+  await f.router.close();
+  assert.equal(f.owners.has('a'), false, 'router shutdown still closes context and releases writer lock');
+  assert.equal(f.events.rows.some(row => row.event === 'closed' && row.pickerId === 'a'), true);
+});
+
+test('detaching a cold waiter on a published deleting entry preserves sidecar revocation', async t => {
+  const f = await fixture(t), gate = f.defer(), captured = f.defer(), reconcileGate = f.defer(), reconcileEntered = f.defer(), original = f.router.checkpoint.open;
+  let opens = 0, checkpoint;
+  f.router.checkpoint.open = (id, work) => {
+    if (id === 'a' && ++opens === 3) checkpoint = withDirectoryBarriers([f.registry.pickerDirectory(id)], async () => {
+      captured.resolve(); await gate.promise;
+    });
+    return original(id, work);
+  };
+  const origReconcile = f.registry.reconcileTombstones;
+  f.registry.reconcileTombstones = async (...args) => {
+    reconcileEntered.resolve(); await reconcileGate.promise;
+    return origReconcile.apply(f.registry, args);
+  };
+  await mkdir(f.registry.pickerDirectory('a'));
+  const a = f.send('a'); await captured.promise;
+  // Mark 'a' deleting and enter purge() -> fencePicker('a') sets entry.deleting = true
+  // before reconcileTombstones calls drainPicker('a', 'revoke').
+  await f.registry.beginCharacterDeletion('a', { pickerId: 'a', requestId: 'del-pin', kind: 'picker', receiptProof: '0'.repeat(64) });
+  const recovering = f.router.deletion.recover();
+  await reconcileEntered.promise;
+  // Waiter disconnects while entry is published and deleting; detach must not close it before revoke.
+  a.disconnect(); await a.done;
+  assert.equal(f.events.rows.some(row => row.event === 'close' && row.pickerId === 'a'), false);
+  gate.resolve(); await checkpoint;
+  reconcileGate.resolve(); await recovering;
+  assert.equal(f.events.rows.some(row => row.event === 'revoke-context' && row.pickerId === 'a'), true);
+  assert.equal(f.owners.has('a'), false);
+});
+
+test('cancelling a retry against a published idle close does not pin global cold permits to that close', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const f = await fixture(t, { coldStartsGlobal: 1 }), close = f.hold('close', 'a');
+  assert.equal((await f.send('a').done).status, 200);
+  t.mock.timers.tick(600000); await f.wait('close', 'a');
+  const blocked = f.send('a', { account: 'synthetic-retry' });
+  const started = await f.events.wait(row => row.event === 'started' && row.pickerId === 'a' && row.admissionId > 1);
+  f.expire(started.admissionId);
+  assert.equal((await blocked.done).status, 503);
+  await f.events.wait(row => row.event === 'released' && row.admissionId === started.admissionId);
+  // Global cold permit is free immediately even though 'a' is still draining its idle close.
+  assert.equal((await f.send('b').done).status, 200);
+  assert.equal(f.owners.has('a'), true);
+  close.resolve(); await f.wait('closed', 'a');
+  assert.equal(f.owners.has('a'), false);
 });

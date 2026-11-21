@@ -62,7 +62,7 @@ export function createPickerRouter({ registry, legacy, openContext, publicOrigin
         entry.deleting = true; clearTimeout(entry.timer);
         // An opening owns its directory until the factory and late close drain.
         // It must not race deletion's sidecar revocation or directory removal.
-        if (!entry.published) return evict(entry);
+        if (!entry.published) return evict(entry).then(() => entry.revoking);
         if (entry.closing) return;
         return entry.revoking ??= entry.context.revokeDeletion();
       }
@@ -99,7 +99,9 @@ export function createPickerRouter({ registry, legacy, openContext, publicOrigin
   }
   async function closeContext(entry) {
     entry.closing = true;
-    await entry.revoking;
+    // Wait for any in-flight sidecar revocation to settle without letting a
+    // revocation failure skip context.close() and leak store.lock through shutdown.
+    await entry.revoking?.catch(() => {});
     // Keep even a failed close fenced. Only a fully drained context may give up
     // residency/storage ownership. All callers share this one close operation.
     if (entry.context) await (entry.contextClose ??= entry.context.close());
@@ -189,9 +191,10 @@ export function createPickerRouter({ registry, legacy, openContext, publicOrigin
       if (waiters.get(id) === group) waiters.delete(id);
       const entry = entries.get(id);
       if (!entry || entry.active) return;
-      // Publication already made this a usable resident. A disconnect during
-      // the handoff can leave it idle, just as a completed warm request does.
-      if (available(entry)) { idle(entry); return; }
+      // Publication already made this a resident (usable, or already owned by
+      // its own eviction/deletion drain). Only unpublished openings are evicted
+      // when their last waiter detaches.
+      if (entry.published) { if (available(entry)) idle(entry); return; }
       // Once abandoned, fence the generation until its late factory and close
       // finish; a retry cannot attach to a context already being torn down.
       return evict(entry);
