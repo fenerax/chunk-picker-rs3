@@ -956,3 +956,22 @@ test('base source merge preserves replaced gathering locations when a produced o
   assert.equal(row(result, 'Extra', 'Use relic').status, 'available');
   assert.deepEqual(output(result, 'Shrine relic').sources.map(source => source.location).sort(), ['1', '2']);
 });
+
+test('reuseEligibility false skips warm-start closure seeds for cold reference evaluations', () => {
+  const data = fixture({
+    Crafting: {
+      Step1: recipe(1, ['Raw'], 'Mid1'),
+      Step2: recipe(1, ['Mid1'], 'Mid2'),
+      Step3: recipe(1, ['Mid2'], 'Final'),
+    },
+  }, { Raw: 1 }, { chunks: { '1': { Spawn: { Raw: 1 } }, '2': { Connect: { '1': true } } }, walkableChunksF2P: ['1', '2'] });
+  const engine = createTaskEngine(data, { metadataCorrections: false, equipmentCorrections: false, cacheWalking: false, incrementalUnlocks: false });
+  const first = engine.evaluate(saved({ 'Multi Step Processing': true }, { unlocked: ['1'] }), 'a');
+  assert.ok(first.metrics.processingPasses > 1);
+  // Cold reference call on a closely related state must not reuse the cached closure seed.
+  const cold = engine.evaluate(saved({ 'Multi Step Processing': true }, { unlocked: ['1', '2'] }), 'a', { reuseEligibility: false });
+  assert.equal(cold.metrics.processingPasses, first.metrics.processingPasses);
+  // Normal call still reuses the warm-start closure seed in a single speculative pass.
+  const warm = engine.evaluate(saved({ 'Multi Step Processing': true }, { unlocked: ['1', '2'] }), 'a');
+  assert.equal(warm.metrics.processingPasses, 1);
+});

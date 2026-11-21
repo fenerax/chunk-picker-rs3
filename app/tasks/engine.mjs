@@ -489,11 +489,14 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
       task.hasOutputs = Boolean(task.record.Output || task.record['Output Object'] || task.record.Reward);
       const itemBlockers = taskItemMembershipBlockers(task.record, task.category, definitions, task.rawLabel, itemBlockerFor, membershipOutputRoots);
       const source = evaluateSourceMembership('Task', task.rawLabel, true, task.category);
+      const area = task.record.UnlocksArea ? evaluateSourceMembership('Area', task.rawLabel, true) : null;
       task.membershipBlockers = [...itemBlockers,
         ...sourceMembershipRequiredItems(task.category, task.rawLabel, task.record, true)
           .map(itemBlockerFor).filter(Boolean),
         ...(source ? [{ kind: 'membership', code: source.code ?? 'members-only-method', detail: source.detail,
-          evidence: source.evidence, ...(source.item ? { item: source.item } : {}) }] : [])];
+          evidence: source.evidence, ...(source.item ? { item: source.item } : {}) }] : []),
+        ...(area && (!source || source.detail !== area.detail) ? [{ kind: 'membership', code: area.code ?? 'members-only-area', detail: area.detail,
+          evidence: area.evidence }] : [])];
       task.invalidRequirements = task.requirements.filter(requirement => requirement.alias && !requirement.alternatives && requirement.clean !== 'Monster[+]');
       task.invalidDependencies = task.dependencies.filter(dependency => dependency.alias ? !dependency.alternatives : !byKey.has(keyOf(dependency.category, dependency.clean.split('--')[0])));
       task.invalidCompletedDependencies = task.completedDependencies.filter(id => !byId.has(id));
@@ -2272,7 +2275,7 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
         new Set(closure.multiTaskIds.filter(id => recipeIds.has(id))), replay, true).next().value;
     }
     let admitted = new Set(), multiAdmitted = new Set(), result;
-    const canSeedClosure = !options?.howRequest && !options?.[TRANSPORT_BASELINE] && !dependencyMemo && ownershipShape && recipeIds.size > 0 && eligibilityBudget?.byteLimit > 0;
+    const canSeedClosure = !options?.howRequest && !options?.[TRANSPORT_BASELINE] && options?.reuseEligibility !== false && !dependencyMemo && ownershipShape && recipeIds.size > 0 && eligibilityBudget?.byteLimit > 0;
     const seedKey = canSeedClosure ? eligibilityInputKey({ ...state, members: state.members.map(owner => ({ ...owner, unlocked: [] })) }, memberId, undefined, ownedCatalogueSemantics) : undefined;
     if (canSeedClosure) {
       const closureSeed = findClosureSeed(seedKey, state);

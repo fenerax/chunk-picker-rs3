@@ -209,3 +209,22 @@ test('quest-instance sources are removed only from their listed locations', () =
   assert.deepEqual(definitions.chunks["Nomad's temple"].Monster, {});
   assert.deepEqual(definitions.chunks["Nomad's temple"].NPC, raw.chunks["Nomad's temple"].NPC);
 });
+
+test('members-only UnlocksArea tasks stay blocked in F2P even when their entrance chunk is unlocked', () => {
+  const engine = createTaskEngine(definitions);
+  for (const [area, unlocked, sectionOverrides] of [
+    ['Entrana Dungeon', ['12338'], {}],
+    ['New Varrock', ['12853'], { '12853-1': true }],
+    ['Polypore Dungeon', ['13620'], { '13620-3': true }],
+  ]) {
+    const f2p = { rules: { 'content.f2p': true }, members: [{ id: 'm', unlocked, sectionOverrides, completedTasks: [] }] };
+    const free = engine.evaluate(f2p, 'm');
+    const freeRow = free.tasks.find(row => row.category === 'Nonskill' && row.rawLabel === area);
+    assert.equal(freeRow.status, 'blocked', `${area} should be blocked in F2P`);
+    assert.ok(freeRow.blockers.some(blocker => blocker.kind === 'membership' && blocker.code === 'members-only-area'), JSON.stringify(freeRow.blockers));
+    assert.equal(free.access.areas.includes(area), false);
+    const members = { rules: { 'content.f2p': false }, members: [{ id: 'm', unlocked, sectionOverrides, completedTasks: [] }] };
+    const membersRow = engine.evaluate(members, 'm').tasks.find(row => row.category === 'Nonskill' && row.rawLabel === area);
+    assert.equal(membersRow.status, 'available', `${area} should stay available in members`);
+  }
+});
