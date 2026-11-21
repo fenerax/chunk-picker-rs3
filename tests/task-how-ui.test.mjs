@@ -188,3 +188,68 @@ for (const advanced of [false, true]) {
     assert.doesNotMatch(text(rendered), /partner access/);
   });
 }
+
+test('innate melee, Ranged, Prayer and Combat routes render concrete witnesses before training assumptions', () => {
+  const definitions = {
+    chunks: {
+      '100': {
+        Nickname: 'Meadow',
+        Monster: { Goblin: 1 },
+        Spawn: { Shortbow: 1, 'Bronze arrows': 1 },
+      },
+    },
+    drops: { Goblin: { Bones: { 1: 'Always' } } },
+    codeItems: {
+      boneItems: ['Bones'],
+      ammoTools: { 'Bronze arrows': { Shortbow: 1 } },
+      rangedItems: { Shortbow: 1 },
+    },
+    challenges: {
+      Attack: { 'Wield bronze sword': { Level: 10 } },
+      Ranged: { 'Wield oak bow': { Level: 10 } },
+      Prayer: { 'Use thick skin': { Level: 10 } },
+      Combat: { 'Reach combat 10': { Level: 10 } },
+    },
+  };
+  const state = caveState(['100']);
+  const engine = createTaskEngine(definitions);
+
+  const attackProof = engine.how(state, 'one', taskId('Attack', 'Wield bronze sword'));
+  assert.deepEqual(taskHowSteps(attackProof).map(step => step.label), [
+    'Find Goblin in Meadow.',
+    'The picker assumes you can train Attack to 10 because monster combat is reachable.',
+    'Wield bronze sword.',
+  ]);
+  assert.doesNotMatch(text(renderTaskHow(attackProof, { document })), /partial explanation/);
+
+  const rangedProof = engine.how(state, 'one', taskId('Ranged', 'Wield oak bow'));
+  const rangedSteps = taskHowSteps(rangedProof).map(step => step.label);
+  const monsterIdx = rangedSteps.indexOf('Find Goblin in Meadow.');
+  const bowIdx = rangedSteps.indexOf('Get Shortbow — item spawn in Meadow.');
+  const arrowIdx = rangedSteps.indexOf('Get Bronze arrows — item spawn in Meadow.');
+  const rangedAssumeIdx = rangedSteps.indexOf('The picker assumes you can train Ranged to 10 because ranged combat is reachable.');
+  const rangedGoalIdx = rangedSteps.indexOf('Wield oak bow.');
+  assert.ok(monsterIdx >= 0 && bowIdx >= 0 && arrowIdx >= 0 && rangedAssumeIdx > monsterIdx && rangedAssumeIdx > bowIdx && rangedAssumeIdx > arrowIdx && rangedGoalIdx === rangedSteps.length - 1);
+  assert.doesNotMatch(text(renderTaskHow(rangedProof, { document })), /partial explanation/);
+
+  const prayerProof = engine.how(state, 'one', taskId('Prayer', 'Use thick skin'));
+  assert.deepEqual(taskHowSteps(prayerProof).map(step => step.label), [
+    'Get Bones — drop from Goblin in Meadow.',
+    'The picker assumes you can train Prayer to 10 because a bone or ash source is reachable.',
+    'Use thick skin.',
+  ]);
+  assert.doesNotMatch(text(renderTaskHow(prayerProof, { document })), /partial explanation/);
+
+  const combatProof = engine.how(state, 'one', taskId('Combat', 'Reach combat 10'));
+  assert.deepEqual(taskHowSteps(combatProof).map(step => step.label), [
+    'Find Goblin in Meadow.',
+    'The picker assumes you can train Combat to 10 because combat training is reachable.',
+    'Reach combat 10.',
+  ]);
+  assert.doesNotMatch(text(renderTaskHow(combatProof, { document })), /partial explanation/);
+
+  const advanced = taskHowSteps(rangedProof, { advanced: true });
+  assert.ok(advanced.some(step => step.node.kind === 'training-method' && step.node.skill === 'Ranged'));
+  const order = new Map(advanced.map((step, index) => [step.id, index]));
+  for (const step of advanced) for (const child of step.node.allOf) assert.ok(order.get(child) < order.get(step.id));
+});
