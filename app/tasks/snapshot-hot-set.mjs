@@ -10,7 +10,80 @@
 export function createSnapshotHeapMeter({ byteLimit = Infinity } = {}) {
   const seen = new WeakSet(), propertyNames = new Set();
   let bytes = 2048;
-  function visit(value, revisit = false, checkpoint = () => {}) {
+  function visitFast(value, revisit) {
+    if (bytes > byteLimit) return;
+    const type = typeof value;
+    if (type === 'string') { bytes += 32 + 2 * value.length; return; }
+    if (value === null || type !== 'object') {
+      if (type === 'function' || type === 'symbol') throw new TypeError('Unsupported hot snapshot value.');
+      return;
+    }
+    if (seen.has(value) && !revisit) return;
+    seen.add(value);
+    if (Array.isArray(value)) {
+      const len = value.length;
+      bytes += 64 + 16 * len;
+      for (let i = 0; i < len; i++) {
+        if (bytes > byteLimit) break;
+        const child = value[i];
+        const ct = typeof child;
+        if (ct === 'string') bytes += 32 + 2 * child.length;
+        else if (child === null || ct !== 'object') {
+          if (ct === 'function' || ct === 'symbol') throw new TypeError('Unsupported hot snapshot value.');
+        } else if (!seen.has(child)) visitFast(child, false);
+      }
+      return;
+    }
+    if (value instanceof ArrayBuffer || value instanceof SharedArrayBuffer) { bytes += 64 + value.byteLength; return; }
+    if (ArrayBuffer.isView(value)) { bytes += 128; visitFast(value.buffer, false); return; }
+    if (value instanceof Map || value instanceof Set) {
+      bytes += 128 + 64 * value.size;
+      if (value instanceof Map) for (const [key, child] of value) {
+        if (bytes > byteLimit) break;
+        if (typeof key === 'string') bytes += 32 + 2 * key.length;
+        else visitFast(key, false);
+        if (bytes > byteLimit) break;
+        const ct = typeof child;
+        if (ct === 'string') bytes += 32 + 2 * child.length;
+        else if (child === null || ct !== 'object') {
+          if (ct === 'function' || ct === 'symbol') throw new TypeError('Unsupported hot snapshot value.');
+        } else if (!seen.has(child)) visitFast(child, false);
+      }
+      else for (const child of value) {
+        if (bytes > byteLimit) break;
+        const ct = typeof child;
+        if (ct === 'string') bytes += 32 + 2 * child.length;
+        else if (child === null || ct !== 'object') {
+          if (ct === 'function' || ct === 'symbol') throw new TypeError('Unsupported hot snapshot value.');
+        } else if (!seen.has(child)) visitFast(child, false);
+      }
+      return;
+    }
+    const prototype = Object.getPrototypeOf(value);
+    if (prototype !== Object.prototype && prototype !== null) throw new TypeError('Unsupported hot snapshot prototype.');
+    const keys = Object.getOwnPropertyNames(value);
+    const keyCount = keys.length;
+    bytes += 64 + 32 * keyCount;
+    for (let i = 0; i < keyCount; i++) {
+      if (bytes > byteLimit) break;
+      const key = keys[i];
+      const descriptor = Object.getOwnPropertyDescriptor(value, key);
+      if (!('value' in descriptor)) throw new TypeError('Unsupported hot snapshot accessor.');
+      if (!propertyNames.has(key)) {
+        propertyNames.add(key);
+        bytes += 64; // Conservative storage for the meter's own retained Set slot.
+        if (bytes <= byteLimit) bytes += 32 + 2 * key.length;
+      }
+      if (bytes > byteLimit) continue;
+      const child = descriptor.value;
+      const ct = typeof child;
+      if (ct === 'string') bytes += 32 + 2 * child.length;
+      else if (child === null || ct !== 'object') {
+        if (ct === 'function' || ct === 'symbol') throw new TypeError('Unsupported hot snapshot value.');
+      } else if (!seen.has(child)) visitFast(child, false);
+    }
+  }
+  function visitChecked(value, revisit, checkpoint) {
     checkpoint();
     if (bytes > byteLimit) return;
     if (typeof value === 'string') { bytes += 32 + 2 * value.length; return; }
@@ -21,22 +94,22 @@ export function createSnapshotHeapMeter({ byteLimit = Infinity } = {}) {
     if (seen.has(value) && !revisit) return;
     seen.add(value);
     if (value instanceof ArrayBuffer || value instanceof SharedArrayBuffer) { bytes += 64 + value.byteLength; return; }
-    if (ArrayBuffer.isView(value)) { bytes += 128; visit(value.buffer, false, checkpoint); return; }
+    if (ArrayBuffer.isView(value)) { bytes += 128; visitChecked(value.buffer, false, checkpoint); return; }
     if (value instanceof Map || value instanceof Set) {
       bytes += 128 + 64 * value.size;
       if (value instanceof Map) for (const [key, child] of value) {
         if (bytes > byteLimit) break;
-        visit(key, false, checkpoint); visit(child, false, checkpoint);
+        visitChecked(key, false, checkpoint); visitChecked(child, false, checkpoint);
       }
-      else for (const child of value) { if (bytes > byteLimit) break; visit(child, false, checkpoint); }
+      else for (const child of value) { if (bytes > byteLimit) break; visitChecked(child, false, checkpoint); }
+      return;
+    }
+    if (Array.isArray(value)) {
+      bytes += 64 + 16 * value.length;
+      for (const child of value) { if (bytes > byteLimit) break; visitChecked(child, false, checkpoint); }
       return;
     }
     const prototype = Object.getPrototypeOf(value);
-    if (Array.isArray(value)) {
-      bytes += 64 + 16 * value.length;
-      for (const child of value) { if (bytes > byteLimit) break; visit(child, false, checkpoint); }
-      return;
-    }
     if (prototype !== Object.prototype && prototype !== null) throw new TypeError('Unsupported hot snapshot prototype.');
     const keys = Object.getOwnPropertyNames(value);
     bytes += 64 + 32 * keys.length;
@@ -47,10 +120,14 @@ export function createSnapshotHeapMeter({ byteLimit = Infinity } = {}) {
       if (!propertyNames.has(key)) {
         propertyNames.add(key);
         bytes += 64; // Conservative storage for the meter's own retained Set slot.
-        visit(key, false, checkpoint);
+        visitChecked(key, false, checkpoint);
       }
-      visit(descriptor.value, false, checkpoint);
+      visitChecked(descriptor.value, false, checkpoint);
     }
+  }
+  function visit(value, revisit = false, checkpoint) {
+    if (checkpoint) visitChecked(value, revisit, checkpoint);
+    else visitFast(value, revisit);
   }
   return { visit, get bytes() { return Math.ceil(bytes / 8) * 8; } };
 }

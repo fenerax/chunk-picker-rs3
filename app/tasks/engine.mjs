@@ -1,4 +1,5 @@
 const PROFILE_ENABLED = process.env.RS3_PROFILE === '1';
+const TRANSPORT_BASELINE = Symbol.for('rs3.transportBaseline');
 const profile = PROFILE_ENABLED ? await import('../profile-spans.mjs') : undefined;
 import { unknownDropContext, addUnknownDropWarnings } from './unknown-drop-warnings.mjs';
 import { EARLY_TRAVEL_UNLOCKS_RULE, travelRewardKind, usefulTravelRecord, furnitureWorkbenches, nexusDestinationClauses, unlockLabel } from '../data/travel-reward-gates.mjs';
@@ -540,7 +541,7 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
     }
     evaluationPrepared = true;
   }
-  function* evaluatePass(state, memberId, { ownItemQueries = [], reuseObligations = true, howRequest } = {}, admitted = new Set(), multiAdmitted = new Set(), replay, projectOnly = false) {
+  function* evaluatePass(state, memberId, { ownItemQueries = [], reuseObligations = true, howRequest, [TRANSPORT_BASELINE]: transportBaseline = false } = {}, admitted = new Set(), multiAdmitted = new Set(), replay, projectOnly = false) {
     const started = performance.now();
     const sourceMembershipBlocker = replay.membership.source, itemMembershipBlocker = replay.membership.item;
     const member = state.members.find(value => value.id === memberId);
@@ -1279,13 +1280,21 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
         finally { access = rawAccess; points = rawPoints; }
       }, counters);
     }
+    const canonicalBlockers = new Map();
+    function canonicalBlocker(kind, detail) {
+      let byDetail = canonicalBlockers.get(kind);
+      if (!byDetail) { byDetail = new Map(); canonicalBlockers.set(kind, byDetail); }
+      let entry = byDetail.get(detail);
+      if (!entry) { entry = { kind, detail }; byDetail.set(detail, entry); }
+      return entry;
+    }
     function checkFresh(task, explain = false) {
       if (!explain) { lastFailedReq = null; lastFailedNeed = null; lastFailedDep = null; }
       if (!explain && staticBlocked.has(task)) return unavailableCheck;
       const { record, category } = task;
       const blockers = explain ? [] : null;
       let blocked = false;
-      const add = (kind, detail) => { blocked = true; if (explain) blockers.push({ kind, detail }); };
+      const add = (kind, detail) => { blocked = true; if (explain) blockers.push(canonicalBlocker(kind, detail)); };
       // The boolean path already tested all immutable guards in staticBlocked.
       // Keep their original order only when building the public explanation.
       if (explain) {
@@ -1808,30 +1817,94 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
     for (const [name, list] of sources) {
       for (let i = 0; i < list.length; i++) if (list[i].own !== true) { nonOwnItems.add(name); break; }
     }
-    const proofSubject = howRequest?.closure && compiled.find(task => task.id === howRequest.taskId);
-    const rows = (proofSubject ? [proofSubject] : compiled).map(task => {
-      const blockers = valid.has(task.key) ? membershipByTask.get(task).slice() : check(task, true);
-      if (valid.has(task.key) && f2p && task.record['Not F2P']) blockers.push({ kind: 'membership', detail: 'This activity requires membership.' });
-      const record = task.record;
-      const winner = setWinners.get(record.Set);
-      if (task.category === 'Extra' && winner && winner.key !== task.key && valid.has(task.key)) blockers.push({ kind: 'outclassed', detail: `${winner.label} is the preferred reachable task in ${record.Set}.` });
-      // Processing rules may exclude a recipe's outputs from closure while the
-      // recipe itself is doable. Capture the requested activity without admitting
-      // it as a supplier, training seed or prerequisite for another task.
-      if (proof && task.id === howRequest.taskId && blockers.length === 0) proof.task(task, proofEnvironment());
+    const projectedItemSources = new Map();
+    const projectedSpatialSources = new Map();
+    const projectTaskSources = task => {
       const taskSources = [];
       for (const requirement of task.requirements) {
         const names = requirement.alternatives ?? [requirement.clean];
         for (const name of names) {
           if (!(name === 'Monster[+]' ? access.monsters.size > 0 : requirementNameAvailable(requirement.field, name, task))) continue;
           if (requirement.field === 'Items') {
-            for (const source of sourceList(name)) taskSources.push({ ...typeof source === 'object' ? source : { name: source }, item: name });
+            let projected = projectedItemSources.get(name);
+            if (!projected) {
+              const rawSources = sourceList(name);
+              projected = new Array(rawSources.length);
+              for (let i = 0; i < rawSources.length; i++) {
+                const source = rawSources[i];
+                projected[i] = { ...typeof source === 'object' ? source : { name: source }, item: name };
+              }
+              projectedItemSources.set(name, projected);
+            }
+            for (let i = 0; i < projected.length; i++) taskSources.push(projected[i]);
+          } else if (!task.sourceLocations.length) {
+            const spatialKey = `${requirement.field}\0${name}`;
+            let projected = projectedSpatialSources.get(spatialKey);
+            if (!projected) {
+              projected = { kind: requirement.field.toLowerCase(), name,
+                locations: [...(access.locations.get(`${requirement.field === 'Objects' ? 'Object' : requirement.field === 'NPCs' ? 'NPC' : requirement.field === 'Monsters' ? 'Monster' : 'Shop'}:${name}`) ?? [])] };
+              projectedSpatialSources.set(spatialKey, projected);
+            }
+            taskSources.push(projected);
           } else taskSources.push({ kind: requirement.field.toLowerCase(), name,
             locations: [...(access.locations.get(`${requirement.field === 'Objects' ? 'Object' : requirement.field === 'NPCs' ? 'NPC' : requirement.field === 'Monsters' ? 'Monster' : 'Shop'}:${name}`) ?? [])]
-              .filter(location => !task.sourceLocations.length || task.sourceLocations.filter(selector => selector.field === requirement.field && selector.name === name)
+              .filter(location => task.sourceLocations.filter(selector => selector.field === requirement.field && selector.name === name)
                 .every(selector => selector.locations.includes(location))) });
         }
       }
+      return taskSources;
+    };
+    if (transportBaseline && !proof) {
+      if (projectionFast) { obligationCache.release(); ownRootProofs.clear(); }
+      const serializedAccess = serializeAccess(access);
+      const itemsList = [...items].sort().map(name => ({ name, sources: sourceList(name) }));
+      const processingRows = [];
+      for (const task of compiled) {
+        const blocked = valid.has(task.key) ? membershipByTask.get(task).length > 0 || f2p && task.record['Not F2P']
+          : check(task).length > 0;
+        const winner = setWinners.get(task.record.Set);
+        const unavailable = blocked || task.category === 'Extra' && winner && winner.key !== task.key && valid.has(task.key);
+        processingRows.push({ id: task.id, category: task.category, rawLabel: task.rawLabel, level: task.level, record: task.record,
+          personalCompleted: recordedCompleted.has(task.id), processingPrimary: !!primaryEligible(task, true), status: unavailable ? 'blocked' : 'available' });
+      }
+      processing = selectProcessingSources(processingRows, itemsList,
+        Object.fromEntries(Object.keys(skillCaps).map(skill => [skill, { passiveLevel: passive[skill], primary: trained.has(skill),
+          manualPrimary: playerControls.primaryOverrides[skill] === true }])), rules, definitions, serializedAccess, ordinaryProcessingInput);
+      const producerById = new Map();
+      for (const task of compiled) producerById.set(task.id, task);
+      const needed = new Set(), queue = [];
+      const enqueue = id => { if (id && !needed.has(id) && producerById.has(id)) { needed.add(id); queue.push(producerById.get(id)); } };
+      for (const item of itemsList) for (const source of item.sources) if (source.kind === 'task') enqueue(source.taskId);
+      const producerRows = [];
+      for (let i = 0; i < queue.length; i++) {
+        const task = queue[i];
+        const taskSources = projectTaskSources(task);
+        for (let j = 0; j < taskSources.length; j++) if (taskSources[j].kind === 'task') enqueue(taskSources[j].taskId);
+        producerRows.push({ id: task.id, category: task.category, record: task.record, sources: taskSources });
+      }
+      const baselineResult = {
+        tasks: producerRows,
+        access: serializedAccess,
+        items: itemsList,
+        training: Object.fromEntries(Object.keys(skillCaps).map(skill => [skill, { level: levels[skill] }])),
+        diagnostics: [],
+        metrics: { ...counters, elapsedMs: performance.now() - started },
+      };
+      Object.defineProperty(baselineResult, 'processing', { value: processing });
+      return baselineResult;
+    }
+    const proofSubject = howRequest?.closure && compiled.find(task => task.id === howRequest.taskId);
+    const rows = (proofSubject ? [proofSubject] : compiled).map(task => {
+      const blockers = valid.has(task.key) ? membershipByTask.get(task).slice() : check(task, true);
+      if (valid.has(task.key) && f2p && task.record['Not F2P']) blockers.push(canonicalBlocker('membership', 'This activity requires membership.'));
+      const record = task.record;
+      const winner = setWinners.get(record.Set);
+      if (task.category === 'Extra' && winner && winner.key !== task.key && valid.has(task.key)) blockers.push(canonicalBlocker('outclassed', `${winner.label} is the preferred reachable task in ${record.Set}.`));
+      // Processing rules may exclude a recipe's outputs from closure while the
+      // recipe itself is doable. Capture the requested activity without admitting
+      // it as a supplier, training seed or prerequisite for another task.
+      if (proof && task.id === howRequest.taskId && blockers.length === 0) proof.task(task, proofEnvironment());
+      const taskSources = projectTaskSources(task);
       const sourcePolicyRejections = [];
       for (const requirement of blockers.some(blocker => blocker.kind === 'items') ? task.itemRequirements : []) {
         if (requirementAvailable(requirement, task)) continue;

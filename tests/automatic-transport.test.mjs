@@ -647,3 +647,49 @@ test('carpet return refusal distinguishes a coin shortfall from quests and a mis
   f.catalogue.routes[1].requirements.quests = ['A quest']; releaseAutomaticTransportCaches(f.world);
   assert.ok(evaluateTransportRoutes(f.world, f.state, 'actor1')[0].unmet.some(value => value.requirement === 'return-route'));
 });
+
+test('transportBaseline fast path produces identical derived transport facts as a full engine baseline', () => {
+  const definitions = {
+    chunks: {
+      '12853': { Spawn: { Ore: 1 }, Object: { Furnace: 1 }, Connect: { '12854': true } },
+      '12854': { Connect: { '12853': true }, Monster: { Rat: 1 } },
+    },
+    sections: { '12853': { '0': ['12854'] }, '12854': { '0': ['12853'] } },
+    walkableChunks: ['12853', '12854'], walkableChunksF2P: ['12853', '12854'],
+    drops: { Rat: { Coins: { 5: 'Always' } } },
+    challenges: {
+      Smithing: {
+        'Smelt bar': { Level: 1, Items: ['Ore'], Objects: ['Furnace'], Output: 'Bar', Primary: true },
+        'Forge token': { Level: 1, Items: ['Bar'], Output: 'Travel token', Primary: false },
+      },
+      Extra: { 'Unrelated task': { Items: ['Missing item'] } },
+    },
+    codeItems: {},
+    equipment: {},
+  };
+  const world = buildWorld(definitions, options);
+  const engine = createTaskEngine(definitions, options);
+  configureAutomaticTransport(world, { definitions, engine });
+  const state = createGroupState([{ id: 'actor1', name: 'Actor 1', unlocked: ['12853', '12854'] }]);
+  state.rules['content.f2p'] = false;
+  state.rules['travel.automatic'] = true;
+  state.rules['access.transport'] = true;
+  const fast = deriveAutomaticTransport(world, state, 'actor1');
+  const fullBaseline = engine.evaluate(
+    { ...state, rules: { ...state.rules, 'travel.automatic': false, 'access.transport': false } },
+    'actor1',
+    { reuseEligibility: false },
+  );
+  const full = deriveAutomaticTransport(world, state, 'actor1', { baseline: fullBaseline });
+  assert.deepEqual(fast.facts, full.facts);
+  assert.deepEqual(fast.renewableBudget, full.renewableBudget);
+  assert.deepEqual(fast.estimatedLevels, full.estimatedLevels);
+  assert.deepEqual(fast.observedLevels, full.observedLevels);
+  assert.deepEqual(fast.reachableLocations, full.reachableLocations);
+  assert.deepEqual(fast.reachableBases, full.reachableBases);
+  assert.deepEqual(fast.itemEvidence, full.itemEvidence);
+  assert.equal(fast.safeOrigin, full.safeOrigin);
+  assert.ok(fast.facts.items['Travel token'] >= 1e12, 'chained producer task remains renewable');
+  assert.ok(fast.facts.currencies.coins >= 1e12, 'non-shop drop coins remain renewable');
+  assert.ok(fast.baseline.tasks.length < fullBaseline.tasks.length, 'unrelated non-producer tasks are omitted from transport baseline');
+});

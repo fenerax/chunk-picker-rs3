@@ -42,3 +42,30 @@ test('known LZ4 tokens decode independently and malformed internal blocks fail c
     Buffer.from([1, 4, 0, 0, 0, 0, 0, 0]), Buffer.from([1, 1, 0, 0, 0, 0xf0])])
     assert.throws(() => decodeSnapshotBytes(bytes), TypeError);
 });
+
+test('large 15-literal runs and growing incompressible blocks round-trip cleanly', () => {
+  // Exercises the 15-literal length boundary across tens of thousands of tokens
+  // (where V8 Maglev previously miscompiled closed-over length helpers) and forces
+  // output buffer growth on incompressible data.
+  const parts = [];
+  for (let i = 0; i < 50_000; i++) {
+    parts.push(Buffer.from('LIT' + String(i).padStart(12, '0')));
+    parts.push(Buffer.from('MATCH_8B'));
+  }
+  const repetitive = Buffer.concat(parts);
+  const encRep = encodeSnapshotBytes(Buffer.from(repetitive));
+  assert.equal(encRep[0], 1);
+  assert.equal(encRep.byteLength, encRep.buffer.byteLength);
+  assert.equal(Buffer.compare(decodeSnapshotBytes(encRep), repetitive), 0);
+
+  let seed = 1337;
+  const incompressible = Buffer.alloc(300_000);
+  for (let i = 0; i < incompressible.length; i++) {
+    seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+    incompressible[i] = seed >>> 24;
+  }
+  const encRaw = encodeSnapshotBytes(Buffer.from(incompressible));
+  assert.equal(encRaw[0], 0, 'incompressible block falls back to raw wire header');
+  assert.equal(encRaw.byteLength, encRaw.buffer.byteLength);
+  assert.equal(Buffer.compare(decodeSnapshotBytes(encRaw), incompressible), 0);
+});
