@@ -5,7 +5,7 @@ Read `README.md` for the current runtime and `PRODUCT.md` for product decisions.
 ## Public history
 
 - Keep personal identities, real saves, operational internals and nonpublic inputs out of this repository and its history; use synthetic fixtures.
-- Use the repository's configured GitHub noreply address for both author and committer. Check both identities before publication, because the publication guard refuses other addresses.
+- Use the repository's configured GitHub noreply address for both author and committer. Check both identities before publication, because the publication guard refuses other addresses. Merge pull requests locally with that noreply identity and push to `main` (instead of GitHub's web/API merge button) unless the GitHub account enforces noreply merges, because GitHub-authored merge commits fail the `main` `secrets` attribution check.
 - Omit AI coauthor email trailers: the corpus scanner rejects unapproved email addresses in commit messages too.
 - Standing authorization of 2026-10-21 permits ordinary pushes to `fenerax/chunk-picker-rs3` main after a clean corpus scan and noreply checks. History rewrites, tags, releases and asset uploads need their own authorization; explicit task restrictions take precedence.
 
