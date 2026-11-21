@@ -653,4 +653,49 @@ test('ClueTier and ConnectsSections prove concrete witnesses while preserving pa
   assert.equal(specialProof.proofStatus, 'partial');
   assert.ok(specialProof.gaps.some(gap => gap.kind === 'special-requirements'), JSON.stringify(specialProof.gaps));
   graph(specialProof);
+
+  // Owned bare numeric base endpoint for a sectioned chunk with no entered section does not emit partner-duo.
+  const bareDefs = {
+    walkableChunks: ['100', '200'],
+    walkableChunksF2P: ['100', '200'],
+    sections: { 200: { 1: [], 2: [] } },
+    chunks: {
+      100: { Nickname: 'Meadow' },
+      200: { Nickname: 'Island', Sections: { 1: {}, 2: {} } },
+    },
+    challenges: {
+      Nonskill: { '100 to 200': { ConnectsSections: true, Sections: ['100', '200'] } },
+    },
+  };
+  const bareProof = createTaskEngine(bareDefs).how(caveState(['100', '200']), 'one', taskId('Nonskill', '100 to 200'));
+  assert.equal(bareProof.availability, 'available');
+  assert.equal(bareProof.proofStatus, 'complete', JSON.stringify(bareProof.gaps));
+  assert.ok(!bareProof.gaps.some(gap => gap.kind === 'partner-duo'));
+  graph(bareProof);
+
+  // Clue task initially admitted via partner clue upgrades to a later-admitted personal cave clue location.
+  const upgradeDefs = {
+    walkableChunks: ['12849', '12850'],
+    walkableChunksF2P: ['12849', '12850'],
+    sections: { 12849: { 0: ['12850'] }, 12850: { 0: ['12849'] } },
+    chunks: {
+      12849: { Nickname: 'South', NPC: { Guide: 1 } },
+      12850: { Nickname: 'North', Clue: { easy: 1 } },
+      'Clue Cave': { Connect: { 12849: true }, Clue: { easy: 1 } },
+    },
+    challenges: {
+      Quest: { 'Open cave': { Chunks: ['12849'] } },
+      Nonskill: {
+        'Clue Cave': { UnlocksArea: true, Chunks: ['12849'], Tasks: { 'Open cave': 'Quest' } },
+        'Talk to Guide': { ClueTier: 'easy', ClueType: 'Anagram', NPCs: ['Guide'] },
+      },
+    },
+  };
+  const upgradeState = createGroupState([{ id: 'one', name: 'One', unlocked: ['12849'] }, { id: 'two', name: 'Two', unlocked: ['12850'] }]);
+  const upgradeProof = createTaskEngine(upgradeDefs).how(upgradeState, 'one', taskId('Nonskill', 'Talk to Guide', upgradeDefs.challenges.Nonskill['Talk to Guide']));
+  assert.equal(upgradeProof.availability, 'available');
+  assert.equal(upgradeProof.proofStatus, 'complete', JSON.stringify(upgradeProof.gaps));
+  assert.match(labels(upgradeProof), /Reach an easy clue location at Clue Cave/);
+  assert.ok(!upgradeProof.gaps.some(gap => gap.kind === 'partner-duo'));
+  graph(upgradeProof);
 });

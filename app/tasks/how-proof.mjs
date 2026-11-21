@@ -247,29 +247,34 @@ export function createHowCapture({ state, memberId, definitions, byKey, complete
     if (task.record.ClueTier) {
       const tier = task.record.ClueTier;
       const article = /^[aeiou]/i.test(tier) ? 'an' : 'a';
-      const available = () => [...(clueLocations.get(tier) ?? [])];
-      const initial = available();
-      if (initial.length) {
-        const choice = put(`clue-tier:${task.id}:${tier}`, { kind: 'requirement', field: 'Clues',
-          label: `Reach ${article} ${clean(tier)} clue location.`, rule: 'clue-location-access', allOf: [initial[0].id] });
-        if (choice) { choices.set(choice, { count: 1, candidates: available }); deps.push(choice); }
-      } else if (!env.ownClue?.(tier) && (env.access.clues?.get(tier) ?? 0) > 0) {
-        deps.push(gap('partner-duo', `Found on ${sharedMap}.`));
-      } else {
-        deps.push(gap('missing-evidence', `The picker couldn't capture a reachable ${clean(tier)} clue location.`));
-      }
+      let fallback;
+      const getFallback = () => fallback ??= (!env.ownClue?.(tier) && (env.access.clues?.get(tier) ?? 0) > 0)
+        ? gap('partner-duo', `Found on ${sharedMap}.`)
+        : gap('missing-evidence', `The picker couldn't capture a reachable ${clean(tier)} clue location.`);
+      const available = () => {
+        const own = [...(clueLocations.get(tier) ?? [])];
+        if (own.length) return own;
+        const fb = getFallback();
+        return fb ? [{ subject: 'fallback', id: fb }] : [];
+      };
+      const initial = clueLocations.get(tier) ?? [];
+      const first = initial.length ? initial[0].id : getFallback();
+      const choice = put(`clue-tier:${task.id}:${tier}`, { kind: 'requirement', field: 'Clues',
+        label: `Reach ${article} ${clean(tier)} clue location.`, rule: 'clue-location-access', allOf: first ? [first] : [] });
+      if (choice) { choices.set(choice, { count: 1, candidates: available }); deps.push(choice); }
     }
     if (task.record.ConnectsSections) {
       const sections = [...new Set(Array.isArray(task.record.Sections) ? task.record.Sections : task.record.Sections ? [task.record.Sections] : [])];
       const seenBases = new Set();
       for (const name of sections) {
-        if (/^\d+-\d+$/.test(name)) {
+        if (/^\d+(?:-\d+)?$/.test(name)) {
           const base = name.split('-')[0];
           if (seenBases.has(base)) continue;
           seenBases.add(base);
           if (env.ownBase?.(base)) {
-            deps.push(facts.get(`place:${base}`) ?? put(`unlocked-base:${base}`, { kind: 'location', subjectId: base, placeName: placeLabel(base),
-              label: `Unlock ${placeLabel(base)}.`, rule: 'owned-chunk', evidenceClass: 'derived' }));
+            const baseNode = facts.get(`place:${base}`) ?? put(`unlocked-base:${base}`, { kind: 'location', subjectId: base, placeName: placeLabel(base),
+              label: `Unlock ${placeLabel(base)}.`, rule: 'owned-chunk', evidenceClass: 'derived' });
+            if (baseNode) deps.push(baseNode);
           } else if (env.access.bases?.has(base)) {
             deps.push(gap('partner-duo', `This location is on ${sharedMap}.`));
           } else {
@@ -278,23 +283,40 @@ export function createHowCapture({ state, memberId, definitions, byKey, complete
         } else if (env.ownLocation(name)) {
           deps.push(placeRef(name));
         } else if (env.access.areas?.has(name) || env.access.bases?.has(name)) {
-          deps.push(gap('partner-duo', `This location is on ${sharedMap}.`));
+          let fallback;
+          const getFallback = () => fallback ??= gap('partner-duo', `This location is on ${sharedMap}.`);
+          const first = facts.get(`place:${name}`) ?? getFallback();
+          const areaChoice = put(`connects-endpoint:${task.id}:${name}`, { kind: 'requirement', field: 'Sections',
+            label: `Reach ${placeLabel(name)}.`, rule: 'connects-sections', allOf: first ? [first] : [] });
+          if (areaChoice) {
+            choices.set(areaChoice, { count: 1, candidates: () => {
+              const own = facts.get(`place:${name}`);
+              if (own) return [{ subject: name, id: own }];
+              const fb = getFallback();
+              return fb ? [{ subject: 'fallback', id: fb }] : [];
+            } });
+            deps.push(areaChoice);
+          }
         } else {
           deps.push(gap('missing-evidence', `The picker couldn't prove ${placeLabel(name)} is reachable.`));
         }
       }
       const sectionWitness = name => facts.get(`place:${name}`) ?? (/^\d+$/.test(name) && baseSections.get(name)?.length ? placeRef(name) : null);
-      const reachableSections = () => sections.map(name => ({ subject: name, id: sectionWitness(name) })).filter(entry => entry.id);
-      const initial = reachableSections();
-      if (initial.length) {
-        const choice = put(`connects-sections:${task.id}`, { kind: 'requirement', field: 'Sections',
-          label: `Reach ${sections.map(placeLabel).join(' or ')}.`, rule: 'connects-sections', allOf: [initial[0].id] });
-        if (choice) { choices.set(choice, { count: 1, candidates: reachableSections }); deps.push(choice); }
-      } else if (sections.some(name => !env.ownLocation(name))) {
-        deps.push(gap('partner-duo', `Found on ${sharedMap}.`));
-      } else {
-        deps.push(gap('missing-evidence', "The picker couldn't capture a reachable connected section."));
-      }
+      let sectionFallback;
+      const getSectionFallback = () => sectionFallback ??= sections.some(name => !env.ownLocation(name))
+        ? gap('partner-duo', `Found on ${sharedMap}.`)
+        : gap('missing-evidence', "The picker couldn't capture a reachable connected section.");
+      const reachableSections = () => {
+        const own = sections.map(name => ({ subject: name, id: sectionWitness(name) })).filter(entry => entry.id);
+        if (own.length) return own;
+        const fb = getSectionFallback();
+        return fb ? [{ subject: 'fallback', id: fb }] : [];
+      };
+      const initial = sections.map(name => ({ subject: name, id: sectionWitness(name) })).filter(entry => entry.id);
+      const first = initial.length ? initial[0].id : getSectionFallback();
+      const choice = put(`connects-sections:${task.id}`, { kind: 'requirement', field: 'Sections',
+        label: `Reach ${sections.map(placeLabel).join(' or ')}.`, rule: 'connects-sections', allOf: first ? [first] : [] });
+      if (choice) { choices.set(choice, { count: 1, candidates: reachableSections }); deps.push(choice); }
     }
     const unsupported = [];
     if (task.category === 'Slayer') unsupported.push('slayer-assignments');
