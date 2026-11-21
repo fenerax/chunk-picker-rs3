@@ -797,6 +797,12 @@ export function collectBaseItemSources(definitions, access, { rules = {}, validT
     if (entityRecorder) entityRecorder.diagnostics.push({ code, detail });
     diagnostic(result.diagnostics, code, detail);
   };
+  const recordSource = (item, reason) => {
+    result.items.add(item);
+    let list = result.sources.get(item);
+    if (!list) { list = []; result.sources.set(item, list); }
+    list.push(reason);
+  };
   const add = (item, reason) => {
     const timingRules = activityTimingSourceRules(item, reason.source);
     if (timingRules.length) {
@@ -874,10 +880,7 @@ export function collectBaseItemSources(definitions, access, { rules = {}, validT
       proof.source(item, reason, requirements);
     }
     if (entityRecorder) entityRecorder.sources.push([item, reason]);
-    result.items.add(item);
-    let list = result.sources.get(item);
-    if (!list) { list = []; result.sources.set(item, list); }
-    list.push(reason);
+    recordSource(item, reason);
   };
   for (const [item, quantity] of access.spawns) for (const location of access.locations.get(`Spawn:${item}`) ?? []) add(item, { kind: 'spawn', source: location, location, quantity: accessDetails.get(access)?.spawnQuantities.get(`${item}\u0000${location}`) ?? quantity });
   for (const shop of access.shops) {
@@ -967,10 +970,7 @@ export function collectBaseItemSources(definitions, access, { rules = {}, validT
         if (ok) {
           for (let j = 0; j < entry.sources.length; j++) {
             const [item, reason] = entry.sources[j];
-            result.items.add(item);
-            let bucket = result.sources.get(item);
-            if (!bucket) { bucket = []; result.sources.set(item, bucket); }
-            bucket.push(reason);
+            recordSource(item, reason);
           }
           for (let j = 0; j < entry.diagnostics.length; j++) {
             const d = entry.diagnostics[j];
