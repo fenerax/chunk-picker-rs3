@@ -7,7 +7,7 @@ const AREA_POLICY_KEYS = new Set(['UnlocksArea', 'Not F2P', 'Category', 'Label',
 export const areaUnlockHasRequirements = record => Boolean(record?.UnlocksArea && Object.keys(record).some(key => !AREA_POLICY_KEYS.has(key)));
 const matchesApproach = (subject, place) => subject === place || /^\d+$/.test(subject) && place.startsWith(`${subject}-`);
 export function createHowCapture({ state, memberId, definitions, byKey, completedTask, limits = {}, deadline: requestDeadline }) {
-  const facts = new Map(), nodes = new Map(), boundEntrances = new Map(), sourceReasons = new Map(), choices = new Map(), baseSections = new Map(), producedObjects = new Map(), usedTraining = new Set();
+  const facts = new Map(), nodes = new Map(), boundEntrances = new Map(), sourceReasons = new Map(), choices = new Map(), baseSections = new Map(), producedObjects = new Map(), clueLocations = new Map(), usedTraining = new Set();
   const combatSeedSkills = new Set();
   const byId = new Map([...byKey.values()].map(task => [task.id, task]));
   const sharedMap = state.members.length === 2 ? "your partner's map" : "another group member's map";
@@ -83,6 +83,19 @@ export function createHowCapture({ state, memberId, definitions, byKey, complete
   const entity = (kind, name, place, gates = []) => put(`entity:${kind}:${name}:${place}`, {
     kind: 'placement', entityKind: kind, subjectId: name, location: place, placeName: placeLabel(place), label: `Find ${clean(name)} at ${placeLabel(place)}.`,
     rule: 'entity-placement', evidenceClass: 'derived', allOf: [placeRef(place), ...gates.flatMap(gateRefs)] });
+  const clue = (tier, place) => {
+    const article = /^[aeiou]/i.test(tier) ? 'an' : 'a';
+    const id = put(`clue:${tier}:${place}`, {
+      kind: 'placement', entityKind: 'Clue', subjectId: tier, location: place, placeName: placeLabel(place),
+      label: `Reach ${article} ${clean(tier)} clue location at ${placeLabel(place)}.`,
+      rule: 'clue-location', evidenceClass: 'derived', allOf: [placeRef(place)],
+    });
+    if (id) {
+      if (!clueLocations.has(tier)) clueLocations.set(tier, []);
+      const list = clueLocations.get(tier);
+      if (!list.some(entry => entry.id === id)) list.push({ subject: `Clue:${tier}:${place}`, id });
+    }
+  };
   const hasPartnerEvidence = (id, seen = new Set()) => {
     if (!id || seen.has(id)) return false; seen.add(id);
     const node = nodes.get(id);
@@ -231,12 +244,64 @@ export function createHowCapture({ state, memberId, definitions, byKey, complete
       if (bound) boundEntrances.set(task.rawLabel, bound);
       if (!bound) deps.push(gap('unbound-entrance', `The picker hasn't linked ${clean(task.label)} to a reachable entrance.`));
     }
+    if (task.record.ClueTier) {
+      const tier = task.record.ClueTier;
+      const article = /^[aeiou]/i.test(tier) ? 'an' : 'a';
+      const available = () => [...(clueLocations.get(tier) ?? [])];
+      const initial = available();
+      if (initial.length) {
+        const choice = put(`clue-tier:${task.id}:${tier}`, { kind: 'requirement', field: 'Clues',
+          label: `Reach ${article} ${clean(tier)} clue location.`, rule: 'clue-location-access', allOf: [initial[0].id] });
+        if (choice) { choices.set(choice, { count: 1, candidates: available }); deps.push(choice); }
+      } else if (!env.ownClue?.(tier) && (env.access.clues?.get(tier) ?? 0) > 0) {
+        deps.push(gap('partner-duo', `Found on ${sharedMap}.`));
+      } else {
+        deps.push(gap('missing-evidence', `The picker couldn't capture a reachable ${clean(tier)} clue location.`));
+      }
+    }
+    if (task.record.ConnectsSections) {
+      const sections = [...new Set(Array.isArray(task.record.Sections) ? task.record.Sections : task.record.Sections ? [task.record.Sections] : [])];
+      const seenBases = new Set();
+      for (const name of sections) {
+        if (/^\d+-\d+$/.test(name)) {
+          const base = name.split('-')[0];
+          if (seenBases.has(base)) continue;
+          seenBases.add(base);
+          if (env.ownBase?.(base)) {
+            deps.push(facts.get(`place:${base}`) ?? put(`unlocked-base:${base}`, { kind: 'location', subjectId: base, placeName: placeLabel(base),
+              label: `Unlock ${placeLabel(base)}.`, rule: 'owned-chunk', evidenceClass: 'derived' }));
+          } else if (env.access.bases?.has(base)) {
+            deps.push(gap('partner-duo', `This location is on ${sharedMap}.`));
+          } else {
+            deps.push(gap('missing-evidence', `The picker couldn't prove ${placeLabel(base)} is unlocked.`));
+          }
+        } else if (env.ownLocation(name)) {
+          deps.push(placeRef(name));
+        } else if (env.access.areas?.has(name) || env.access.bases?.has(name)) {
+          deps.push(gap('partner-duo', `This location is on ${sharedMap}.`));
+        } else {
+          deps.push(gap('missing-evidence', `The picker couldn't prove ${placeLabel(name)} is reachable.`));
+        }
+      }
+      const sectionWitness = name => facts.get(`place:${name}`) ?? (/^\d+$/.test(name) && baseSections.get(name)?.length ? placeRef(name) : null);
+      const reachableSections = () => sections.map(name => ({ subject: name, id: sectionWitness(name) })).filter(entry => entry.id);
+      const initial = reachableSections();
+      if (initial.length) {
+        const choice = put(`connects-sections:${task.id}`, { kind: 'requirement', field: 'Sections',
+          label: `Reach ${sections.map(placeLabel).join(' or ')}.`, rule: 'connects-sections', allOf: [initial[0].id] });
+        if (choice) { choices.set(choice, { count: 1, candidates: reachableSections }); deps.push(choice); }
+      } else if (sections.some(name => !env.ownLocation(name))) {
+        deps.push(gap('partner-duo', `Found on ${sharedMap}.`));
+      } else {
+        deps.push(gap('missing-evidence', "The picker couldn't capture a reachable connected section."));
+      }
+    }
     const unsupported = [];
     if (task.category === 'Slayer') unsupported.push('slayer-assignments');
     if (env.slayerGate?.(task)) unsupported.push('slayer-unlock');
     if (env.usefulGate?.(task)) unsupported.push('useful-unlock');
     if (['QuestPointsNeeded', 'KudosNeeded', 'CombatScoreNeeded', 'TotalLevelNeeded', 'TotalVirtualLevelNeeded'].some(key => task.record[key] !== undefined)) unsupported.push('points');
-    if (task.record.RequirementAlternatives || task.record.PersonalQuestProgress || task.personalAlternatives.length || task.dialogueSupply || task.sourceLocations.length || task.record.ClueTier || task.record.ConnectsSections) unsupported.push('special-requirements');
+    if (task.record.RequirementAlternatives || task.record.PersonalQuestProgress || task.personalAlternatives.length || task.dialogueSupply || task.sourceLocations.length) unsupported.push('special-requirements');
     for (const kind of unsupported) deps.push(gap(kind, `The picker can't show this ${kind.replaceAll('-', ' ')} step yet.`));
     deps.push(put(`policy:${task.id}`, { kind: 'policy', label: 'The task passes the current membership, rule and source policies.', rule: 'effective-policy', f2p: state.rules?.['content.f2p'] ?? true, tags: task.tags, settings: Object.fromEntries(task.tags.map(tag => [tag, env.rules[tag] ?? null])), evidenceClass: 'policy' }));
     put(`task:${task.key}`, { kind: 'task', subjectId: task.id, category: task.category, taskLabel: clean(task.label), instruction: task.category === 'Quest' && task.record.Description ? clean(task.record.Description) : undefined, areaUnlock: !!task.record.UnlocksArea,
@@ -556,5 +621,5 @@ export function createHowCapture({ state, memberId, definitions, byKey, complete
     }
     return proof;
   }
-  return { task, seed, location, entity, source, producedObject, finish, get, gap, expired: () => performance.now() >= deadline };
+  return { task, seed, location, entity, clue, source, producedObject, finish, get, gap, expired: () => performance.now() >= deadline };
 }

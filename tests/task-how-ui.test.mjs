@@ -253,3 +253,39 @@ test('innate melee, Ranged, Prayer and Combat routes render concrete witnesses b
   const order = new Map(advanced.map((step, index) => [step.id, index]));
   for (const step of advanced) for (const child of step.node.allOf) assert.ok(order.get(child) < order.get(step.id));
 });
+
+test('ClueTier and ConnectsSections render readable clue-location and connector steps without partial banners', () => {
+  const definitions = {
+    walkableChunks: ['100', '200'],
+    walkableChunksF2P: ['100', '200'],
+    sections: { 200: { 1: ['100'], 2: [] } },
+    chunks: {
+      100: { Nickname: 'Meadow', Clue: { easy: 1 }, Object: { Bridge: 1 } },
+      200: { Nickname: 'Riverbank', Sections: { 1: { NPC: { Scout: 1 } }, 2: { Object: { Chest: 1 } } } },
+    },
+    challenges: {
+      Nonskill: {
+        'Talk to Scout': { ClueTier: 'easy', ClueType: 'Anagram', NPCs: ['Scout'] },
+        '200-1 to 200-2': { ConnectsSections: true, Sections: ['200-1', '200-2'], Objects: ['Bridge'] },
+      },
+      Extra: {
+        'Open east chest': { Objects: ['Chest'] },
+      },
+    },
+  };
+  const state = caveState(['100', '200']);
+  const engine = createTaskEngine(definitions);
+
+  const clueProof = engine.how(state, 'one', taskId('Nonskill', 'Talk to Scout', definitions.challenges.Nonskill['Talk to Scout']));
+  const clueSteps = taskHowSteps(clueProof).map(step => step.label);
+  assert.ok(clueSteps.includes('Reach an easy clue location in Meadow.'), JSON.stringify(clueSteps));
+  assert.equal(clueSteps.at(-1), 'Easy anagram clue step: Talk to Scout — in Riverbank.');
+  assert.doesNotMatch(text(renderTaskHow(clueProof, { document })), /partial explanation/);
+
+  const chestProof = engine.how(state, 'one', taskId('Extra', 'Open east chest'));
+  const chestSteps = taskHowSteps(chestProof).map(step => step.label);
+  const connIdx = chestSteps.findIndex(label => label.startsWith('200-1 to 200-2'));
+  const entryIdx = chestSteps.indexOf('Get into Riverbank from Riverbank.');
+  assert.ok(connIdx >= 0 && entryIdx > connIdx && chestSteps.at(-1) === 'Open east chest — in Riverbank.', JSON.stringify(chestSteps));
+  assert.doesNotMatch(text(renderTaskHow(chestProof, { document })), /partial explanation/);
+});

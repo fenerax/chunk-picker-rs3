@@ -613,7 +613,11 @@ function collectAccessResources(index, result, { validTasks, membershipChecks })
       if (!result.questSteps.has(quest)) result.questSteps.set(quest, []);
       result.questSteps.get(quest).push(id);
     }
-    for (const [tier, count] of entries(data.Clue)) result.clues.set(tier, (result.clues.get(tier) ?? 0) + (Number(count) || 0));
+    for (const [tier, count] of entries(data.Clue)) {
+      const amount = Number(count) || 0;
+      result.clues.set(tier, (result.clues.get(tier) ?? 0) + amount);
+      if (amount > 0) proof?.clue?.(tier, id);
+    }
   }
   function collectResource(resource, location, gateLocations = [], retainedRoute = false) {
     if (f2p && resource.members === true) {

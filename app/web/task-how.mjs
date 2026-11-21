@@ -62,7 +62,9 @@ export function taskHowSteps(proof, { advanced = false, locationName = () => '' 
       }
       const from = place(node.from, node.fromName);
       label = `Get into ${place(node.subjectId, node.placeName)} ${via && via !== from ? `via ${strip(via)} in ${from}` : `from ${from}`}.`;
-    } else if (node.kind === 'placement' && node.location) label = `Find ${node.subjectId} in ${place(node.location, node.placeName)}.`;
+    } else if (node.kind === 'placement' && node.location) label = node.entityKind === 'Clue'
+      ? `Reach ${/^[aeiou]/i.test(node.subjectId) ? 'an' : 'a'} ${node.subjectId} clue location in ${place(node.location, node.placeName)}.`
+      : `Find ${node.subjectId} in ${place(node.location, node.placeName)}.`;
     else if (node.kind === 'item-source' && node.sourceKind !== 'recorded') {
       const source = { spawn: 'item spawn', drop: `drop from ${node.sourceName}`, shop: `buy from ${node.sourceName}`, object: node.sourceName }[node.sourceKind];
       label = `Get ${node.subjectId}${purposes.has(id) ? ` (${purposes.get(id)})` : ''}${source ? ` — ${source}` : ''}${node.location ? ` in ${place(node.location, node.placeName)}` : ''}.`;

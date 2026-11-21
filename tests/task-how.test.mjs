@@ -583,3 +583,74 @@ test('innate melee, Ranged, Prayer and Combat training seeds prove real witnesse
   assert.ok(manualProof.gaps.some(gap => gap.kind === 'manual-assumption'), JSON.stringify(manualProof.gaps));
   graph(manualProof);
 });
+
+test('ClueTier and ConnectsSections prove concrete witnesses while preserving partner and remaining special-requirement gaps', async () => {
+  const { createGroupState } = await import('../app/core/state.mjs');
+  const defs = {
+    walkableChunks: ['12849', '12850', '12851'],
+    walkableChunksF2P: ['12849', '12850', '12851'],
+    sections: { 12849: { 0: ['12850'] }, 12850: { 0: ['12849', '12851'] }, 12851: { 1: ['12850'], 2: [] } },
+    chunks: {
+      12849: { Nickname: 'South' },
+      12850: { Nickname: 'Meadow', Clue: { easy: 1, medium: 1 }, NPC: { Guide: 1 }, Object: { Bridge: 1 } },
+      12851: { Nickname: 'Riverbank', Sections: { 1: {}, 2: { Object: { Chest: 1 } } } },
+      Sanctuary: { Connect: { 12850: true } },
+    },
+    challenges: {
+      Nonskill: {
+        'Find Guide': { ClueTier: 'easy', ClueType: 'Anagram', NPCs: ['Guide'] },
+        '12851-1 to 12851-2': { ConnectsSections: true, Sections: ['12851-1', '12851-2'], Objects: ['Bridge'] },
+        'Sanctuary to 12851-2': { ConnectsSections: true, Sections: ['Sanctuary', '12851-2'] },
+        'Either requirement': { RequirementAlternatives: [{ Skills: { Agility: 1 } }] },
+      },
+      Extra: {
+        'Open east chest': { Objects: ['Chest'] },
+      },
+    },
+  };
+  const state = caveState(['12850', '12851']);
+  const engine = createTaskEngine(defs);
+  const baseline = engine.evaluate(state, 'one');
+
+  // ClueTier proves its reachable clue location without a special-requirements gap.
+  const clueProof = engine.how(state, 'one', taskId('Nonskill', 'Find Guide', defs.challenges.Nonskill['Find Guide']), { baseline });
+  assert.equal(clueProof.availability, 'available');
+  assert.equal(clueProof.proofStatus, 'complete', JSON.stringify(clueProof.gaps));
+  assert.match(labels(clueProof), /Reach an easy clue location at Meadow/);
+  assert.match(labels(clueProof), /Find Guide at Meadow/);
+  assert.ok(!clueProof.gaps.some(gap => gap.kind === 'special-requirements'));
+  graph(clueProof);
+
+  // ConnectsSections proves both section-to-section and area-to-section connectors and downstream access without cycling.
+  for (const [cat, label] of [['Nonskill', '12851-1 to 12851-2'], ['Nonskill', 'Sanctuary to 12851-2'], ['Extra', 'Open east chest']]) {
+    const proof = engine.how(state, 'one', taskId(cat, label), { baseline });
+    assert.equal(proof.availability, 'available', label);
+    assert.equal(proof.proofStatus, 'complete', `${label}: ${JSON.stringify(proof.gaps)}`);
+    assert.ok(!proof.gaps.some(gap => gap.kind === 'special-requirements'), label);
+    graph(proof);
+  }
+  assert.deepEqual(engine.evaluate(state, 'one').tasks, baseline.tasks);
+
+  // Partner-only clue location and partner-only section base keep honest partner-duo gaps.
+  const duoState = createGroupState([{ id: 'one', name: 'One', unlocked: ['12849'] }, { id: 'two', name: 'Two', unlocked: ['12850'] }]);
+  const duoClue = engine.how(duoState, 'one', taskId('Nonskill', 'Find Guide', defs.challenges.Nonskill['Find Guide']));
+  assert.equal(duoClue.availability, 'available');
+  assert.equal(duoClue.proofStatus, 'partial');
+  assert.ok(duoClue.gaps.some(gap => gap.kind === 'partner-duo'), JSON.stringify(duoClue.gaps));
+  assert.ok(!duoClue.gaps.some(gap => ['special-requirements', 'missing-evidence'].includes(gap.kind)), JSON.stringify(duoClue.gaps));
+  graph(duoClue);
+
+  const duoConnState = createGroupState([{ id: 'one', name: 'One', unlocked: ['12849'] }, { id: 'two', name: 'Two', unlocked: ['12850', '12851'] }]);
+  const duoConn = engine.how(duoConnState, 'one', taskId('Nonskill', 'Sanctuary to 12851-2'));
+  assert.equal(duoConn.availability, 'available');
+  assert.equal(duoConn.proofStatus, 'partial');
+  assert.ok(duoConn.gaps.some(gap => gap.kind === 'partner-duo'), JSON.stringify(duoConn.gaps));
+  assert.ok(!duoConn.gaps.some(gap => ['special-requirements', 'missing-evidence'].includes(gap.kind)), JSON.stringify(duoConn.gaps));
+  graph(duoConn);
+
+  // Remaining special requirements (such as RequirementAlternatives) still stay honest gaps.
+  const specialProof = engine.how(state, 'one', taskId('Nonskill', 'Either requirement'));
+  assert.equal(specialProof.proofStatus, 'partial');
+  assert.ok(specialProof.gaps.some(gap => gap.kind === 'special-requirements'), JSON.stringify(specialProof.gaps));
+  graph(specialProof);
+});
