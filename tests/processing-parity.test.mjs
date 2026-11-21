@@ -750,3 +750,112 @@ test('baseItemSourceView filters non-yielding objects and monsters while preserv
   assert.equal(row(shrineResult, 'Crafting', 'Use relic').status, 'available');
   assert.ok(shrineResult.metrics.processingBaseCollections >= 2, 'yielding produced object triggers base source recollection');
 });
+
+test('processing closure warm-start reuses stable closures across previews and fails closed on retraction or outclassed Set winners', () => {
+  const data = fixture({
+    Crafting: {
+      'High craft': recipe(20, ['Raw'], 'High product', { Primary: true }),
+      'Low craft': recipe(1, ['Raw', 'Low tool'], 'Low product', { Primary: true }),
+      'Dup recipe': { Level: 1, Items: ['Dup raw'], Output: 'Dup out', NoXp: true, Primary: false },
+      'Grow craft': recipe(5, ['New raw'], 'Grow product', { Primary: true }),
+    },
+    Extra: {
+      'Use high': { Items: ['High product'] },
+      'Use dup': { Items: ['Dup out'] },
+      'Use grow': { Items: ['Grow product'] },
+      'Base winner': { Items: ['Set token'], Set: 'DemoSet', Priority: 5 },
+      'Better winner': { Items: ['Set token', 'Better token'], Set: 'DemoSet', Priority: 1 },
+    },
+  }, {}, {
+    chunks: {
+      '1': { Spawn: { Raw: 1, 'Dup raw': 1, 'Set token': 1 }, Connect: { '2': true, '3': true, '4': true, '5': true, '6': true, '7': true } },
+      '2': { Spawn: { 'Neutral A': 1 }, Connect: { '1': true } },
+      '3': { Spawn: { 'Neutral B': 1 }, Connect: { '1': true } },
+      '4': { Spawn: { 'Dup out': 1 }, Connect: { '1': true } },
+      '5': { Spawn: { 'Low tool': 1 }, Connect: { '1': true } },
+      '6': { Spawn: { 'Better token': 1 }, Connect: { '1': true } },
+      '7': { Spawn: { 'New raw': 1 }, Connect: { '1': true } },
+    },
+    walkableChunksF2P: ['1', '2', '3', '4', '5', '6', '7'],
+  });
+  const options = { metadataCorrections: false, equipmentCorrections: false, cacheWalking: false, incrementalUnlocks: false };
+  const comparable = result => {
+    const copy = structuredClone(result);
+    delete copy.metrics.elapsedMs;
+    delete copy.metrics.unlockCalculation;
+    return copy;
+  };
+  const warmEngine = createTaskEngine(data, options);
+  const baseState = saved({}, { unlocked: ['1'] });
+  const baseWarm = warmEngine.evaluate(baseState, 'a');
+  assert.deepEqual(comparable(baseWarm), comparable(createTaskEngine(data, options).evaluate(baseState, 'a')));
+  assert.equal(row(baseWarm, 'Extra', 'Use high').status, 'available');
+  assert.equal(row(baseWarm, 'Extra', 'Use dup').status, 'available');
+  assert.equal(row(baseWarm, 'Extra', 'Base winner').status, 'available');
+
+  // Consecutive hypothetical previews must both warm-start from the base closure in one pass.
+  const previewA = warmEngine.evaluate(saved({}, { unlocked: ['1', '2'] }), 'a');
+  const previewB = warmEngine.evaluate(saved({}, { unlocked: ['1', '3'] }), 'a');
+  assert.equal(previewA.metrics.processingPasses, 1);
+  assert.equal(previewB.metrics.processingPasses, 1);
+  assert.deepEqual(comparable(previewA), comparable(createTaskEngine(data, options).evaluate(saved({}, { unlocked: ['1', '2'] }), 'a')));
+  assert.deepEqual(comparable(previewB), comparable(createTaskEngine(data, options).evaluate(saved({}, { unlocked: ['1', '3'] }), 'a')));
+
+  // Retraction (NoXp duplicate output), retraction (lower-level competing recipe),
+  // Set-winner outclassing, and monotone closure growth must all match cold evaluation byte-for-byte.
+  for (const [label, unlocked, checkFn] of [
+    ['NoXp retraction', ['1', '4'], res => assert.equal(row(res, 'Crafting', 'Dup recipe').sourceEligible, false)],
+    ['Lower-level recipe retraction', ['1', '5'], res => {
+      assert.equal(row(res, 'Crafting', 'High craft').sourceEligible, false);
+      assert.equal(row(res, 'Extra', 'Use high').status, 'blocked');
+    }],
+    ['Set winner outclassing', ['1', '6'], res => {
+      assert.equal(row(res, 'Extra', 'Better winner').status, 'available');
+      assert.equal(row(res, 'Extra', 'Base winner').status, 'blocked');
+    }],
+    ['Monotone closure growth', ['1', '7'], res => {
+      assert.equal(row(res, 'Extra', 'Use grow').status, 'available');
+    }],
+  ]) {
+    const state = saved({}, { unlocked });
+    const warm = warmEngine.evaluate(state, 'a');
+    const cold = createTaskEngine(data, options).evaluate(state, 'a');
+    checkFn(warm);
+    assert.deepEqual(comparable(warm), comparable(cold), label);
+  }
+});
+
+test('per-entity base source cache invalidates when a task gate opens mid-evaluation', () => {
+  const data = fixture({
+    Crafting: { 'Forge key': recipe(1, ['Raw'], 'Vault key') },
+    Quest: { 'Open vault': { Items: ['Vault key'] } },
+    Extra: { 'Inspect relic': { Items: ['Vault relic', 'Guard fang'] } },
+  }, {}, {
+    chunks: { '1': { Spawn: { Raw: 1 }, Monster: { 'Vault guard': 1 }, Object: { 'Sealed chest': 1 } } },
+    drops: { 'Vault guard': { 'Guard fang': { 1: 'Always' }, 'Vault relic': { 1: '1/4' } } },
+    objectItems: { 'Sealed chest': { 'Chest gem': { 1: 'Always' } } },
+    taskUnlocks: {
+      Items: {
+        'Vault relic^Vault guard': [{ 'Open vault': 'Quest' }],
+        'Chest gem^Sealed chest': [{ 'Open vault': 'Quest' }],
+      },
+    },
+  });
+  const index = buildAccessIndex(data), access = calculateAccess(index, saved(), 'a');
+  const entityCache = new Map();
+  const closed = collectBaseItemSources(data, access, { validTasks: new Set(), entityCache });
+  assert.ok(closed.items.has('Guard fang'));
+  assert.ok(!closed.items.has('Vault relic'));
+  assert.ok(!closed.items.has('Chest gem'));
+  const openTasks = new Set(['Quest\u0000Open vault']);
+  const reopenedCached = collectBaseItemSources(data, access, { validTasks: openTasks, entityCache });
+  const reopenedFresh = collectBaseItemSources(data, access, { validTasks: openTasks });
+  assert.ok(reopenedCached.items.has('Vault relic'));
+  assert.ok(reopenedCached.items.has('Chest gem'));
+  assert.deepEqual([...reopenedCached.sources.entries()], [...reopenedFresh.sources.entries()]);
+  assert.deepEqual(reopenedCached.diagnostics, reopenedFresh.diagnostics);
+
+  const engineResult = createTaskEngine(data, { metadataCorrections: false, equipmentCorrections: false, cacheWalking: false }).evaluate(saved(), 'a');
+  assert.equal(row(engineResult, 'Extra', 'Inspect relic').status, 'available');
+  assert.ok(output(engineResult, 'Chest gem'));
+});
