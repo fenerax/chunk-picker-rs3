@@ -274,15 +274,24 @@ export function createHowCapture({ state, memberId, definitions, byKey, complete
     .filter(source => source.processingMode !== 'multi')
     .sort((a, b) => sourceRank(a, env) - sourceRank(b, env) || JSON.stringify(a).localeCompare(JSON.stringify(b)))
     .slice(0, 8);
+  const seedSourceRef = (name, source, env) => {
+    const id = sourceRef(name, source);
+    if (!id) return null;
+    const gate = source.kind === 'drop' ? env.monsterGate?.(source.source) ?? null : null;
+    if (!gate) return id;
+    return put(`gated-source-seed:${name}:${JSON.stringify(source)}`, { kind: 'requirement', field: 'Items',
+      label: `Obtain ${clean(name)} from ${clean(source.source)}.`, rule: 'gated-monster-drop',
+      allOf: [id, gap(gate, `The picker can't show this ${gate.replaceAll('-', ' ')} step yet.`)] });
+  };
   const ordinaryItemChoice = (scope, name, env) => {
     const sources = selectOrdinarySources(name, env);
     if (!sources.length) return null;
-    const candidates = sources.map(source => ({ subject: sourceKey(name, source), id: sourceRef(name, source) })).filter(entry => entry.id);
+    const candidates = sources.map(source => ({ subject: sourceKey(name, source), id: seedSourceRef(name, source, env) })).filter(entry => entry.id);
     if (!candidates.length) return null;
     const key = `seed-item:${scope}:${name}`;
     const choice = put(key, { kind: 'requirement', field: 'Items', label: `Obtain ${clean(name)}.`, rule: 'selected-source', allOf: [candidates[0].id] });
     if (choice && !choices.has(choice)) choices.set(choice, { count: 1, candidates: () => cached(key, () => selectOrdinarySources(name, env)
-      .map(source => ({ subject: sourceKey(name, source), id: sourceRef(name, source) })).filter(entry => entry.id)) });
+      .map(source => ({ subject: sourceKey(name, source), id: seedSourceRef(name, source, env) })).filter(entry => entry.id)) });
     return choice;
   };
   const bestSourceRank = (name, env) => {
@@ -361,7 +370,7 @@ export function createHowCapture({ state, memberId, definitions, byKey, complete
     for (const item of [...new Set(list)].sort()) {
       const sources = selectOrdinarySources(item, env);
       for (const source of sources) {
-        const id = sourceRef(item, source);
+        const id = seedSourceRef(item, source, env);
         if (id) results.push({ subject: sourceKey(item, source), id });
       }
     }

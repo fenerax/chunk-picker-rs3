@@ -531,14 +531,27 @@ test('innate melee, Ranged, Prayer and Combat training seeds prove real witnesse
   assert.match(labels(highBowProof), /recorded Ranged level is 20/);
   graph(highBowProof);
 
-  // Slayer-gated monster alone preserves the honest slayer-level gap.
+  // Slayer-gated monster alone preserves the honest slayer-level gap for melee, Prayer drops, and Ranged gear drops.
   const gatedDefs = makeDefs();
   gatedDefs.slayerMonsters = { Goblin: 1 };
-  const gatedProof = createTaskEngine(gatedDefs).how(caveState(['12850']), 'one', taskId('Quest', 'Need Attack'));
-  assert.equal(gatedProof.availability, 'available');
-  assert.equal(gatedProof.proofStatus, 'partial');
-  assert.ok(gatedProof.gaps.some(gap => gap.kind === 'slayer-level'), JSON.stringify(gatedProof.gaps));
-  graph(gatedProof);
+  const gatedEngine = createTaskEngine(gatedDefs);
+  for (const name of ['Need Attack', 'Need Prayer']) {
+    const gatedProof = gatedEngine.how(caveState(['12850']), 'one', taskId('Quest', name));
+    assert.equal(gatedProof.availability, 'available', name);
+    assert.equal(gatedProof.proofStatus, 'partial', name);
+    assert.ok(gatedProof.gaps.some(gap => gap.kind === 'slayer-level'), `${name}: ${JSON.stringify(gatedProof.gaps)}`);
+    graph(gatedProof);
+  }
+  const gatedRangedDefs = makeDefs();
+  delete gatedRangedDefs.chunks['12850'].Spawn;
+  gatedRangedDefs.chunks['12850'].Monster.Rat = 1;
+  gatedRangedDefs.drops.Goblin.Chargebow = { 1: 'Always' };
+  gatedRangedDefs.slayerMonsters = { Goblin: 1 };
+  const gatedRangedProof = createTaskEngine(gatedRangedDefs).how(caveState(['12850']), 'one', taskId('Quest', 'Need Ranged'));
+  assert.equal(gatedRangedProof.availability, 'available');
+  assert.equal(gatedRangedProof.proofStatus, 'partial');
+  assert.ok(gatedRangedProof.gaps.some(gap => gap.kind === 'slayer-level'), JSON.stringify(gatedRangedProof.gaps));
+  graph(gatedRangedProof);
 
   // Partner-only monster and bones preserve partner-duo gaps; Combat prefers an own Magic seed over partner Attack.
   const duoDefs = makeDefs();
