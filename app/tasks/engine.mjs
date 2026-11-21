@@ -1381,6 +1381,7 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
         const previous = producedObjects.get(object), locations = [...new Set([...(previous?.locations ?? []), ...array(task.record.Chunks).filter(availableLocation)])];
         if (!previous || own && !previous.own || locations.length !== previous.locations.length) changed = true;
         producedObjects.set(object, { taskId: task.id, own: own || previous?.own === true, locations });
+        if (proof) proof.producedObject(object, task, own);
       }
       for (const name of array(task.record.Reward)) if (typeof name === 'string' && outputGate(name, task, 'reward')) {
         if (!items.has(name)) { items.add(name); changed = true; }

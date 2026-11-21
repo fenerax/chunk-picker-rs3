@@ -353,3 +353,124 @@ test('conditional multistep supplies still report their unproved processing sele
   assert.equal(proof.proofStatus, 'partial');
   assert.ok(proof.gaps.some(gap => gap.kind === 'processing')); graph(proof);
 });
+
+test('sectioned owned base chunks resolve to reached sections without hiding resource-only gaps', async () => {
+  const definitions = {
+    chunks: {
+      100: { Nickname: 'Castle', Sections: { 1: { Object: { Fountain: 1 } } } },
+      200: { Nickname: 'Meadow' },
+    },
+    sections: { 100: { 1: ['200'] } },
+    challenges: { Extra: { 'Visit castle': { Chunks: ['100'] } } },
+  };
+  const goal = taskId('Extra', 'Visit castle');
+  const engine = createTaskEngine(definitions), state = caveState(['100', '200']);
+  const proof = engine.how(state, 'one', goal);
+  assert.equal(proof.availability, 'available');
+  assert.equal(proof.proofStatus, 'complete', JSON.stringify(proof.gaps));
+  assert.match(labels(proof), /Castle/); graph(proof);
+
+  const { createHowCapture } = await import('../app/tasks/how-proof.mjs');
+  const taskRecord = { id: goal, key: 'Extra\0Visit castle', category: 'Extra', rawLabel: 'Visit castle', label: 'Visit castle',
+    record: { Chunks: ['100'] }, requirements: [{ field: 'Chunks', token: '100', clean: '100', displayLabel: '100', count: 1 }],
+    needs: [], dependencies: [], completedDependencies: [], personalAlternatives: [], sourceLocations: [], tags: [] };
+  const capture = createHowCapture({ state: caveState(['100']), memberId: 'one', definitions, byKey: new Map([[taskRecord.key, taskRecord]]), completedTask: () => false });
+  capture.location('100-1', { resourceOnly: true });
+  capture.task(taskRecord, { available: () => true, ownLocation: () => true, access: { locations: new Map(), entranceSources: new Map() }, valid: new Set(), levels: {}, passive: {}, observed: {}, controls: { passiveLevels: {}, primaryOverrides: {} }, caps: {}, anyAchievements: false, rules: {}, monsterGate: () => null });
+  const resourceOnly = capture.finish(goal, { tasks: [{ id: goal, status: 'available' }] });
+  assert.equal(resourceOnly.proofStatus, 'partial');
+  assert.deepEqual(resourceOnly.gaps.map(gap => gap.kind), ['resource-only-access']); graph(resourceOnly);
+});
+
+test('policy-only UnlocksArea interiors keep their walking entry in members mode and stay gated in F2P', () => {
+  const definitions = {
+    chunks: {
+      100: { Nickname: 'Garden' },
+      Vault: { Connect: { 100: true }, Spawn: { Relic: 1 } },
+    },
+    challenges: {
+      Nonskill: { Vault: { UnlocksArea: true, 'Not F2P': true, Category: 'Dungeon' } },
+      Extra: { Goal: { Items: ['Relic'] } },
+    },
+  };
+  const engine = createTaskEngine(definitions);
+  const membersState = caveState(['100']); membersState.rules['content.f2p'] = false;
+  for (const target of [taskId('Extra', 'Goal'), taskId('Nonskill', 'Vault')]) {
+    const proof = engine.how(membersState, 'one', target);
+    assert.equal(proof.availability, 'available');
+    assert.equal(proof.proofStatus, 'complete', JSON.stringify(proof.gaps));
+    assert.match(labels(proof), /Get into Vault from Garden/); graph(proof);
+  }
+  const f2pState = caveState(['100']); f2pState.rules['content.f2p'] = true;
+  for (const target of [taskId('Extra', 'Goal'), taskId('Nonskill', 'Vault')]) {
+    assert.notEqual(engine.how(f2pState, 'one', target).availability, 'available');
+  }
+  const unreachable = caveState([]); unreachable.rules['content.f2p'] = false;
+  assert.notEqual(engine.how(unreachable, 'one', taskId('Nonskill', 'Vault')).proofStatus, 'complete');
+});
+
+test('multi-alternative area unlocks bind whichever admitted entrance matches Connect', () => {
+  const definitions = {
+    chunks: {
+      100: { Nickname: 'West field', Spawn: { Torch: 1 } },
+      101: { Nickname: 'East field' },
+      Cavern: { Connect: { 101: true }, Object: { Crystal: 1 } },
+    },
+    challenges: {
+      Nonskill: { Cavern: { UnlocksArea: true, Chunks: ['Approaches[+]'], Items: ['Torch'] } },
+      Extra: { Goal: { Objects: ['Crystal'] } },
+    },
+    codeItems: { chunksPlus: { 'Approaches[+]': ['100', '101'] } },
+  };
+  const engine = createTaskEngine(definitions), state = caveState(['100', '101']);
+  for (const target of [taskId('Extra', 'Goal'), taskId('Nonskill', 'Cavern')]) {
+    const proof = engine.how(state, 'one', target);
+    assert.equal(proof.availability, 'available');
+    assert.equal(proof.proofStatus, 'complete', JSON.stringify(proof.gaps));
+    assert.match(labels(proof), /Get into Cavern from East field/);
+    assert.ok(Object.values(proof.nodes).some(node => node.subjectId === '101'));
+    graph(proof);
+  }
+});
+
+test('Output Object producers prove dependent object requirements and preserve non-own access gaps', async () => {
+  const { createGroupState } = await import('../app/core/state.mjs');
+  const makeDefs = () => ({
+    chunks: {
+      12850: { Nickname: 'Camp', Spawn: { Logs: 1, 'Raw meat': 1 } },
+      12851: { Nickname: 'Woods', Spawn: { Logs: 1 } },
+    },
+    sections: { 12850: { 0: ['12851'] }, 12851: { 0: ['12850'] } },
+    walkableChunks: ['12850', '12851'],
+    walkableChunksF2P: ['12850', '12851'],
+    challenges: {
+      Firemaking: { 'Light logs': { Level: 1, Items: ['Logs'], 'Output Object': ['Player fire'], Primary: true } },
+      Cooking: { 'Cook meat': { Level: 1, Items: ['Raw meat'], Objects: ['Player fire'] } },
+    },
+  });
+  const cook = taskId('Cooking', 'Cook meat'), light = taskId('Firemaking', 'Light logs');
+  const engine = createTaskEngine(makeDefs()), state = caveState(['12850']);
+  const before = engine.evaluate(state, 'one');
+  const own = engine.how(state, 'one', cook);
+  assert.equal(own.availability, 'available');
+  assert.equal(own.proofStatus, 'complete', JSON.stringify(own.gaps));
+  assert.match(labels(own), /Create Player fire via Light logs/);
+  assert.ok(!own.gaps.length); graph(own);
+  assert.deepEqual(engine.evaluate(state, 'one').tasks, before.tasks);
+
+  const historicalDefs = makeDefs(); delete historicalDefs.chunks['12850'].Spawn.Logs;
+  const historicalState = caveState(['12850']); historicalState.members[0].completedTasks = [light];
+  const historical = createTaskEngine(historicalDefs).how(historicalState, 'one', cook);
+  assert.equal(historical.availability, 'available');
+  assert.equal(historical.proofStatus, 'partial');
+  assert.ok(historical.gaps.some(gap => gap.kind === 'historical-source-access'), JSON.stringify(historical.gaps));
+  assert.ok(!historical.gaps.some(gap => gap.kind === 'unsupported-kind')); graph(historical);
+
+  const duoDefs = makeDefs(); delete duoDefs.chunks['12850'].Spawn.Logs;
+  const duoState = createGroupState([{ id: 'one', name: 'One', unlocked: ['12850'] }, { id: 'two', name: 'Two', unlocked: ['12851'] }]);
+  const partner = createTaskEngine(duoDefs).how(duoState, 'one', cook);
+  assert.equal(partner.availability, 'available');
+  assert.equal(partner.proofStatus, 'partial');
+  assert.ok(partner.gaps.some(gap => gap.kind === 'partner-duo' && gap.detail === "This object comes from your partner's map."), JSON.stringify(partner.gaps));
+  assert.ok(!partner.gaps.some(gap => gap.kind === 'unsupported-kind')); graph(partner);
+});
