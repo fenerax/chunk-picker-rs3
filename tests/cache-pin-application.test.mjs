@@ -103,3 +103,28 @@ test('renderer loads exact per-pin cache artwork, keeps trim anchors and draws t
   assert.equal(renderer.icon('other', { icon: '/assets/map/../private.png' }), null);
   renderer.dispose();
 });
+
+test('minimap-only cache pins with unknown_08 === 0 are excluded from world-map normalization', () => {
+  const input = fixture();
+  input.dataset.pins.push(
+    { ...input.dataset.pins[0], id: 'cache-minimap-npc', x: 3151, y: 3426, spriteId: 511, category: null,
+      elementDefinition: { sprite: 511, unknown_07: 2, unknown_08: 0, unknown_1c: 100 },
+      conditions: [{ kind: 'uninterpreted-element-setting', field: 'unknown_08', value: 0 }] },
+    { ...input.dataset.pins[0], id: 'cache-minimap-cond-only', x: 2347, y: 3666, spriteId: 510, category: null,
+      conditions: [{ kind: 'uninterpreted-element-setting', field: 'unknown_08', value: 0 }] },
+    { ...input.dataset.pins[0], id: 'cache-worldmap-visible', x: 3210, y: 3210, spriteId: 22458, category: 1156,
+      elementDefinition: { sprite: 22458, unknown_07: 3, unknown_08: 1 } },
+  );
+  input.provenance.published.sprites.sprites.push(frame(511), frame(510));
+  const untouched = structuredClone(input);
+  const result = normalizeCachePins(input.dataset, input.provenance, input.manifest);
+  assert.deepEqual(input, untouched, 'Filtering minimap-only pins must not mutate the input bundle');
+  const ids = result.dataset.pins.map(pin => pin.id);
+  assert.equal(ids.includes('cache-minimap-npc'), false);
+  assert.equal(ids.includes('cache-minimap-cond-only'), false);
+  assert.equal(ids.includes('cache-worldmap-visible'), true);
+  assert.equal(result.dataset.normalization.rawPins, 7);
+  assert.equal(result.dataset.normalization.retainedPins, 5);
+  assert.equal(result.dataset.normalization.minimapOnlyExclusions, 2);
+  assert.equal(result.manifest.pins.count, 5);
+});

@@ -36,6 +36,16 @@ export function enumerateTerrainTiles(zoom = 2) {
   return result;
 }
 
+/** RS3 map-element opcode 8 (`0` = hidden on the world map, minimap-only). */
+export function isMinimapOnlyPin(pin) {
+  if (!pin || typeof pin !== 'object') return false;
+  if (pin.elementDefinition?.unknown_08 === 0) return true;
+  if (Array.isArray(pin.conditions)) {
+    return pin.conditions.some(entry => entry?.field === 'unknown_08' && entry.value === 0);
+  }
+  return pin.conditions?.icon?.unk_8 === 0 || pin.conditions?.properties?.unk_8 === 0;
+}
+
 /** Adapt the immutable research bundle without rewriting its placements or IDs. */
 export function normalizeCachePins(dataset, provenance, terrainManifest) {
   if (dataset?.schemaVersion !== 1 || dataset.exportType !== 'cache-diagnostic' || dataset.mapId !== 28
@@ -53,27 +63,34 @@ export function normalizeCachePins(dataset, provenance, terrainManifest) {
     }
   }
   const seen = new Set();
-  const pins = dataset.pins.map(pin => {
+  const pins = [];
+  let minimapOnlyExclusions = 0;
+  for (const pin of dataset.pins) {
     const chunkId = chunkIdForGame(pin.x, pin.y);
     if (typeof pin.id !== 'string' || seen.has(pin.id) || pin.mapId !== 28 || pin.plane !== 0 || !chunkId
       || !(pin.spriteId === null || Number.isInteger(pin.spriteId))) throw new Error('Invalid cache pin placement.');
     seen.add(pin.id);
-    const category = categoryForCachePin(pin), world = gameToWorld(pin.x, pin.y), frame = frames.get(pin.spriteId);
+    const frame = frames.get(pin.spriteId);
     if (Number.isInteger(pin.spriteId) && !frame) throw new Error(`Missing cache sprite frame: ${pin.spriteId}`);
-    return { ...pin, categoryId: category.id, chunkId, worldX: world.x, worldY: world.y,
+    if (isMinimapOnlyPin(pin)) {
+      minimapOnlyExclusions++;
+      continue;
+    }
+    const category = categoryForCachePin(pin), world = gameToWorld(pin.x, pin.y);
+    pins.push({ ...pin, categoryId: category.id, chunkId, worldX: world.x, worldY: world.y,
       label: plainLabel(pin.label) || plainLabel(pin.objectName) || category.label,
       labelOrigin: pin.label ? pin.labelOrigin : pin.objectName ? 'cache-object-name' : 'category',
       textOnly: pin.spriteId === null, ...(frame ? { icon: frame.icon, iconFrame: frame } : {}),
-      surfaceEvidence: 'decoded-surface-paste' };
-  });
+      surfaceEvidence: 'decoded-surface-paste' });
+  }
   const categories = MAP_PIN_CATEGORIES.map(category => {
     const current = pins.find(pin => pin.categoryId === category.id && pin.icon);
     return { ...category, ...(current ? { icon: current.icon } : {}) };
   });
   const snapshotDate = provenance.generatedAt?.slice(0, 10);
   return { dataset: { ...dataset, pins, snapshotDate, sourceKind: 'copied-cache',
-    normalization: { policy: 'Exact surface pastes and retained conditional records; no water-only exclusions.',
-      rawPins: dataset.pins.length, retainedPins: pins.length, waterExclusions: 0 } },
+    normalization: { policy: 'Exact surface pastes and retained conditional records; minimap-only markers excluded; no water-only exclusions.',
+      rawPins: dataset.pins.length, retainedPins: pins.length, minimapOnlyExclusions, waterExclusions: 0 } },
   manifest: { ...terrainManifest, categories, cachePinProvenance: provenance,
     pins: { ...provenance.published.pins, snapshotDate, sourceKind: 'copied-cache', count: pins.length,
       manifestPath: CACHE_PIN_MANIFEST_PATH },

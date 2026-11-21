@@ -1,6 +1,6 @@
 import { gameStorage } from './screen-save-status.mjs';
 import { MAP_PIN_LEGEND_GROUPS } from '../data/map-pin-categories.mjs';
-import { CACHE_PIN_PATH, CACHE_PIN_MANIFEST_PATH, normalizeCachePins } from '../data/map-pins.mjs';
+import { CACHE_PIN_PATH, CACHE_PIN_MANIFEST_PATH, isMinimapOnlyPin, normalizeCachePins } from '../data/map-pins.mjs';
 import { createTravelLinesControl } from './map-info.mjs';
 import { placeholderPicture, resolvePicture } from './art-status.mjs';
 
@@ -111,7 +111,8 @@ export async function loadMapPins(manifest, fetcher = globalThis.fetch) {
     if (!pinResponse.ok) return null;
     const dataset = await pinResponse.json();
     if (dataset.schemaVersion !== 1 || !Array.isArray(dataset.pins) || !Array.isArray(manifest.categories)) return null;
-    return { manifest, dataset };
+    const pins = dataset.pins.filter(pin => !isMinimapOnlyPin(pin));
+    return { manifest, dataset: pins.length === dataset.pins.length ? dataset : { ...dataset, pins } };
   } catch { return null; }
 }
 /** Compatibility loader for callers that need both optional layers together. */

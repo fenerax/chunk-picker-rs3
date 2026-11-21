@@ -48,6 +48,22 @@ test('local asset resolution rejects third-party URLs, traversal and query strin
   for (const path of ['https://host/pins.json', '//host/pins.json', '../pins.json', 'terrain/../../secret', '/api/state', 'file?source=x', 'terrain\\tile.png']) assert.equal(localMapAssetPath(path), null);
 });
 
+test('legacy fallback loader filters minimap-only pins flagged with unk_8 === 0', async () => {
+  const manifest = { schemaVersion: 1, terrain: { mapId: 28 }, pins: { path: 'pins.normalized.json' }, categories };
+  const dataset = {
+    schemaVersion: 1,
+    pins: [
+      ...pins,
+      { id: 'legacy-minimap-dot', categoryId: 'other', label: 'Other / unmapped', spriteId: 511,
+        conditions: { properties: { iconSprite: 511, unk_8: 0, unk_7: 2 }, icon: { iconSprite: 511, unk_8: 0, unk_7: 2 } } },
+    ],
+  };
+  const loaded = await loadMapAssets(async path => path === `/assets/map/${CACHE_PIN_PATH}`
+    ? { ok: false, status: 404 }
+    : { ok: true, json: async () => path.endsWith('/manifest.json') ? manifest : dataset });
+  assert.deepEqual(loaded.dataset.pins.map(pin => pin.id), pins.map(pin => pin.id));
+});
+
 
 
 

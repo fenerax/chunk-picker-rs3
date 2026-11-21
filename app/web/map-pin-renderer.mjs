@@ -1,6 +1,6 @@
 import { browserAsset } from './asset-url.mjs';
 import { pinMatchesSearch, normalizePinSearch } from './map-pins.mjs';
-import { CACHE_PIN_SPRITE_DIRECTORY } from '../data/map-pins.mjs';
+import { CACHE_PIN_SPRITE_DIRECTORY, isMinimapOnlyPin } from '../data/map-pins.mjs';
 import { indexPinDetails } from './map-info.mjs';
 import { resolvePicture, recordPictureFailure } from './art-status.mjs';
 
@@ -40,7 +40,8 @@ export class MapPinRenderer {
     for (const pin of dataset?.pins ?? []) {
       if (typeof pin.id !== 'string' || !Number.isFinite(pin.worldX) || !Number.isFinite(pin.worldY)
         || pin.worldX < 0 || pin.worldX >= 6016 || pin.worldY < 0 || pin.worldY >= 6400
-        || (pin.plane !== undefined && pin.plane !== 0) || (pin.mapId !== undefined && pin.mapId !== 28)) continue;
+        || (pin.plane !== undefined && pin.plane !== 0) || (pin.mapId !== undefined && pin.mapId !== 28)
+        || isMinimapOnlyPin(pin)) continue;
       this.pins.set(pin.id, pin);
       const bucket = `${Math.floor(pin.worldX / CELL)},${Math.floor(pin.worldY / CELL)}`;
       if (!this.buckets.has(bucket)) this.buckets.set(bucket, []);

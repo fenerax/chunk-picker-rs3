@@ -268,9 +268,12 @@ test('intermediate-zoom representatives stay the same while the map pans', () =>
   renderer.dispose();
 });
 
-test('DOM-less fallback remains usable and explicitly non-surface pins are excluded', () => {
+test('DOM-less fallback remains usable and explicitly non-surface or minimap-only pins are excluded', () => {
   const renderer = new MapPinRenderer({ categories: [{ id: 'bank', label: 'Bank' }] }, { pins: [pin,
-    { ...pin, id: 'upstairs', plane: 1 }, { ...pin, id: 'dungeon', mapId: 29 }, { ...pin, id: 'surface', mapId: 28, plane: 0, worldX: 200 }] },
+    { ...pin, id: 'upstairs', plane: 1 }, { ...pin, id: 'dungeon', mapId: 29 },
+    { ...pin, id: 'minimap-cache', elementDefinition: { sprite: 511, unknown_08: 0, unknown_07: 2 } },
+    { ...pin, id: 'minimap-legacy', conditions: { icon: { iconSprite: 511, unk_8: 0 } } },
+    { ...pin, id: 'surface', mapId: 28, plane: 0, worldX: 200 }] },
   { canvasFactory: () => null });
   assert.deepEqual([...renderer.pins.keys()], ['bank-one', 'surface']);
   renderer.draw(context(), view);
