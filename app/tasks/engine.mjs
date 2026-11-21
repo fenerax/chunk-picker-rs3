@@ -1031,7 +1031,7 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
       lastMergedBaseLen.set(name, list.length);
       if (allOwn) lastMergedAllOwn.set(name, true);
     }
-    let lastMergedOwnAccess = cachedAccess.own, lastMergedOwnObjects = previousBaseOwnObjects, lastMergedProducedSize = 0;
+    let lastMergedOwnAccess = cachedAccess.own, lastMergedOwnObjects = previousBaseOwnObjects, lastMergedProducedSig = '';
     let items = watched('items', new Set(base.items)), sources = watched('sources', initialSources);
     const manualItems = [...Object.entries(legacy.manualMonsters?.Items ?? {}).map(([name, primary]) => [decodeLegacyText(name), primary, 'manual']), ...Object.keys(legacy.manualEquipment ?? {}).map(name => [decodeLegacyText(name), false, 'drop'])];
     const declaredNames = new Set(manualItems.map(([name]) => name));
@@ -1698,7 +1698,12 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
         if (!baseUnchanged) {
           const baseFlags = computeBaseOwnership();
           const sameOwn = cachedAccess.own === lastMergedOwnAccess && previousBaseOwnObjects === lastMergedOwnObjects;
-          const canSkipUnchanged = !proof;
+          let yieldingProducedSig = '';
+          for (const [objName, source] of producedObjects) {
+            if (definitions.objectItems?.[objName]) yieldingProducedSig += `${objName}:${source.locations.join(',')}\0`;
+          }
+          const sameProduced = yieldingProducedSig === lastMergedProducedSig;
+          const canSkipUnchanged = !proof && sameProduced;
           let baseKeys = previousBaseEntry.sourceKeys;
           for (const name of base.items) if (!items.has(name)) { items.add(name); wakeList(itemWatchers, name); changed = true; }
           for (const [name, list] of base.sources) {
@@ -1723,7 +1728,7 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
           }
           lastMergedOwnAccess = cachedAccess.own;
           lastMergedOwnObjects = previousBaseOwnObjects;
-          lastMergedProducedSize = producedObjects.size;
+          lastMergedProducedSig = yieldingProducedSig;
         }
         changed = updateSkills() || changed;
         changed = updatePoints() || changed;

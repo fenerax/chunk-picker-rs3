@@ -934,3 +934,25 @@ test('per-entity base source cache invalidates when a task gate opens mid-evalua
   assert.equal(row(engineResult, 'Extra', 'Inspect relic').status, 'available');
   assert.ok(output(engineResult, 'Chest gem'));
 });
+
+test('base source merge preserves replaced gathering locations when a produced object already exists naturally', () => {
+  const data = fixture({
+    Crafting: {
+      'Build shrine': { Level: 1, Chunks: ['2'], 'Output Object': 'Shrine', Primary: false },
+    },
+    Extra: {
+      'Use relic': { Items: ['Shrine relic'] },
+    },
+  }, {}, {
+    chunks: {
+      '1': { Object: { Shrine: 1 }, Connect: { '2': true } },
+      '2': { Connect: { '1': true } },
+    },
+    walkableChunksF2P: ['1', '2'],
+    objectItems: { Shrine: { 'Shrine relic': { 1: 'Always' } } },
+  });
+  const result = createTaskEngine(data, { metadataCorrections: false, equipmentCorrections: false, cacheWalking: false })
+    .evaluate(saved({}, { unlocked: ['1', '2'] }), 'a');
+  assert.equal(row(result, 'Extra', 'Use relic').status, 'available');
+  assert.deepEqual(output(result, 'Shrine relic').sources.map(source => source.location).sort(), ['1', '2']);
+});
