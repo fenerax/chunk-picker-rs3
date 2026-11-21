@@ -1,4 +1,5 @@
 import { sampleCounts, countSample, sampleReceiptStatus, sampleCountsMarkdown } from './sample-verification.mjs';
+import { contextOpenPhase } from './context-receipts.mjs';
 
 // Scratch-only selections. Application defaults remain owned by the router,
 // picker limits and admission modules; default injects no overrides.
@@ -73,7 +74,9 @@ export function assertResidency(result) {
       for (const key of ['healthObservation', 'diagnosticsObservation']) if (row.server[key]) check(row.server[key], key);
     }
   }
-  for (const key of ['contextOpens', 'admissionTransitions']) for (const row of result[key] ?? []) check(row, key);
+  // All lifecycle phases must retain the selection, even without a heap probe.
+  for (const row of result.contextOpens ?? []) check(row, `contextOpens.${contextOpenPhase(row)}`);
+  for (const row of result.admissionTransitions ?? []) check(row, 'admissionTransitions');
   return selected;
 }
 

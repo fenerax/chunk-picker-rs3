@@ -187,16 +187,26 @@ synthetic regression verifies the first serving open keeps its revision.
 ### Open and command diagnostics
 
 The harness opts into `multiPicker.onContextOpen`; ordinary servers leave it
-unset. Each owned open emits dataset verification, store hydration/validation,
-migration/hook validation, retention, sidecar, fingerprint and rule preparation
-durations. Store total additionally includes locks, recovery and publication.
-Failed opens report completed phases and a failure code. No diagnostic modifies
-migration, admission bounds or calculator behavior.
+unset. Each owned open emits separate factory, optional preparation and close
+receipts, correlated by picker ID, process-local open ID and server generation.
+The factory records dataset verification, store hydration/validation,
+migration/hook validation, retention, sidecar and fingerprint durations. Store
+total additionally includes locks, recovery and publication. Preparation and
+close receipts retain their own subphase timings. Failed phases retain completed
+measurements and a failure code. No diagnostic modifies migration, admission
+bounds or calculator behavior.
 
 `results.json` includes `contextOpens`, `admissionTransitions`, `load.commands`
 and sampled `server.eventLoop` utilisation, active/idle time and delay percentiles.
-`summary.md` includes phase and memory rows per open, command/status latency
-distributions, event-loop samples and admission transition/reason counts. Raw
+Context receipts keep the lifecycle `phase` (`factory`, `prepare`, `close`)
+separate from the receipt-time `workloadPhase` (for example `restart-recovery`).
+Open counts, open tables and memory tables use factory receipts only. Legacy
+receipts with no phase or only a workload phase count as factories; later phases
+are not extra opens. `summary.md` includes each phase's count, timed count,
+p50/p95/max duration and failed-status counts across generations, plus
+command/status latency distributions, event-loop samples and admission
+transition/reason counts. Missing timings or memory snapshots display `n/a`;
+all phases still require the run's residency and memory-profile labels. Raw
 admission events include a correlation ID, queue/service duration and active/
 pending counts, including immediate refusals. Commands retain attempted type,
 status and HTTP latency in `events.jsonl`, including failures; action latency
