@@ -474,3 +474,99 @@ test('Output Object producers prove dependent object requirements and preserve n
   assert.ok(partner.gaps.some(gap => gap.kind === 'partner-duo' && gap.detail === "This object comes from your partner's map."), JSON.stringify(partner.gaps));
   assert.ok(!partner.gaps.some(gap => gap.kind === 'unsupported-kind')); graph(partner);
 });
+
+test('innate melee, Ranged, Prayer and Combat training seeds prove real witnesses and preserve gate and partner gaps', async () => {
+  const { createGroupState } = await import('../app/core/state.mjs');
+  const makeDefs = () => ({
+    walkableChunks: ['12850', '12851'],
+    walkableChunksF2P: ['12850', '12851'],
+    sections: { 12850: { 0: ['12851'] }, 12851: { 0: ['12850'] } },
+    chunks: {
+      12850: { Nickname: 'Meadow', Monster: { Goblin: 1 }, Spawn: { Shortbow: 1, 'Bronze arrow': 1 } },
+      12851: { Nickname: 'Ruins', Monster: { Skeleton: 1 } },
+    },
+    drops: { Goblin: { Bones: { 1: 'Always' } } },
+    codeItems: {
+      boneItems: ['Bones'],
+      itemsPlus: { 'AnyArrow[+]': ['Bronze arrow'] },
+      ammoTools: { 'AnyArrow[+]': { Shortbow: true, 'Willow shortbow': true }, 'No ammo': { Chargebow: true } },
+      rangedItems: { Shortbow: 1, 'Willow shortbow': 20, Chargebow: 1 },
+    },
+    challenges: {
+      Quest: {
+        'Need Attack': { Skills: { Attack: 20 } },
+        'Need Ranged': { Skills: { Ranged: 30 } },
+        'Need Prayer': { Skills: { Prayer: 43 } },
+        'Need Combat': { Skills: { Combat: 40 } },
+      },
+    },
+  });
+  const engine = createTaskEngine(makeDefs());
+  const state = caveState(['12850']);
+  const before = engine.evaluate(state, 'one');
+  for (const [name, expected] of [
+    ['Need Attack', [/monster combat is reachable/, /Find Goblin at Meadow/]],
+    ['Need Ranged', [/ranged combat is reachable/, /Obtain Shortbow/, /Obtain Bronze arrow/, /Find Goblin at Meadow/]],
+    ['Need Prayer', [/a bone or ash source is reachable/, /Obtain Bones from Goblin/]],
+    ['Need Combat', [/combat training is reachable/, /Find Goblin at Meadow/]],
+  ]) {
+    const proof = engine.how(state, 'one', taskId('Quest', name), { baseline: before });
+    assert.equal(proof.availability, 'available', name);
+    assert.equal(proof.proofStatus, 'complete', `${name}: ${JSON.stringify(proof.gaps)}`);
+    for (const pattern of expected) assert.match(labels(proof), pattern, name);
+    assert.ok(!proof.gaps.some(gap => gap.kind === 'unsupported-training-seed'), name);
+    graph(proof);
+  }
+  assert.deepEqual(engine.evaluate(state, 'one').tasks, before.tasks);
+
+  // Ranged weapon requiring Ranged > 1 uses recorded passive level without cycling.
+  const highBowDefs = makeDefs();
+  delete highBowDefs.chunks['12850'].Spawn.Shortbow;
+  highBowDefs.chunks['12850'].Spawn['Willow shortbow'] = 1;
+  const highBowState = caveState(['12850']);
+  highBowState.members[0].skillProgress = { Ranged: { source: 'game-plugin', memberId: 'one', level: 20, xp: 4500 } };
+  const highBowProof = createTaskEngine(highBowDefs).how(highBowState, 'one', taskId('Quest', 'Need Ranged'));
+  assert.equal(highBowProof.proofStatus, 'complete', JSON.stringify(highBowProof.gaps));
+  assert.match(labels(highBowProof), /Willow shortbow/);
+  assert.match(labels(highBowProof), /recorded Ranged level is 20/);
+  graph(highBowProof);
+
+  // Slayer-gated monster alone preserves the honest slayer-level gap.
+  const gatedDefs = makeDefs();
+  gatedDefs.slayerMonsters = { Goblin: 1 };
+  const gatedProof = createTaskEngine(gatedDefs).how(caveState(['12850']), 'one', taskId('Quest', 'Need Attack'));
+  assert.equal(gatedProof.availability, 'available');
+  assert.equal(gatedProof.proofStatus, 'partial');
+  assert.ok(gatedProof.gaps.some(gap => gap.kind === 'slayer-level'), JSON.stringify(gatedProof.gaps));
+  graph(gatedProof);
+
+  // Partner-only monster and bones preserve partner-duo gaps; Combat prefers an own Magic seed over partner Attack.
+  const duoDefs = makeDefs();
+  duoDefs.chunks['12850'] = { Nickname: 'Meadow', Object: { Altar: 1 } };
+  duoDefs.chunks['12851'] = { Nickname: 'Ruins', Monster: { Goblin: 1 }, Spawn: { Chargebow: 1 } };
+  duoDefs.challenges.Magic = { 'Cast spell': { Level: 1, Objects: ['Altar'], Primary: true } };
+  const duoState = createGroupState([{ id: 'one', name: 'One', unlocked: ['12850'] }, { id: 'two', name: 'Two', unlocked: ['12851'] }]);
+  const duoEngine = createTaskEngine(duoDefs);
+  for (const name of ['Need Attack', 'Need Ranged', 'Need Prayer']) {
+    const proof = duoEngine.how(duoState, 'one', taskId('Quest', name));
+    assert.equal(proof.availability, 'available', name);
+    assert.equal(proof.proofStatus, 'partial', name);
+    assert.ok(proof.gaps.some(gap => gap.kind === 'partner-duo'), `${name}: ${JSON.stringify(proof.gaps)}`);
+    assert.ok(!proof.gaps.some(gap => gap.kind === 'unsupported-training-seed'), name);
+    graph(proof);
+  }
+  const combatProof = duoEngine.how(duoState, 'one', taskId('Quest', 'Need Combat'));
+  assert.equal(combatProof.availability, 'available');
+  assert.equal(combatProof.proofStatus, 'complete', JSON.stringify(combatProof.gaps));
+  assert.match(labels(combatProof), /Cast spell/);
+  graph(combatProof);
+
+  // Manual primary override stays a manual-assumption gap.
+  const manualDefs = { chunks: { 12850: { Nickname: 'Meadow' } }, challenges: { Quest: { 'Need Attack': { Skills: { Attack: 20 } } } } };
+  const manualState = caveState(['12850']);
+  manualState.members[0].primaryOverrides = { Attack: true };
+  const manualProof = createTaskEngine(manualDefs).how(manualState, 'one', taskId('Quest', 'Need Attack'));
+  assert.equal(manualProof.proofStatus, 'partial');
+  assert.ok(manualProof.gaps.some(gap => gap.kind === 'manual-assumption'), JSON.stringify(manualProof.gaps));
+  graph(manualProof);
+});

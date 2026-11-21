@@ -7,14 +7,20 @@ const AREA_POLICY_KEYS = new Set(['UnlocksArea', 'Not F2P', 'Category', 'Label',
 export const areaUnlockHasRequirements = record => Boolean(record?.UnlocksArea && Object.keys(record).some(key => !AREA_POLICY_KEYS.has(key)));
 const matchesApproach = (subject, place) => subject === place || /^\d+$/.test(subject) && place.startsWith(`${subject}-`);
 export function createHowCapture({ state, memberId, definitions, byKey, completedTask, limits = {}, deadline: requestDeadline }) {
-  const facts = new Map(), nodes = new Map(), boundEntrances = new Map(), sourceReasons = new Map(), choices = new Map(), baseSections = new Map(), producedObjects = new Map();
+  const facts = new Map(), nodes = new Map(), boundEntrances = new Map(), sourceReasons = new Map(), choices = new Map(), baseSections = new Map(), producedObjects = new Map(), usedTraining = new Set();
+  const combatSeedSkills = new Set();
   const byId = new Map([...byKey.values()].map(task => [task.id, task]));
   const sharedMap = state.members.length === 2 ? "your partner's map" : "another group member's map";
   const areaApproaches = new Map(), areaLocations = new Map();
   const definitionRef = task => ({ catalogue: 'effective', pointer: `/challenges/${pointer(task.category)}/${pointer(task.rawLabel)}` });
   const maxCapture = Math.min(100000, limits.captureNodes ?? 50000);
   const deadline = requestDeadline ?? performance.now() + Math.min(25000, limits.replayMs ?? 20000);
-  let ordinal = 0, exhausted = false;
+  let ordinal = 0, exhausted = false, finishCache = null;
+  const cached = (key, build) => {
+    if (!finishCache) return build();
+    if (!finishCache.has(key)) finishCache.set(key, build());
+    return finishCache.get(key);
+  };
   const put = (key, value) => {
     if (facts.has(key)) return facts.get(key);
     if (nodes.size >= maxCapture || performance.now() >= deadline) { exhausted = true; return null; }
@@ -247,22 +253,179 @@ export function createHowCapture({ state, memberId, definitions, byKey, complete
       if (completion) return taskRef(completion.key);
       return gap('xp-contributors', `The picker uses potential XP rewards for ${skill} ${required}.`);
     }
+    usedTraining.add(skill);
+    if (skill === 'Combat') for (const combatSkill of combatSeedSkills) usedTraining.add(combatSkill);
     const seedId = get(`training:${skill}`, `The picker can't show the training seed for ${skill} yet.`);
     const method = nodes.get(seedId)?.methodLabel;
     return put(`skill:${skill}:${required}:${seedId}`, { kind: 'skill', skill, required,
       label: `The picker assumes you can train ${skill} to ${required} because ${method ? method + ' is reachable' : 'a training capability is enabled'}.`,
       rule: 'primary-training-capability', evidenceClass: 'planning-assumption', allOf: [seedId] });
   }
-  function seed(skill, own, method, env) {
+  const sourceRank = (source, env) => {
+    if (source.kind === 'recorded') return 0;
+    if (source.own === true) {
+      if (['spawn', 'shop', 'object'].includes(source.kind)) return 1;
+      if (source.kind === 'drop' && env.monsterGate?.(source.source)) return 3;
+      return 2;
+    }
+    return 4;
+  };
+  const selectOrdinarySources = (name, env) => env.sources(name)
+    .filter(source => source.processingMode !== 'multi')
+    .sort((a, b) => sourceRank(a, env) - sourceRank(b, env) || JSON.stringify(a).localeCompare(JSON.stringify(b)))
+    .slice(0, 8);
+  const ordinaryItemChoice = (scope, name, env) => {
+    const sources = selectOrdinarySources(name, env);
+    if (!sources.length) return null;
+    const candidates = sources.map(source => ({ subject: sourceKey(name, source), id: sourceRef(name, source) })).filter(entry => entry.id);
+    if (!candidates.length) return null;
+    const key = `seed-item:${scope}:${name}`;
+    const choice = put(key, { kind: 'requirement', field: 'Items', label: `Obtain ${clean(name)}.`, rule: 'selected-source', allOf: [candidates[0].id] });
+    if (choice && !choices.has(choice)) choices.set(choice, { count: 1, candidates: () => cached(key, () => selectOrdinarySources(name, env)
+      .map(source => ({ subject: sourceKey(name, source), id: sourceRef(name, source) })).filter(entry => entry.id)) });
+    return choice;
+  };
+  const bestSourceRank = (name, env) => {
+    const sources = selectOrdinarySources(name, env);
+    return sources.length ? sourceRank(sources[0], env) : 99;
+  };
+  const monsterCandidates = (env, { allowWrap = true } = {}) => {
+    const entries = [];
+    for (const name of env.access.monsters) {
+      const gate = env.monsterGate?.(name) ?? null;
+      for (const place of env.access.locations.get(`Monster:${name}`) ?? []) {
+        const entityId = facts.get(`entity:Monster:${name}:${place}`);
+        if (!entityId) continue;
+        entries.push({ name, place, gate, own: env.ownLocation(place), manual: place === 'Manually Added*', entityId });
+      }
+    }
+    entries.sort((a, b) => Number(Boolean(a.gate)) - Number(Boolean(b.gate))
+      || Number(b.own) - Number(a.own)
+      || Number(a.manual) - Number(b.manual)
+      || a.name.localeCompare(b.name)
+      || a.place.localeCompare(b.place));
+    const limited = entries.slice(0, 32);
+    return limited.map(entry => {
+      const subject = `Monster:${entry.name}:${entry.place}`;
+      if (!entry.gate) return { subject, id: entry.entityId, gated: false };
+      if (!allowWrap) return { subject, id: entry.entityId, gated: true };
+      const wrapped = put(`gated-monster-seed:${entry.name}:${entry.place}`, { kind: 'placement', label: `Reach ${clean(entry.name)}.`,
+        allOf: [entry.entityId, gap(entry.gate, `The picker can't show this ${entry.gate.replaceAll('-', ' ')} step yet.`)] });
+      return wrapped ? { subject, id: wrapped, gated: true } : null;
+    }).filter(Boolean);
+  };
+  const rangedGearCandidates = (startPassive, env) => {
+    const code = definitions.codeItems ?? {};
+    const ammoTools = code.ammoTools ?? {};
+    const pairs = [];
+    for (const ammo of Object.keys(ammoTools).sort()) {
+      const ammoItems = ammo === 'No ammo' ? null : [...new Set(code.itemsPlus?.[ammo] ?? [ammo])]
+        .filter(item => selectOrdinarySources(item, env).length > 0)
+        .sort((a, b) => bestSourceRank(a, env) - bestSourceRank(b, env) || a.localeCompare(b));
+      if (ammoItems && !ammoItems.length) continue;
+      const weapons = Object.keys(ammoTools[ammo] ?? {}).filter(weapon => {
+        const required = code.rangedItems?.[weapon] ?? definitions.equipment?.[weapon]?.requirements?.Ranged ?? 1;
+        return required <= startPassive && selectOrdinarySources(weapon, env).length > 0;
+      }).sort((a, b) => bestSourceRank(a, env) - bestSourceRank(b, env) || a.localeCompare(b));
+      if (!weapons.length) continue;
+      let ammoNode = null;
+      if (ammoItems) {
+        const ammoRefs = ammoItems.slice(0, 8).map(item => ({ subject: item, id: ordinaryItemChoice('ranged-ammo', item, env) })).filter(entry => entry.id);
+        if (!ammoRefs.length) continue;
+        const ammoKey = `ranged-ammo-choice:${ammo}`;
+        ammoNode = put(ammoKey, { kind: 'requirement', field: 'Items', label: `Obtain ${clean(ammo)}.`, rule: 'selected-alternatives', allOf: [ammoRefs[0].id] });
+        if (ammoNode && !choices.has(ammoNode)) choices.set(ammoNode, { count: 1, candidates: () => cached(ammoKey, () => [...new Set(code.itemsPlus?.[ammo] ?? [ammo])]
+          .filter(item => selectOrdinarySources(item, env).length > 0)
+          .sort((a, b) => bestSourceRank(a, env) - bestSourceRank(b, env) || a.localeCompare(b))
+          .slice(0, 8)
+          .map(item => ({ subject: item, id: ordinaryItemChoice('ranged-ammo', item, env) })).filter(entry => entry.id)) });
+      }
+      for (const weapon of weapons.slice(0, 12)) {
+        const weaponNode = ordinaryItemChoice('ranged-weapon', weapon, env);
+        if (!weaponNode) continue;
+        const required = code.rangedItems?.[weapon] ?? definitions.equipment?.[weapon]?.requirements?.Ranged ?? 1;
+        const reqRef = required > 1 ? skillRef('Ranged', required, env) : null;
+        if (required > 1 && !reqRef) continue;
+        const pairDeps = [weaponNode, ...(ammoNode ? [ammoNode] : []), ...(reqRef ? [reqRef] : [])];
+        const pairId = put(`ranged-pair:${weapon}:${ammo}`, { kind: 'requirement', field: 'Items',
+          label: ammoNode ? `Equip ${clean(weapon)} with ${clean(ammo)}.` : `Equip ${clean(weapon)}.`, rule: 'ranged-training-gear', allOf: pairDeps });
+        if (pairId) pairs.push({ subject: `${weapon}\0${ammo}`, id: pairId });
+      }
+    }
+    return pairs;
+  };
+  const prayerBoneCandidates = env => {
+    const bones = definitions.codeItems?.boneItems;
+    const list = Array.isArray(bones) ? bones : bones ? [bones] : [];
+    const results = [];
+    for (const item of [...new Set(list)].sort()) {
+      const sources = selectOrdinarySources(item, env);
+      for (const source of sources) {
+        const id = sourceRef(item, source);
+        if (id) results.push({ subject: sourceKey(item, source), id });
+      }
+    }
+    return results;
+  };
+  function seed(skill, own, method, env, innate) {
     if (facts.has(`training:${skill}`)) return;
     const deps = [];
-    if (!own) deps.push(gap('partner-duo', `Trains ${skill} using ${sharedMap}.`));
+    if (!own && innate?.kind !== 'combat') deps.push(gap('partner-duo', `Trains ${skill} using ${sharedMap}.`));
+    let methodLabel = method ? clean(method.label) : undefined;
     if (method) {
       deps.push(taskRef(method.key));
       if (method.level > env.passive[skill]) deps.push(gap('boosts', 'Starting this training method needs a boost.'));
       else if (method.level > 1) deps.push(skillRef(skill, method.level, env));
+    } else if (innate?.kind === 'monster') {
+      methodLabel = 'monster combat';
+      const initial = monsterCandidates(env, { allowWrap: false });
+      const choice = put(`innate-seed:${skill}`, { kind: 'requirement', field: 'Monsters', label: `Reach a monster to train ${skill}.`,
+        rule: 'monster-training-seed', allOf: initial.length && !initial[0].gated ? [initial[0].id] : [] });
+      if (choice) {
+        choices.set(choice, { count: 1, candidates: () => usedTraining.has(skill) ? cached('innate:monsters', () => monsterCandidates(env)) : [] });
+        deps.push(choice);
+      }
+      if (!initial.length) deps.push(gap('missing-evidence', `The picker couldn't capture a reachable monster for ${skill}.`));
+    } else if (innate?.kind === 'ranged') {
+      methodLabel = 'ranged combat';
+      const startPassive = env.passive[skill];
+      const initialMonsters = monsterCandidates(env, { allowWrap: false });
+      const monsterChoice = put(`innate-seed:${skill}:monster`, { kind: 'requirement', field: 'Monsters', label: 'Reach a monster to train Ranged.',
+        rule: 'monster-training-seed', allOf: initialMonsters.length && !initialMonsters[0].gated ? [initialMonsters[0].id] : [] });
+      if (monsterChoice) {
+        choices.set(monsterChoice, { count: 1, candidates: () => usedTraining.has(skill) ? cached('innate:monsters', () => monsterCandidates(env)) : [] });
+        deps.push(monsterChoice);
+      }
+      if (!initialMonsters.length) deps.push(gap('missing-evidence', "The picker couldn't capture a reachable monster for Ranged."));
+      const gearChoice = put(`innate-seed:${skill}:gear`, { kind: 'requirement', field: 'Items', label: 'Obtain a ranged weapon and ammunition.',
+        rule: 'ranged-training-seed', allOf: [] });
+      if (gearChoice) {
+        choices.set(gearChoice, { count: 1, candidates: () => usedTraining.has(skill) ? cached(`innate:ranged:${startPassive}`, () => rangedGearCandidates(startPassive, env)) : [] });
+        deps.push(gearChoice);
+      }
+    } else if (innate?.kind === 'prayer') {
+      methodLabel = 'a bone or ash source';
+      const boneChoice = put(`innate-seed:${skill}`, { kind: 'requirement', field: 'Items', label: 'Obtain bones or ashes to train Prayer.',
+        rule: 'prayer-training-seed', allOf: [] });
+      if (boneChoice) {
+        choices.set(boneChoice, { count: 1, candidates: () => usedTraining.has(skill) ? cached('innate:prayer', () => prayerBoneCandidates(env)) : [] });
+        deps.push(boneChoice);
+      }
+    } else if (innate?.kind === 'combat') {
+      methodLabel = 'combat training';
+      for (const combatSkill of innate.skills ?? []) combatSeedSkills.add(combatSkill);
+      const combatSkills = [...(innate.skills ?? [])];
+      const available = () => combatSkills.filter(name => facts.has(`training:${name}`)).map(name => ({ subject: name, id: facts.get(`training:${name}`) }));
+      const initial = available();
+      const choice = put(`innate-seed:${skill}`, { kind: 'requirement', field: 'Tasks', label: 'Train a combat skill.',
+        rule: 'combat-training-seed', allOf: initial.length ? [initial[0].id] : [] });
+      if (choice) {
+        choices.set(choice, { count: 1, candidates: () => usedTraining.has(skill) ? available() : [] });
+        deps.push(choice);
+      }
+      if (!initial.length) deps.push(gap('missing-evidence', "The picker couldn't capture a combat training seed."));
     } else deps.push(gap(env.controls.primaryOverrides[skill] ? 'manual-assumption' : 'unsupported-training-seed', `The picker can't show the ${skill} training seed yet.`));
-    put(`training:${skill}`, { kind: 'training-method', skill, methodLabel: method ? clean(method.label) : undefined, label: `Start ${skill} training${method ? ' with ' + clean(method.label) : ''} from level ${env.passive[skill]}.`,
+    put(`training:${skill}`, { kind: 'training-method', skill, methodLabel, label: `Start ${skill} training${methodLabel ? ' with ' + methodLabel : ''} from level ${env.passive[skill]}.`,
       rule: 'primary-training-seed', evidenceClass: 'derived', startLevel: env.passive[skill], cap: env.caps[skill], allOf: deps });
   }
   function finish(taskId, result, context = {}) {
@@ -275,20 +438,25 @@ export function createHowCapture({ state, memberId, definitions, byKey, complete
     // Positive costs propagate from independent roots. An OR cycle cannot lower
     // its own cost, so final-set alternatives never become circular evidence.
     const costs = new Map(), selected = new Map(); let rankingComplete = false;
+    finishCache = new Map();
+    try {
     for (let pass = 0; pass < 32 && performance.now() < deadline; pass++) {
       let changed = false;
       for (const [id, node] of nodes) {
         const choice = choices.get(id);
         const candidates = choice?.candidates().filter(value => Number.isFinite(costs.get(value.id)))
           .sort((a, b) => costs.get(a.id) - costs.get(b.id) || a.subject.localeCompare(b.subject));
-        const children = candidates?.length >= choice?.count ? candidates.slice(0, choice.count).map(value => value.id) : node.allOf;
-        const childCosts = children.map(child => costs.get(child) ?? Infinity);
+        const hasEnough = candidates?.length >= choice?.count;
+        const children = hasEnough ? candidates.slice(0, choice.count).map(value => value.id) : node.allOf;
+        const childCosts = (!choice || hasEnough || children.length >= choice.count)
+          ? children.map(child => costs.get(child) ?? Infinity) : [Infinity];
         const cost = childCosts.every(Number.isFinite)
           ? (node.kind === 'gap' || childCosts.some(cost => cost >= 1000000000) ? 1000000000 : 0) + Math.min(1000000, 1 + childCosts.reduce((sum, cost) => sum + cost % 1000000000, 0)) : Infinity;
         if (cost < (costs.get(id) ?? Infinity)) { costs.set(id, cost); selected.set(id, children); changed = true; }
       }
       if (!changed) { rankingComplete = true; break; }
     }
+    } finally { finishCache = null; }
     const rebound = new Map(), rebuilding = new Set();
     const findApproach = (id, approaches, seen = new Set()) => {
       if (seen.has(id)) return; seen.add(id);
@@ -303,7 +471,10 @@ export function createHowCapture({ state, memberId, definitions, byKey, complete
       if (rebuilding.has(id)) return gap('cycle', 'A circular route has no independent starting evidence.');
       const node = nodes.get(id); if (!node) return id;
       rebuilding.add(id);
-      const selectedChildren = selected.get(id) ?? node.allOf;
+      let selectedChildren = selected.get(id) ?? node.allOf;
+      if (choices.has(id) && selectedChildren.length < choices.get(id).count) {
+        selectedChildren = [gap(exhausted ? 'budget' : 'missing-evidence', "The picker couldn't capture a witness for this step.")];
+      }
       const children = selectedChildren.map(child => rederive(child, depth + 1));
       let label = node.label, from = node.from;
       const area = areaLocations.get(id);

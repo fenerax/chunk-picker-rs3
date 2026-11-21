@@ -1605,8 +1605,8 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
     }
     function updateSkills() {
       let changed = false;
-      const seed = (skill, own = true, task) => {
-        if (!trained.has(skill)) { if (proof) proof.seed(skill, own, task, proofEnvironment()); trained.add(skill); levels[skill] = caps[skill]; wakeList(skillWatchers, skill); changed = true; }
+      const seed = (skill, own = true, task, innate) => {
+        if (!trained.has(skill)) { if (proof) proof.seed(skill, own, task, proofEnvironment(), innate); trained.add(skill); levels[skill] = caps[skill]; wakeList(skillWatchers, skill); changed = true; }
         if (own) ownTraining.add(skill);
         else {
           const locations = task?.requirements.flatMap(requirement => (requirement.alternatives ?? [requirement.clean]).flatMap(name => {
@@ -1620,9 +1620,9 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
         }
       };
       for (const [skill, active] of Object.entries(playerControls.primaryOverrides)) if (active === true && caps[skill]) seed(skill);
-      if (access.monsters.size) for (const skill of MONSTER_TRAINING) seed(skill, ownAccess.monsters.size > 0);
-      if (access.monsters.size && Object.keys(code.ammoTools ?? {}).some(ammo => (ammo === 'No ammo' || (code.itemsPlus?.[ammo] ?? [ammo]).some(item => ordinaryItem(item))) && Object.keys(code.ammoTools[ammo]).some(weapon => ordinaryItem(weapon) && (code.rangedItems?.[weapon] ?? definitions.equipment?.[weapon]?.requirements?.Ranged ?? 1) <= passive.Ranged))) seed('Ranged', ownAccess.monsters.size > 0 && Object.keys(code.ammoTools ?? {}).some(ammo => (ammo === 'No ammo' || (code.itemsPlus?.[ammo] ?? [ammo]).some(item => ordinaryItem(item, true))) && Object.keys(code.ammoTools[ammo]).some(weapon => ordinaryItem(weapon, true) && (code.rangedItems?.[weapon] ?? definitions.equipment?.[weapon]?.requirements?.Ranged ?? 1) <= passive.Ranged)));
-      if (array(code.boneItems).some(item => ordinaryItem(item))) seed('Prayer', array(code.boneItems).some(item => ordinaryItem(item, true)));
+      if (access.monsters.size) for (const skill of MONSTER_TRAINING) seed(skill, ownAccess.monsters.size > 0, undefined, { kind: 'monster' });
+      if (access.monsters.size && Object.keys(code.ammoTools ?? {}).some(ammo => (ammo === 'No ammo' || (code.itemsPlus?.[ammo] ?? [ammo]).some(item => ordinaryItem(item))) && Object.keys(code.ammoTools[ammo]).some(weapon => ordinaryItem(weapon) && (code.rangedItems?.[weapon] ?? definitions.equipment?.[weapon]?.requirements?.Ranged ?? 1) <= passive.Ranged))) seed('Ranged', ownAccess.monsters.size > 0 && Object.keys(code.ammoTools ?? {}).some(ammo => (ammo === 'No ammo' || (code.itemsPlus?.[ammo] ?? [ammo]).some(item => ordinaryItem(item, true))) && Object.keys(code.ammoTools[ammo]).some(weapon => ordinaryItem(weapon, true) && (code.rangedItems?.[weapon] ?? definitions.equipment?.[weapon]?.requirements?.Ranged ?? 1) <= passive.Ranged)), undefined, { kind: 'ranged' });
+      if (array(code.boneItems).some(item => ordinaryItem(item))) seed('Prayer', array(code.boneItems).some(item => ordinaryItem(item, true)), undefined, { kind: 'prayer' });
       for (const task of primarySkillTasks) if (valid.has(task.key) && caps[task.category]) {
         if (f2p && (task.record['Not F2P'] || membershipByTask.get(task).length)) continue;
         const primary = primaryEligible(task);
@@ -1635,7 +1635,7 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
           seed(task.category, obligation(task) && task.itemRequirements.every(requirement => ownRequirement(requirement, task, new Set(), false)), task);
         }
       }
-      if ([...MONSTER_TRAINING, 'Ranged', 'Magic', 'Necromancy'].some(skill => trained.has(skill))) seed('Combat', [...MONSTER_TRAINING, 'Ranged', 'Magic', 'Necromancy'].some(skill => ownTraining.has(skill)));
+      if ([...MONSTER_TRAINING, 'Ranged', 'Magic', 'Necromancy'].some(skill => trained.has(skill))) seed('Combat', [...MONSTER_TRAINING, 'Ranged', 'Magic', 'Necromancy'].some(skill => ownTraining.has(skill)), undefined, { kind: 'combat', skills: [...MONSTER_TRAINING, 'Ranged', 'Magic', 'Necromancy'] });
       return changed;
     }
     function updatePoints() {
