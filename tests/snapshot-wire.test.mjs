@@ -68,4 +68,17 @@ test('large 15-literal runs and growing incompressible blocks round-trip cleanly
   assert.equal(encRaw[0], 0, 'incompressible block falls back to raw wire header');
   assert.equal(encRaw.byteLength, encRaw.buffer.byteLength);
   assert.equal(Buffer.compare(decodeSnapshotBytes(encRaw), incompressible), 0);
+
+  // Compressible prefix followed by a large incompressible tail: ensures
+  // base-255 literal length extensions never underestimate grown buffer size.
+  const mixed = Buffer.alloc(4_000_000);
+  seed = 987654321;
+  for (let i = 1_000_000; i < mixed.length; i++) {
+    seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+    mixed[i] = seed >>> 24;
+  }
+  const encMixed = encodeSnapshotBytes(Buffer.from(mixed));
+  assert.equal(encMixed[0], 1);
+  assert.equal(encMixed.byteLength, encMixed.buffer.byteLength);
+  assert.equal(Buffer.compare(decodeSnapshotBytes(encMixed), mixed), 0);
 });

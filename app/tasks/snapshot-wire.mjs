@@ -31,9 +31,9 @@ export function encodeSnapshotBytes(raw) {
       && raw[end + 2] === raw[source + 2] && raw[end + 3] === raw[source + 3]) { end += 4; source += 4; }
     while (end < matchLimit && raw[end] === raw[source]) { end++; source++; }
     const literals = cursor - anchor, match = end - cursor - 4;
-    const need = literals + (literals >>> 8) + (match >>> 8) + 8;
+    const need = literals + Math.floor(literals / 255) + Math.floor(match / 255) + 8;
     if (written + need > cap) {
-      const nextCap = Math.min(maxOutput, Math.max(cap * 2, written + need + 65536));
+      const nextCap = Math.max(cap * 2, written + need + 65536);
       const next = Buffer.allocUnsafeSlow(nextCap);
       output.copy(next, 0, 0, written);
       releaseSnapshotScratch(output);
@@ -61,9 +61,9 @@ export function encodeSnapshotBytes(raw) {
     cursor = end; anchor = end;
   }
   const literals = len - anchor;
-  const tailNeed = literals + (literals >>> 8) + 4;
+  const tailNeed = literals + Math.floor(literals / 255) + 4;
   if (written + tailNeed > cap) {
-    const nextCap = Math.min(maxOutput, Math.max(cap * 2, written + tailNeed));
+    const nextCap = Math.max(cap * 2, written + tailNeed);
     const next = Buffer.allocUnsafeSlow(nextCap);
     output.copy(next, 0, 0, written);
     releaseSnapshotScratch(output);
