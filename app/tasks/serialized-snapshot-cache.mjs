@@ -132,10 +132,11 @@ export function createSerializedSnapshotCache(budget, { context = () => undefine
         const roots = [value.baseline, context(value.baseline), locations(value.baseline), value.playResult,
           value.sandboxDelta, value.planningIndex, value.whyIndex, value.estimates, value.estimates?.size,
           value.baseline?.currentBiS, value.baseline?.activityInfo, value.predictionState];
+        const cp = checkpoint === noCheckpoint ? undefined : checkpoint;
         roots.forEach((root, index) => {
-          if (!prior || root !== prior[index] || index === 7 && roots[8] !== prior[8]) meter.visit(root, index === 7, checkpoint);
+          if (!prior || root !== prior[index] || index === 7 && roots[8] !== prior[8]) meter.visit(root, index === 7, cp);
         });
-        meter.visit({ ...value, predict: undefined }, false, checkpoint);
+        meter.visit({ ...value, predict: undefined }, false, cp);
         meter.visit(entry.key); meter.visit(entry.owner);
         entry.heapVersion = roots;
         // An over-bound meter can stop early: this graph cannot be promoted.

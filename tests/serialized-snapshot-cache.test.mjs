@@ -369,3 +369,27 @@ test('promotion and repeated demotion reuse canonical cold bytes and charge both
   }
   cache.entries.clear(); assert.equal(budget.bytes, 0); assert.equal(hotSet.bytes, 0);
 });
+
+test('heap meter fast path matches checkpoint traversal exactly across containers, aliases and bounds', () => {
+  const shared = { item: 'Coins', detail: '雪'.repeat(25), count: 3, flag: true, empty: null };
+  const nonEnum = { visible: shared };
+  Object.defineProperty(nonEnum, 'hidden', { value: { nested: [shared, 'tail', undefined] } });
+  const graph = {
+    rows: Array.from({ length: 120 }, (_, i) => ({ id: `row-${i}`, sources: [shared, shared], extra: i % 2 ? 'text' : 42 })),
+    map: new Map([['k1', shared], ['k2', new Uint8Array([1, 2, 3, 4])]]),
+    set: new Set(['alpha', shared]),
+    nonEnum,
+  };
+  for (const byteLimit of [Infinity, 4096, 16384]) {
+    const fast = createSnapshotHeapMeter({ byteLimit });
+    const checked = createSnapshotHeapMeter({ byteLimit });
+    let checkpoints = 0;
+    fast.visit(graph);
+    checked.visit(graph, false, () => { checkpoints++; });
+    assert.equal(fast.bytes, checked.bytes, `exact byte match at byteLimit=${byteLimit}`);
+    assert.ok(checkpoints > 0);
+  }
+  const fastAccessor = createSnapshotHeapMeter();
+  assert.throws(() => fastAccessor.visit({ get boom() { assert.fail('Fast meter must not invoke getter'); } }), TypeError);
+  assert.throws(() => fastAccessor.visit([() => {}]), TypeError);
+});

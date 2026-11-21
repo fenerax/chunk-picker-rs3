@@ -2,6 +2,7 @@ import { progressBelongsToMember } from './game-progress.mjs';
 import { automaticTravelInputKey } from './travel-inputs.mjs';
 import { teleportReturnCache } from './teleport-return-cache.mjs';
 
+const TRANSPORT_BASELINE = Symbol.for('rs3.transportBaseline');
 export const AUTOMATIC_TRANSPORT_RULE = 'travel.automatic';
 export const automaticTransportEnabled = state => state.rules?.[AUTOMATIC_TRANSPORT_RULE] === true;
 // Personal acceptance is deliberately never synthesized by capability facts.
@@ -77,7 +78,8 @@ function baselineFor(world, state, memberId, supplied, signature) {
     // No automatic route can prove its own runes, fare, activation, training,
     // partner connection or item. Retain existing manual travel semantics.
     const baselineState = { ...state, rules: { ...state.rules, [AUTOMATIC_TRANSPORT_RULE]: false, 'access.transport': false } };
-    cache.byMember.set(memberId, engine.evaluate(baselineState, memberId, { reuseEligibility: false }));
+    const baselineOptions = Object.defineProperty({ reuseEligibility: false }, TRANSPORT_BASELINE, { value: true });
+    cache.byMember.set(memberId, engine.evaluate(baselineState, memberId, baselineOptions));
   }
   return cache.byMember.get(memberId);
 }
