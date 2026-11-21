@@ -13,6 +13,7 @@ import { applyCacheArchaeology } from '../data/cache-archaeology.mjs';
 import { componentLocations, createSurfaceEligibility, isCacheWorld, projectLegacySections, surfaceReachability } from '../core/cache-surface.mjs';
 import { expandTransportReachability, evaluateTransportRoutes, transportAccessEnabled } from '../core/transport-access.mjs';
 import { automaticTransportEnabled } from '../core/automatic-transport.mjs';
+import { areaUnlockHasRequirements } from './how-proof.mjs';
 
 // Reference records are data only. This evaluator never executes upstream code.
 const BASE = /^\d+$/;
@@ -391,8 +392,7 @@ export function calculateAccess(index, state, memberId, { validTasks = new Set()
       if (id === 'Puro-Puro' && rules['Puro-Puro'] === false) return false;
     }
     proof?.location(id, { from, gate, transport, manual, resourceOnly: compatibility || resourceOnly,
-      areaTask: node?.kind === 'area' && overrides.areas[id] !== true && definitions.challenges?.Nonskill?.[id]?.UnlocksArea
-        && Object.keys(definitions.challenges.Nonskill[id]).length > 1,
+      areaTask: node?.kind === 'area' && overrides.areas[id] !== true && areaUnlockHasRequirements(definitions.challenges?.Nonskill?.[id]),
       unbound: !from && node?.kind === 'area' && overrides.areas[id] !== true });
     accessible.add(id); queue.push(id);
     if (compatibility || resourceOnly) resourceOnlyLocations.add(id);

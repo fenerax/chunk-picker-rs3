@@ -3,8 +3,11 @@ export const HOW_SCHEMA = 1;
 export const HOW_ENGINE_BASE = '977cc9e36b62d2f4e00d33fe6ceb17f5c2884b84';
 const clean = value => String(value).replace(/~\|([^|]+)\|~/g, '$1').replace(/\*+$/g, '');
 const pointer = value => String(value).replaceAll('~', '~0').replaceAll('/', '~1');
+const AREA_POLICY_KEYS = new Set(['UnlocksArea', 'Not F2P', 'Category', 'Label', 'Priority', 'Description', 'NoBoost']);
+export const areaUnlockHasRequirements = record => Boolean(record?.UnlocksArea && Object.keys(record).some(key => !AREA_POLICY_KEYS.has(key)));
+const matchesApproach = (subject, place) => subject === place || /^\d+$/.test(subject) && place.startsWith(`${subject}-`);
 export function createHowCapture({ state, memberId, definitions, byKey, completedTask, limits = {}, deadline: requestDeadline }) {
-  const facts = new Map(), nodes = new Map(), boundEntrances = new Map(), sourceReasons = new Map(), choices = new Map();
+  const facts = new Map(), nodes = new Map(), boundEntrances = new Map(), sourceReasons = new Map(), choices = new Map(), baseSections = new Map(), producedObjects = new Map();
   const byId = new Map([...byKey.values()].map(task => [task.id, task]));
   const sharedMap = state.members.length === 2 ? "your partner's map" : "another group member's map";
   const areaApproaches = new Map(), areaLocations = new Map();
@@ -34,11 +37,23 @@ export function createHowCapture({ state, memberId, definitions, byKey, complete
     const name = record?.Nickname ?? record?.Name ?? value;
     return /^\d+(?:-\d+)?$/.test(name) ? 'your unlocked chunk' : clean(name);
   };
+  const placeRef = id => {
+    const direct = facts.get(`place:${id}`);
+    if (direct) return direct;
+    const sections = /^\d+$/.test(id) ? baseSections.get(id) : null;
+    if (sections?.length) {
+      const choice = put(`place-base:${id}`, { kind: 'location', subjectId: id, placeName: placeLabel(id), label: `Reach ${placeLabel(id)}.`,
+        rule: 'owned-chunk', evidenceClass: 'derived', allOf: [sections[0].id] });
+      if (choice && !choices.has(choice)) choices.set(choice, { count: 1, candidates: () => [...(baseSections.get(id) ?? [])] });
+      return choice;
+    }
+    return get(`place:${id}`);
+  };
   const location = (id, reason = {}) => {
     if (facts.has(`place:${id}`)) return;
     if (reason.areaTask) reason = { ...reason, from: boundEntrances.get(id), unbound: !boundEntrances.has(id) };
     const name = placeLabel(id);
-    const deps = reason.from && !reason.areaTask ? [get(`place:${reason.from}`)] : [];
+    const deps = reason.from && !reason.areaTask ? [placeRef(reason.from)] : [];
     deps.push(...gateRefs(reason.gate));
     if (reason.areaTask) deps.push(taskRef(`Nonskill\0${id}`));
     const unsupported = reason.resourceOnly ? 'resource-only-access' : reason.transport ? 'transport-legs' : reason.partner ? 'partner-duo' : reason.unbound ? 'unbound-entrance' : null;
@@ -53,10 +68,40 @@ export function createHowCapture({ state, memberId, definitions, byKey, complete
       label: reason.from ? `Get into ${name} from ${placeLabel(reason.from)}.` : `Reach ${name}.`,
       rule: reason.from ? 'walking-entrance' : 'owned-chunk', evidenceClass: reason.manual ? 'manual' : 'derived', allOf: deps });
     if (node && reason.areaTask) areaLocations.set(node, id);
+    if (node && /^\d+-\d+$/.test(id)) {
+      const base = id.split('-')[0];
+      if (!baseSections.has(base)) baseSections.set(base, []);
+      baseSections.get(base).push({ subject: id, id: node });
+    }
   };
   const entity = (kind, name, place, gates = []) => put(`entity:${kind}:${name}:${place}`, {
     kind: 'placement', entityKind: kind, subjectId: name, location: place, placeName: placeLabel(place), label: `Find ${clean(name)} at ${placeLabel(place)}.`,
-    rule: 'entity-placement', evidenceClass: 'derived', allOf: [get(`place:${place}`), ...gates.flatMap(gateRefs)] });
+    rule: 'entity-placement', evidenceClass: 'derived', allOf: [placeRef(place), ...gates.flatMap(gateRefs)] });
+  const hasPartnerEvidence = (id, seen = new Set()) => {
+    if (!id || seen.has(id)) return false; seen.add(id);
+    const node = nodes.get(id);
+    return node?.gap === 'partner-duo' || (node?.allOf ?? []).some(child => hasPartnerEvidence(child, seen));
+  };
+  const nonOwnGap = (producer, { admittedPartnerSource = false, subject = 'item' } = {}) => {
+    // A personal completion can publish output even when its current place is
+    // unavailable. Non-own supply alone does not establish partner ownership.
+    if (producer && completedTask(producer)) return gap('historical-source-access', 'This supply comes from a recorded completion; its current production access is not established.');
+    const shared = state.rules?.['access.shared'] !== false && state.members.some(owner => owner.id !== memberId && owner.unlocked?.length);
+    if (shared && (admittedPartnerSource || producer && hasPartnerEvidence(facts.get(`task:${producer.key}`)))) return gap('partner-duo', `This ${subject} comes from ${sharedMap}.`);
+    return gap('source-access', 'Current access to this supply is not established.');
+  };
+  const producedObject = (name, producer, own) => {
+    const key = `produced-object:${name}:${producer.key}:${own ? 1 : 0}`;
+    if (facts.has(key)) return;
+    const deps = [taskRef(producer.key)];
+    if (own === false) deps.push(nonOwnGap(producer, { subject: 'object' }));
+    const id = put(key, { kind: 'placement', entityKind: 'Object', subjectId: name, producerId: producer.id,
+      label: `Create ${clean(name)} via ${clean(producer.label)}.`, rule: 'produced-object', evidenceClass: 'derived', allOf: deps });
+    if (id) {
+      if (!producedObjects.has(name)) producedObjects.set(name, []);
+      producedObjects.get(name).push({ subject: `Object:${name}:produced:${producer.key}:${own ? 1 : 0}`, id });
+    }
+  };
   const sourceKey = (name, source) => JSON.stringify([name, source.kind, source.source, source.name, source.location, source.taskId]);
   const source = (name, record, gates) => {
     if (sourceReasons.size >= maxCapture) { exhausted = true; return; }
@@ -70,21 +115,8 @@ export function createHowCapture({ state, memberId, definitions, byKey, complete
     if (!captured && ['drop', 'shop', 'object', 'spawn'].includes(source.kind) && !source.taskId) deps.push(gap(exhausted ? 'budget' : 'missing-evidence', 'The source admission evidence was not captured.'));
     if (source.own === false) {
       const producer = source.taskId && byId.get(source.taskId);
-      // A personal completion can publish output even when its current place is
-      // unavailable. Non-own supply alone does not establish partner ownership.
-      if (producer && completedTask(producer)) deps.push(gap('historical-source-access', 'This supply comes from a recorded completion; its current production access is not established.'));
-      else {
-        const seen = new Set();
-        const partnerEvidence = id => {
-          if (seen.has(id)) return false; seen.add(id);
-          const node = nodes.get(id);
-          return node?.gap === 'partner-duo' || (node?.allOf ?? []).some(partnerEvidence);
-        };
-        const shared = state.rules?.['access.shared'] !== false && state.members.some(owner => owner.id !== memberId && owner.unlocked?.length);
-        const admittedPartnerSource = source.location && ['drop', 'shop', 'object', 'spawn'].includes(source.kind);
-        if (shared && (admittedPartnerSource || producer && partnerEvidence(facts.get(`task:${producer.key}`)))) deps.push(gap('partner-duo', `This item comes from ${sharedMap}.`));
-        else deps.push(gap('source-access', 'Current access to this supply is not established.'));
-      }
+      const admittedPartnerSource = Boolean(source.location && ['drop', 'shop', 'object', 'spawn'].includes(source.kind));
+      deps.push(nonOwnGap(producer, { admittedPartnerSource, subject: 'item' }));
     }
     if (source.taskId) {
       const task = byId.get(source.taskId);
@@ -111,7 +143,7 @@ export function createHowCapture({ state, memberId, definitions, byKey, complete
     for (const requirement of task.requirements) {
       const chosen = select(requirement, name => env.available(requirement.field, name, task));
       const witness = name => {
-        if (requirement.field === 'Chunks') return env.ownLocation(name) ? get(`place:${name}`) : gap('partner-duo', `This location is on ${sharedMap}.`);
+        if (requirement.field === 'Chunks') return env.ownLocation(name) ? placeRef(name) : gap('partner-duo', `This location is on ${sharedMap}.`);
         if (requirement.field === 'Items') {
           const sources = env.sources(name).filter(source => env.matches([source], task.record, task.category, name))
             .sort((a, b) => Number(b.kind === 'recorded') - Number(a.kind === 'recorded') || Number(b.own) - Number(a.own) || JSON.stringify(a).localeCompare(JSON.stringify(b)));
@@ -126,9 +158,17 @@ export function createHowCapture({ state, memberId, definitions, byKey, complete
         const candidates = kinds.flatMap(kind => [...(env.access.locations.get(`${kind}:${name}`) ?? [])].map(place => ({ kind, place })))
           .sort((a, b) => a.place.localeCompare(b.place));
         const found = candidates.filter(({ kind, place }) => facts.has(`entity:${kind}:${name}:${place}`));
+        const produced = kinds.includes('Object') ? [...(producedObjects.get(name) ?? [])] : [];
+        const allFound = [
+          ...found.map(value => ({ subject: `${value.kind}:${name}:${value.place}`, id: facts.get(`entity:${value.kind}:${name}:${value.place}`) })),
+          ...produced,
+        ];
         const monsterGate = kinds.includes('Monster') ? env.monsterGate(name) : null;
-        const placement = found.length ? put(`placement-choice:${task.id}:${name}`, { kind: 'requirement', field: 'Placements', label: `Reach ${clean(name)}.`, rule: 'selected-placement', allOf: [get(`entity:${found[0].kind}:${name}:${found[0].place}`)] }) : candidates.length && candidates.every(candidate => !env.ownLocation(candidate.place)) ? gap('partner-duo', `Found on ${sharedMap}.`) : gap('unsupported-kind', `The picker can't show the ${requirement.field} step for ${clean(name)} yet.`);
-        if (found.length && placement) choices.set(placement, { count: 1, candidates: () => found.map(value => ({ subject: `${value.kind}:${name}:${value.place}`, id: facts.get(`entity:${value.kind}:${name}:${value.place}`) })) });
+        const placement = allFound.length ? put(`placement-choice:${task.id}:${name}`, { kind: 'requirement', field: 'Placements', label: `Reach ${clean(name)}.`, rule: 'selected-placement', allOf: [allFound[0].id] }) : candidates.length && candidates.every(candidate => !env.ownLocation(candidate.place)) ? gap('partner-duo', `Found on ${sharedMap}.`) : gap('unsupported-kind', `The picker can't show the ${requirement.field} step for ${clean(name)} yet.`);
+        if (allFound.length && placement) choices.set(placement, { count: 1, candidates: () => [
+          ...found.map(value => ({ subject: `${value.kind}:${name}:${value.place}`, id: facts.get(`entity:${value.kind}:${name}:${value.place}`) })),
+          ...(kinds.includes('Object') ? producedObjects.get(name) ?? [] : []),
+        ] });
         return monsterGate ? put(`gated-placement:${task.id}:${name}`, { kind: 'placement', label: `Reach ${clean(name)}.`, allOf: [placement, gap(monsterGate, `The picker can't show this ${monsterGate.replaceAll('-', ' ')} step yet.`)] }) : placement;
       };
       const refs = chosen.map(witness);
@@ -165,7 +205,7 @@ export function createHowCapture({ state, memberId, definitions, byKey, complete
     for (const id of task.completedDependencies) {
       const target = byId.get(id); deps.push(target ? taskRef(target.key) : gap('unsupported-kind', 'Unknown personal completion.'));
     }
-    if (task.record.UnlocksArea && Object.keys(task.record).length > 1) {
+    if (areaUnlockHasRequirements(task.record)) {
       // A global area permission and a nearby candidate are not a bound route.
       // Only an admitted access-task chain containing that exact approach binds it.
       const approaches = env.access.entranceSources.get(task.rawLabel) ?? [];
@@ -173,8 +213,13 @@ export function createHowCapture({ state, memberId, definitions, byKey, complete
       const usesPlace = (id, place, seen = new Set()) => {
         if (!id || seen.has(id)) return false; seen.add(id);
         const node = nodes.get(id);
-        if (node?.kind === 'requirement' && node.field === 'Chunks') return node.selectedSubjects.includes(place);
-        return (node?.kind === 'task' || node?.field === 'Tasks') && node.allOf.some(child => usesPlace(child, place, seen));
+        if (node?.kind === 'requirement' && node.field === 'Chunks') {
+          const subjects = choices.has(id) ? choices.get(id).candidates().map(value => value.subject) : node.selectedSubjects;
+          return subjects.some(subject => matchesApproach(subject, place));
+        }
+        if (node?.kind !== 'task' && node?.field !== 'Tasks') return false;
+        const children = node.field === 'Tasks' && choices.has(id) ? choices.get(id).candidates().map(value => value.id) : node.allOf;
+        return children.some(child => usesPlace(child, place, seen));
       };
       const bound = [...approaches].sort().find(place => deps.some(id => usesPlace(id, place)));
       if (bound) boundEntrances.set(task.rawLabel, bound);
@@ -248,7 +293,7 @@ export function createHowCapture({ state, memberId, definitions, byKey, complete
     const findApproach = (id, approaches, seen = new Set()) => {
       if (seen.has(id)) return; seen.add(id);
       const node = nodes.get(id);
-      if (node?.field === 'Chunks') return node.selectedSubjects.find(place => approaches.includes(place));
+      if (node?.field === 'Chunks') return approaches.find(place => node.selectedSubjects.some(subject => matchesApproach(subject, place)));
       if (node?.kind !== 'task' && node?.field !== 'Tasks') return;
       for (const child of node.allOf) { const place = findApproach(child, approaches, seen); if (place) return place; }
     };
@@ -263,8 +308,14 @@ export function createHowCapture({ state, memberId, definitions, byKey, complete
       let label = node.label, from = node.from;
       const area = areaLocations.get(id);
       if (area) {
+        const approaches = areaApproaches.get(area) ?? [];
         const permission = children.find(child => nodes.get(child)?.kind === 'task');
-        from = findApproach(permission, areaApproaches.get(area) ?? []);
+        from = findApproach(permission, approaches);
+        if (!from && node.from && approaches.includes(node.from)) {
+          from = node.from;
+          const approachRef = rederive(placeRef(from), depth + 1);
+          if (approachRef && !children.includes(approachRef)) children.unshift(approachRef);
+        }
         if (from) label = `Get into ${placeLabel(area)} from ${placeLabel(from)}.`;
       }
       const changed = label !== node.label || children.some((child, index) => child !== node.allOf[index]) || children.length !== node.allOf.length;
@@ -325,5 +376,5 @@ export function createHowCapture({ state, memberId, definitions, byKey, complete
     }
     return proof;
   }
-  return { task, seed, location, entity, source, finish, get, gap, expired: () => performance.now() >= deadline };
+  return { task, seed, location, entity, source, producedObject, finish, get, gap, expired: () => performance.now() >= deadline };
 }
