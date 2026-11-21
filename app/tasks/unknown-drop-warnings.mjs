@@ -8,6 +8,21 @@ import { taskRuleEnabled } from './rule-defaults.mjs';
 
 const list = value => value == null ? [] : Array.isArray(value) ? value : [value];
 const contexts = new WeakMap();
+const lowerRegistryCache = new WeakMap();
+function lookupAlias(registry, key) {
+  if (!registry) return undefined;
+  if (Object.hasOwn(registry, key)) return registry[key];
+  let lower = lowerRegistryCache.get(registry);
+  if (!lower) {
+    lower = new Map();
+    for (const k of Object.keys(registry)) {
+      const lk = k.toLowerCase();
+      if (!lower.has(lk)) lower.set(lk, registry[k]);
+    }
+    lowerRegistryCache.set(registry, lower);
+  }
+  return lower.get(key.toLowerCase());
+}
 // Keep closures outside graph construction so a retained context cannot keep
 // its solver's nodes, edges, source records and task rows alive.
 const scalarContext = (itemCosts, taskCosts, wieldCosts = new Map()) => ({
@@ -47,110 +62,250 @@ export function unknownDropContext(result, definitions = {}, allowedSource, rule
   // category and producer/consumer levels. Without that proof keep them out of
   // ordinary supplies; cached warning rows below retain the admitted cost.
   const sourceAllowed = allowedSource ?? (source => source.processingMode !== 'multi');
+  const ZERO = { id: -1, value: 0, constant: true, parents: null };
+  const INF = { id: -2, value: Infinity, constant: true, parents: null };
   const nodes = [], items = new Map(), tasks = new Map(), keys = new Map();
-  const node = () => { const value = { value: Infinity, parents: new Set(), deps: [], read: () => Infinity }; nodes.push(value); return value; };
-  const configure = (target, deps, read) => { target.deps = deps; target.read = read; for (const dep of deps) dep.parents.add(target); };
+  const node = () => { const value = { id: nodes.length, value: Infinity, parents: [], read: null }; nodes.push(value); return value; };
+  const addParent = (dep, target) => {
+    if (dep.constant) return;
+    const parents = dep.parents;
+    if (parents.length === 0 || parents[parents.length - 1] !== target) parents.push(target);
+  };
+  const configure = (target, deps, read) => {
+    target.read = read;
+    for (let i = 0; i < deps.length; i++) addParent(deps[i], target);
+  };
+  const minRead = deps => () => {
+    let cost = Infinity;
+    for (let i = 0; i < deps.length; i++) {
+      const v = deps[i].value;
+      if (v < cost) cost = v;
+    }
+    return cost;
+  };
+  const maxRead = deps => () => {
+    let cost = 0;
+    for (let i = 0; i < deps.length; i++) {
+      const v = deps[i].value;
+      if (v > cost) cost = v;
+    }
+    return cost;
+  };
   for (const row of result.tasks ?? []) { tasks.set(row.id, { row, node: node() }); keys.set(`${row.category}\0${row.rawLabel ?? row.label}`, row.id); }
   for (const item of result.items ?? []) items.set(item.name, { ...item, node: node() });
   const aliases = definitions.codeItems?.itemsPlus ?? {};
+  const taskAliases = definitions.codeItems?.tasksPlus ?? {};
   function choices(token, registry = aliases) {
-    const clean = String(token).replaceAll('*', ''), match = /^(.*\[\+\])(?:x(\d+))?$/.exec(clean);
+    const raw = String(token);
+    const clean = raw.includes('*') ? raw.replaceAll('*', '') : raw;
+    if (!clean.includes('[+]')) return { names: [clean], count: 1, alias: false };
+    const match = /^(.*\[\+\])(?:x(\d+))?$/.exec(clean);
     if (!match) return { names: [clean], count: 1, alias: false };
-    const key = Object.hasOwn(registry, match[1]) ? match[1] : Object.keys(registry).find(key => key.toLowerCase() === match[1].toLowerCase());
-    return { names: list(registry[key] ?? clean), count: Number(match[2] ?? 1), alias: true };
+    return { names: list(lookupAlias(registry, match[1]) ?? clean), count: Number(match[2] ?? 1), alias: true };
   }
   function sourceNode(source) {
     // Task outputs and task rewards both depend on their producing task. A
     // reward already received needs no new acquisition; a recipe output still
     // needs its supplies to make another.
     const producing = (source.kind === 'task' || source.kind === 'reward') && source.taskId !== undefined ? tasks.get(source.taskId) : undefined;
-    const target = node(), producer = producing && !(source.kind === 'reward' && producing.row.personalCompleted) && producing.node;
+    const producer = producing && !(source.kind === 'reward' && producing.row.personalCompleted) ? producing.node : null;
     const estimate = unknownDropEstimate(source);
-    configure(target, producer ? [producer] : [], () => Math.max(estimate, producer?.value ?? 0));
+    if (!producer && estimate === 0) return ZERO;
+    const target = node();
+    if (!producer) {
+      target.read = () => estimate;
+    } else {
+      addParent(producer, target);
+      target.read = () => Math.max(estimate, producer.value);
+    }
     return target;
   }
   // The engine waives some diary tiers (Show Diary Tasks Any, Combat Mastery);
   // a waived prerequisite costs nothing here either.
   const anyAchievements = taskRuleEnabled(rules, 'Show Diary Tasks Any', false);
-  const free = () => { const value = node(); configure(value, [], () => 0); return value; };
   const sourceNodes = new WeakMap(), wieldNodes = new Map();
   for (const item of items.values()) {
-    for (const source of item.sources ?? []) sourceNodes.set(source, sourceNode(source));
+    const allSources = item.sources ?? [];
+    for (let i = 0; i < allSources.length; i++) sourceNodes.set(allSources[i], sourceNode(allSources[i]));
     // Virtual outputs can supply a particular task, but are not standalone
     // collection or equipment proof.
-    const sources = (item.sources ?? []).filter(source => source.processingMode !== 'multi');
-    const deps = sources.map(source => sourceNodes.get(source));
-    configure(item.node, deps, () => deps.reduce((cost, dep) => Math.min(cost, dep.value), Infinity));
+    let itemZero = false, wieldZero = false;
+    const deps = [], wieldDeps = [];
+    for (let i = 0; i < allSources.length; i++) {
+      const source = allSources[i];
+      if (source.processingMode === 'multi') continue;
+      const sn = sourceNodes.get(source);
+      if (sn === ZERO) itemZero = true;
+      else if (!itemZero) deps.push(sn);
+      if (!craftedSource(source)) {
+        if (sn === ZERO) wieldZero = true;
+        else if (!wieldZero) wieldDeps.push(sn);
+      }
+    }
+    if (itemZero) item.node.read = () => 0;
+    else if (deps.length) configure(item.node, deps, minRead(deps));
     // Equipment with Wield Crafted Items off admits no processing-task source
     // (the engine's equipment policy), so a recipe is no alternative there.
-    const wieldDeps = sources.filter(source => !craftedSource(source)).map(source => sourceNodes.get(source));
-    const wield = node(); configure(wield, wieldDeps, () => wieldDeps.reduce((cost, dep) => Math.min(cost, dep.value), Infinity));
+    const wield = wieldZero ? ZERO : wieldDeps.length ? node() : INF;
+    if (!wieldZero && wieldDeps.length) configure(wield, wieldDeps, minRead(wieldDeps));
     wieldNodes.set(item.name, wield);
   }
   function itemChoice(name, row) {
-    const sources = (items.get(name)?.sources ?? []).filter(source => sourceAllowed(source, row, name));
-    const deps = sources.map(source => sourceNodes.get(source)), choice = node();
-    configure(choice, deps, () => deps.reduce((cost, dep) => Math.min(cost, dep.value), Infinity));
+    const allSources = items.get(name)?.sources;
+    if (!allSources?.length) return INF;
+    let deps;
+    for (let i = 0; i < allSources.length; i++) {
+      const source = allSources[i];
+      if (!sourceAllowed(source, row, name)) continue;
+      const sn = sourceNodes.get(source);
+      if (sn === ZERO) return ZERO;
+      if (!deps) deps = [sn];
+      else deps.push(sn);
+    }
+    if (!deps) return INF;
+    if (deps.length === 1) return deps[0];
+    const choice = node();
+    configure(choice, deps, minRead(deps));
     return choice;
   }
+  const multiplier = !allowedSource ? moveOnMultiplier(rules) : 0;
   for (const { row, node: target } of tasks.values()) {
     // Eligibility-cache copies retain the engine's source-policy proof in the
     // warning. Reuse it when the engine's private matcher is unavailable.
     if (!allowedSource && row.unknownDropKills > 0) {
-      configure(target, [], () => row.unknownDropKills / moveOnMultiplier(rules));
+      const fixed = row.unknownDropKills / multiplier;
+      target.read = () => fixed;
       continue;
     }
-    const groups = list(row.record?.Items).map(token => {
-      const { names, count } = choices(token);
-      return { deps: names.map(name => itemChoice(name, row)), count };
-    });
-    const dependencies = Object.entries(row.record?.Tasks ?? {}).flatMap(([label, category]) => {
-      const { names, count, alias } = choices(label, definitions.codeItems?.tasksPlus ?? {});
-      const dependency = { category, token: String(label), alias };
-      const rawNames = [...new Set(names.map(name => String(name).split('--')[0]))];
-      const self = name => category === row.category && name === (row.rawLabel ?? row.label);
-      // All-self links are annotations; mixed aliases must still satisfy their
-      // count using distinct, reachable non-self prerequisites, as in check().
-      if (rawNames.every(self)) return [];
-      return [{ deps: rawNames.filter(name => !self(name)).map(name => {
-        const task = tasks.get(keys.get(`${category}\0${name}`));
-        if (task && relaxesAchievementDependency(row.category, row.record ?? {}, dependency, task.row.record, anyAchievements)) return free();
-        if (!task?.row.personalCompleted) return task?.row.status === 'available' ? task.node : undefined;
-        // A completed prerequisite needs no new acquisition. Its recipe still
-        // needs supplies when used as a producer of additional items.
-        return free();
-      }).filter(Boolean), count }];
-    });
-    groups.push(...dependencies);
-    const payments = (row.dialogueSupply ?? row.record?.DialogueSupply)?.paymentAlternatives;
+    let impossible = false;
+    const groups = [];
+    const pushGroup = (rawDeps, count) => {
+      if (impossible) return;
+      let zeros = 0;
+      const filtered = [];
+      for (let i = 0; i < rawDeps.length; i++) {
+        const dep = rawDeps[i];
+        if (!dep || dep === INF) continue;
+        if (dep === ZERO) { zeros++; continue; }
+        filtered.push(dep);
+      }
+      if (zeros >= count) return;
+      const needed = count - zeros;
+      if (filtered.length < needed) { impossible = true; return; }
+      groups.push({ deps: filtered, count: needed });
+    };
+    const recordItems = row.record?.Items;
+    if (recordItems != null) {
+      for (const token of list(recordItems)) {
+        if (impossible) break;
+        const { names, count } = choices(token);
+        const deps = [];
+        for (let i = 0; i < names.length; i++) deps.push(itemChoice(names[i], row));
+        pushGroup(deps, count);
+      }
+    }
+    const recordTasks = row.record?.Tasks;
+    if (!impossible && recordTasks) {
+      const rowLabel = row.rawLabel ?? row.label;
+      for (const label of Object.keys(recordTasks)) {
+        if (impossible) break;
+        const category = recordTasks[label];
+        const { names, count, alias } = choices(label, taskAliases);
+        const dependency = { category, token: String(label), alias };
+        const rawNames = names.length === 1 ? [String(names[0]).split('--')[0]] : [...new Set(names.map(name => String(name).split('--')[0]))];
+        const self = name => category === row.category && name === rowLabel;
+        // All-self links are annotations; mixed aliases must still satisfy their
+        // count using distinct, reachable non-self prerequisites, as in check().
+        if (rawNames.every(self)) continue;
+        const deps = [];
+        for (let i = 0; i < rawNames.length; i++) {
+          const name = rawNames[i];
+          if (self(name)) continue;
+          const task = tasks.get(keys.get(`${category}\0${name}`));
+          if (task && relaxesAchievementDependency(row.category, row.record ?? {}, dependency, task.row.record, anyAchievements)) deps.push(ZERO);
+          else if (!task?.row.personalCompleted) { if (task?.row.status === 'available') deps.push(task.node); }
+          // A completed prerequisite needs no new acquisition. Its recipe still
+          // needs supplies when used as a producer of additional items.
+          else deps.push(ZERO);
+        }
+        pushGroup(deps, count);
+      }
+    }
+    const payments = !impossible && (row.dialogueSupply ?? row.record?.DialogueSupply)?.paymentAlternatives;
     if (payments) {
-      const clauses = payments.map(clause => {
-        const deps = Object.keys(clause).map(name => itemChoice(name, row)), payment = node();
+      const clauses = [];
+      for (let i = 0; i < payments.length; i++) {
+        const clause = payments[i];
+        const clauseDeps = [];
+        let clauseImpossible = false;
+        for (const name of Object.keys(clause)) {
+          const dep = itemChoice(name, row);
+          if (dep === INF) { clauseImpossible = true; break; }
+          if (dep !== ZERO) clauseDeps.push(dep);
+        }
+        if (clauseImpossible) continue;
+        if (clauseDeps.length === 0) { clauses.push(ZERO); break; }
+        if (clauseDeps.length === 1) { clauses.push(clauseDeps[0]); continue; }
+        const payment = node();
         // Payment quantities do not change this one-drop move-on hint. The
         // engine requires every payment item in one reachable clause.
-        configure(payment, deps, () => deps.reduce((cost, dep) => Math.max(cost, dep.value), 0));
-        return payment;
-      });
-      groups.push({ deps: clauses, count: 1 });
+        configure(payment, clauseDeps, maxRead(clauseDeps));
+        clauses.push(payment);
+      }
+      pushGroup(clauses, 1);
     }
-    const deps = groups.flatMap(group => group.deps);
-    configure(target, deps, () => {
+    if (impossible) continue;
+    if (groups.length === 0) {
+      target.read = () => 0;
+      continue;
+    }
+    const allDeps = [];
+    for (let i = 0; i < groups.length; i++) {
+      const gdeps = groups[i].deps;
+      for (let j = 0; j < gdeps.length; j++) allDeps.push(gdeps[j]);
+    }
+    configure(target, allDeps, () => {
       // Skill/point and personal-completion alternatives are separate gates;
       // neither replaces unconditional Items, Tasks or dialogue payments.
-      return groups.reduce((cost, group) => Math.max(cost, group.deps.map(dep => dep.value).sort((a, b) => a - b)[group.count - 1] ?? Infinity), 0);
+      let cost = 0;
+      for (let i = 0; i < groups.length; i++) {
+        const group = groups[i], gdeps = group.deps;
+        let gcost;
+        if (group.count === 1) {
+          gcost = Infinity;
+          for (let j = 0; j < gdeps.length; j++) if (gdeps[j].value < gcost) gcost = gdeps[j].value;
+        } else {
+          const vals = gdeps.map(dep => dep.value).sort((a, b) => a - b);
+          gcost = vals[group.count - 1] ?? Infinity;
+        }
+        if (gcost > cost) cost = gcost;
+      }
+      return cost;
     });
   }
-  const queue = [...nodes], queued = new Set(queue);
+  const inQueue = new Uint8Array(nodes.length);
+  const queue = [];
+  for (let i = 0; i < nodes.length; i++) {
+    if (nodes[i].read !== null) { inQueue[i] = 1; queue.push(nodes[i]); }
+  }
   for (let index = 0; index < queue.length; index++) {
-    const target = queue[index]; queued.delete(target);
+    const target = queue[index]; inQueue[target.id] = 0;
     const value = target.read();
     if (!(value < target.value)) continue;
     target.value = value;
-    for (const parent of target.parents) if (!queued.has(parent)) { queued.add(parent); queue.push(parent); }
+    const parents = target.parents;
+    for (let i = 0; i < parents.length; i++) {
+      const parent = parents[i];
+      if (!inQueue[parent.id]) { inQueue[parent.id] = 1; queue.push(parent); }
+    }
   }
-  const context = scalarContext(new Map([...items].map(([name, item]) => [name, item.node.value])),
-    new Map([...tasks].map(([id, task]) => [id, task.node.value])),
-    new Map([...wieldNodes].map(([name, wield]) => [name, wield.value])));
+  const itemCosts = new Map();
+  for (const [name, item] of items) itemCosts.set(name, item.node.value);
+  const taskCosts = new Map();
+  for (const [id, task] of tasks) taskCosts.set(id, task.node.value);
+  const wieldCosts = new Map();
+  for (const [name, wield] of wieldNodes) wieldCosts.set(name, wield.value);
+  const context = scalarContext(itemCosts, taskCosts, wieldCosts);
   contexts.set(result, context);
   return context;
 }

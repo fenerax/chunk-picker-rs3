@@ -657,3 +657,96 @@ test('invocation spatial failure memo invalidates when an NPC source gate opens 
   assert.ok(output(result, 'Seen guide'));
   assert.ok(result.metrics.processingAccessEvaluations > 1, 'The changed source gate produces a different immutable raw access view.');
 });
+
+test('watched-blocker wakeups preserve exact availability and check counters across all blocker kinds', () => {
+  const data = fixture({
+    Crafting: {
+      'Make key': recipe(1, ['Raw'], 'Crafted key', { Primary: false }),
+      'Build forge': { Level: 1, Items: ['Crafted key'], 'Output Object': 'Synthetic forge', Primary: false },
+      'High craft': { Level: 25, Items: ['Crafted key'], Output: 'High product', Primary: false },
+      'No-boost craft': { Level: 25, Items: ['Crafted key'], NoBoost: true, Output: 'No-boost product', Primary: false },
+    },
+    Quest: {
+      'Open hall': { Objects: ['Synthetic forge'], XpReward: { Crafting: 10000 } },
+    },
+    Nonskill: {
+      'Inner hall': { UnlocksArea: true, Tasks: { 'Open hall': 'Quest' } },
+      'Upstream gate': { Objects: ['Synthetic forge'] },
+    },
+    Extra: {
+      'Use hall monster': { Monsters: ['Any beast[+]'], Output: 'Beast token' },
+      'Use mix npc': { Mix: ['Guide'], Items: ['Beast token'] },
+      'Use task dep': { Tasks: { 'Upstream gate': 'Nonskill' }, Items: ['High product', 'No-boost product'] },
+      'Use boosted level': { Skills: { Crafting: 28 }, Items: ['Crafted key'] },
+    },
+  }, {}, {
+    chunks: {
+      '1': { Spawn: { Raw: 1, Tonic: 1 }, Connect: { '2': true } },
+      '2': { Connect: { '1': true, 'Inner hall': true } },
+      'Inner hall': { Connect: { '2': true }, Monster: { 'Hall beast': true }, NPC: { Guide: true } },
+    },
+    walkableChunksF2P: ['1', '2'],
+    codeItems: {
+      monstersPlus: { 'Any beast[+]': ['Hall beast'] },
+      boostItems: { Crafting: { Tonic: 5 } },
+    },
+  });
+  const options = { metadataCorrections: false, equipmentCorrections: false, cacheWalking: false };
+  const comparable = result => {
+    const copy = structuredClone(result);
+    delete copy.metrics.elapsedMs;
+    delete copy.metrics.unlockCalculation;
+    return copy;
+  };
+  for (const boosting of [false, true]) {
+    const baseState = saved({ Boosting: boosting }, { unlocked: ['1'], primaryOverrides: {} });
+    const unlockedState = saved({ Boosting: boosting }, { unlocked: ['1', '2'], primaryOverrides: {} });
+    // Incremental memo disables the watched-blocker bitset (`useWatchers = false`),
+    // giving an exact same-engine oracle for cold watched evaluation (`useWatchers = true`).
+    const memoEngine = createTaskEngine(data, { ...options, incrementalUnlocks: true });
+    memoEngine.evaluate(baseState, 'a');
+    const memoResult = memoEngine.evaluate(unlockedState, 'a');
+    assert.equal(memoResult.metrics.unlockCalculation.path, 'incremental');
+    const watchedResult = createTaskEngine(data, { ...options, incrementalUnlocks: false }).evaluate(unlockedState, 'a');
+    assert.deepEqual(comparable(watchedResult), comparable(memoResult));
+    for (const [category, name] of [
+      ['Crafting', 'High craft'], ['Crafting', 'No-boost craft'],
+      ['Nonskill', 'Inner hall'], ['Extra', 'Use hall monster'],
+      ['Extra', 'Use mix npc'], ['Extra', 'Use task dep'],
+    ]) {
+      assert.equal(row(watchedResult, category, name).status, 'available', `${category}:${name} (boosting=${boosting})`);
+    }
+    assert.equal(row(watchedResult, 'Extra', 'Use boosted level').status, boosting ? 'available' : 'blocked');
+  }
+});
+
+test('baseItemSourceView filters non-yielding objects and monsters while preserving yielding objects and shop diagnostics', () => {
+  const data = fixture({
+    Firemaking: { 'Light fire': { Level: 1, Chunks: ['1'], Items: ['Logs'], 'Output Object': 'Player fire', Primary: false } },
+    Crafting: {
+      'Build shrine': { Level: 1, Chunks: ['1'], Objects: ['Player fire'], 'Output Object': 'Yielding shrine', Primary: false },
+      'Use relic': { Level: 1, Items: ['Shrine relic'], Primary: false },
+    },
+  }, {}, {
+    chunks: { '1': { Object: { Tree: 1 }, Monster: { 'Quiet critter': 1, 'Drop beast': 1 }, Shop: { 'Empty stall': true } } },
+    objectItems: { Tree: { Logs: { 1: 'Always' } }, 'Yielding shrine': { 'Shrine relic': { 1: 'Always' } } },
+    drops: { 'Drop beast': { Fang: { 1: 'Always' } } },
+  });
+  const access = calculateAccess(buildAccessIndex(data), saved(), 'a');
+  const fullView = JSON.parse(baseItemSourceView(access));
+  const filteredView = JSON.parse(baseItemSourceView(access, data));
+  assert.ok(fullView[6].some(([name]) => name === 'Quiet critter'));
+  assert.ok(!filteredView[6].some(([name]) => name === 'Quiet critter'));
+  assert.ok(filteredView[6].some(([name]) => name === 'Drop beast'));
+  assert.ok(filteredView[7].some(([name]) => name === 'Tree'));
+  assert.ok(filteredView[5].some(([name]) => name === 'Empty stall'), 'shops without stock entries stay in view for missing-shop-stock diagnostics');
+  const fireOnly = structuredClone(data);
+  delete fireOnly.challenges.Crafting;
+  const fireOnlyResult = createTaskEngine(fireOnly, { metadataCorrections: false, equipmentCorrections: false, cacheWalking: false }).evaluate(saved(), 'a');
+  assert.equal(row(fireOnlyResult, 'Firemaking', 'Light fire').status, 'available');
+  assert.equal(fireOnlyResult.metrics.processingBaseCollections, 1, 'non-yielding produced object does not force base source recollection');
+  assert.ok(fireOnlyResult.diagnostics.some(entry => entry.code === 'missing-shop-stock' && entry.source === 'Empty stall'));
+  const shrineResult = createTaskEngine(data, { metadataCorrections: false, equipmentCorrections: false, cacheWalking: false }).evaluate(saved(), 'a');
+  assert.equal(row(shrineResult, 'Crafting', 'Use relic').status, 'available');
+  assert.ok(shrineResult.metrics.processingBaseCollections >= 2, 'yielding produced object triggers base source recollection');
+});

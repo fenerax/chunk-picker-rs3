@@ -196,6 +196,40 @@ test('lazy preparation that exceeds a nonzero parsed cap releases the variant an
   assert(capped.retentionLedger().parsedBytes <= initialBytes);
 });
 
+test('incremental parsedRates byte accounting stays accurate and enforces eviction on unseen drop rates', () => {
+  const data = {
+    chunks: {
+      '1': { Connect: { '2': true }, Monster: { 'Alpha beast': 1 } },
+      '2': { Connect: { '1': true }, Monster: { 'Beta beast': 1 } },
+    },
+    walkableChunksF2P: ['1', '2'],
+    drops: {
+      'Alpha beast': { 'Alpha shard': { 1: '1/17' }, 'Alpha dust': { 1: '1/19' } },
+      'Beta beast': { 'Beta shard': { 1: '1/23' }, 'Beta dust': { 1: '1/29' }, 'Beta core': { 1: '1/31' } },
+    },
+    challenges: {
+      Extra: { 'Use alpha': { Items: ['Alpha shard'] }, 'Use beta': { Items: ['Beta core'] } },
+    },
+  };
+  const stateFor = unlocked => ({ rules: { 'content.f2p': false }, taskRules: {}, members: [{ id: 'm0', unlocked, completedTasks: [] }] });
+  const roomy = createTaskEngine(data, { variantByteLimit: 8 * 1024 ** 2, metadataCorrections: false, equipmentCorrections: false, cacheWalking: false });
+  const before = roomy.retentionLedger().parsedBytes;
+  const r1 = roomy.evaluate(stateFor(['1']), 'm0');
+  const afterOne = roomy.retentionLedger().parsedBytes;
+  assert(afterOne > before, 'unseen chunk 1 drop rates increase parsedBytes');
+  const r2 = roomy.evaluate(stateFor(['1', '2']), 'm0');
+  const afterTwo = roomy.retentionLedger().parsedBytes;
+  assert(afterTwo > afterOne, 'unseen chunk 2 drop rates increase parsedBytes');
+  const fresh = createTaskEngine(data, { variantByteLimit: 8 * 1024 ** 2, metadataCorrections: false, equipmentCorrections: false, cacheWalking: false });
+  fresh.evaluate(stateFor(['1', '2']), 'm0');
+  assert.equal(fresh.retentionLedger().parsedBytes, afterTwo, 'incremental byte accounting matches a fresh full measurement');
+  const capped = createTaskEngine(data, { variantByteLimit: afterOne, metadataCorrections: false, equipmentCorrections: false, cacheWalking: false });
+  assert.equal(semantic(capped.evaluate(stateFor(['1']), 'm0')), semantic(r1));
+  assert.equal(semantic(capped.evaluate(stateFor(['1', '2']), 'm0')), semantic(r2));
+  assert(capped.retentionLedger().parsedBytes <= afterOne, 'eviction enforces cap when unseen rates push parsedBytes over limit');
+  assert(capped.retentionLedger().evictions > 0);
+});
+
 test('automatic travel denies engine completeness even after variant eviction or later manual preparation', () => {
   const engine = createTaskEngine(engineFixture(), { variantByteLimit: 0 });
   assert.equal(engine.retentionLedger().complete, true);

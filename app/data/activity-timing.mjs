@@ -66,10 +66,17 @@ export function withActivityTimingTags(category, record, label) {
   return missing.length ? { ...record, Category: [...current, ...missing] } : record;
 }
 
+const EMPTY_SOURCE_RULES = Object.freeze([]);
+const PORTS_SOURCE_RULES = Object.freeze(['Timegated']);
+
 /** Gate the activity's supplies too, so generated equipment goals cannot bypass
  * its rules through a bare spawn or reward-shop record. Other stock is untouched. */
 export function activityTimingSourceRules(item, source) {
-  if (source === 'Ports Reward Shop') return ['Timegated'];
-  return String(item).replaceAll('*', '').toLowerCase() === 'protea flower'
-    || source === 'Reward Shop (Big Chinchompa)' ? tags : [];
+  if (source === 'Ports Reward Shop') return PORTS_SOURCE_RULES;
+  if (source === 'Reward Shop (Big Chinchompa)') return tags;
+  if (typeof item === 'string') {
+    const first = item.charCodeAt(0);
+    if (first !== 80 && first !== 112 && first !== 42) return EMPTY_SOURCE_RULES;
+  }
+  return String(item).replaceAll('*', '').toLowerCase() === 'protea flower' ? tags : EMPTY_SOURCE_RULES;
 }
