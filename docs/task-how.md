@@ -35,13 +35,14 @@ retaining first-admission order separately. The selected area approach follows
 that same witness. Once an output budget gap occurs, siblings are marked omitted
 without spending further node/depth budget expanding them.
 
-An area permission binds to an entrance only when its selected access-task
-chain explicitly requires that exact reachable approach. Nearby candidates and
-item source locations cannot supply that binding. Unbound permissions remain
-partial. Manual access/level declarations are labelled as assumptions. Training
-capability is labelled as a planning assumption at the required level, with the
-actual startable seed method and its starting evidence; this is not a complete
-XP schedule or verification of repeatability.
+An area permission binds to a walking entrance only when its selected access-task
+chain explicitly requires that exact reachable approach, or to an entity entrance
+when it directly requires an NPC or object placement located in that reachable
+approach. Nearby candidates and item source locations cannot supply that binding.
+Unbound permissions remain partial. Manual access/level declarations are labelled
+as assumptions. Training capability is labelled as a planning assumption at the
+required level, with the actual startable seed method and its starting evidence;
+this is not a complete XP schedule or verification of repeatability.
 
 Phase 1 covers ordinary own-map walking, areas, task/quest dependencies,
 observed levels, completion roots and basic item sources/outputs. Ordinary
@@ -73,7 +74,9 @@ bound area permissions and their access tasks share one entry instruction.
 Quest instructions use the selected definition's description. Display names
 come from the current world (including base names for sections); technical
 identifiers remain in Advanced detail. Training assumptions remain explicit.
-An unbound NPC entry retains its NPC witness and named entrance gap.
+NPC/object-bound entries name the entry NPC or object rather than claiming a
+walking route; an unbound NPC entry (whose NPC is not in a connected entrance)
+retains its NPC witness and named entrance gap.
 
 An area goal explains its actual captured entry, rather than only the global
 permission. A marker containing only `UnlocksArea` does not add a separate

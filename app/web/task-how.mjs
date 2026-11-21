@@ -30,10 +30,13 @@ export function taskHowSteps(proof, { advanced = false, locationName = () => '' 
     const route = id => {
       if (seen.has(id)) return; seen.add(id);
       const entry = nodes[id]; if (!entry) return;
+      if (node.rule === 'entity-entrance' && entry.kind === 'placement' && entry.entityKind === node.viaKind && entry.location === node.from && String(entry.subjectId ?? '').replace(/~\|([^|]+)\|~/g, '$1').replace(/\*+$/g, '') === node.viaEntity) {
+        folded.add(id); return;
+      }
       if (entry.kind === 'task' && entry.category === 'Nonskill') {
         folded.add(id);
         if (entry.allOf.some(child => nodes[child]?.field === 'Chunks' && nodes[child].selectedSubjects?.includes(node.from))) routes.set(node, entry.taskLabel);
-      } else if (entry.field !== 'Tasks') return;
+      } else if (!(entry.field === 'Tasks' || (node.rule === 'entity-entrance' && ['NPCs', 'Objects', 'Mix', 'Placements'].includes(entry.field)))) return;
       for (const child of entry.allOf ?? []) route(child);
     };
     for (const child of node.allOf ?? []) route(child);
@@ -55,13 +58,17 @@ export function taskHowSteps(proof, { advanced = false, locationName = () => '' 
       || node.preparationOnly)) return;
     let label = node.label;
     if (node.kind === 'location' && node.from) {
-      let via = routes.get(node);
-      if (via) {
-        via = via.replace(new RegExp(`^(?:Access|Enter) (?:the )?${String(node.subjectId).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')} via `, 'i'), '');
-        if (via === node.from) via = place(node.from, node.fromName);
-      }
       const from = place(node.from, node.fromName);
-      label = `Get into ${place(node.subjectId, node.placeName)} ${via && via !== from ? `via ${strip(via)} in ${from}` : `from ${from}`}.`;
+      if (node.rule === 'entity-entrance' && node.viaEntity) {
+        label = `Enter ${place(node.subjectId, node.placeName)} via ${node.viaEntity} in ${from}.`;
+      } else {
+        let via = routes.get(node);
+        if (via) {
+          via = via.replace(new RegExp(`^(?:Access|Enter) (?:the )?${String(node.subjectId).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')} via `, 'i'), '');
+          if (via === node.from) via = from;
+        }
+        label = `Get into ${place(node.subjectId, node.placeName)} ${via && via !== from ? `via ${strip(via)} in ${from}` : `from ${from}`}.`;
+      }
     } else if (node.kind === 'placement' && node.location) label = node.entityKind === 'Clue'
       ? `Reach ${/^[aeiou]/i.test(node.subjectId) ? 'an' : 'a'} ${node.subjectId} clue location in ${place(node.location, node.placeName)}.`
       : `Find ${node.subjectId} in ${place(node.location, node.placeName)}.`;

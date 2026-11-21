@@ -699,3 +699,79 @@ test('ClueTier and ConnectsSections prove concrete witnesses while preserving pa
   assert.ok(!upgradeProof.gaps.some(gap => gap.kind === 'partner-duo'));
   graph(upgradeProof);
 });
+
+test('NPC and object placements in connected approaches bind entity-entrance area proofs without weakening unbound guards', () => {
+  const defs = {
+    chunks: {
+      100: { Nickname: 'Meadow', NPC: { 'Tool leprechaun': 1, 'Pale wisp': 1 } },
+      101: { Nickname: 'Colony', Connect: { 100: true }, Object: { 'Energy rift': 1 } },
+      102: { Nickname: 'Courtyard', NPC: { 'Tool leprechaun': 1 } },
+      Vinesweeper: { Connect: { 100: true }, Object: { Rabbit: 1 } },
+      Cache: { Connect: { 101: true }, Object: { Memory: 1 } },
+      Isolated: { Connect: { 100: true }, Object: { Relic: 1 } },
+    },
+    challenges: {
+      Divination: {
+        'Harvest wisp': { Level: 1, Primary: true, NPCs: ['Pale wisp'] },
+        'Enter cache': { Level: 35, Objects: ['Energy rift'] },
+      },
+      Nonskill: {
+        Vinesweeper: { UnlocksArea: true, NPCs: ['Tool leprechaun'] },
+        Cache: { UnlocksArea: true, Tasks: { 'Enter cache': 'Divination' } },
+        Isolated: { UnlocksArea: true, Skills: { Divination: 10 } },
+      },
+      Hunter: { 'Feed rabbit': { Level: 1, Primary: true, Objects: ['Rabbit'] } },
+      Extra: {
+        'Catch bunny': { Skills: { Hunter: 10 } },
+        'Deposit memory': { Objects: ['Memory'] },
+        'Touch relic': { Objects: ['Relic'] },
+      },
+    },
+  };
+  const engine = createTaskEngine(defs);
+  const state = caveState(['100', '101', '102']);
+
+  // Direct NPC placement in connected approach binds Vinesweeper (including as a Hunter training seed).
+  const vineProof = engine.how(state, 'one', taskId('Extra', 'Catch bunny'));
+  assert.equal(vineProof.availability, 'available');
+  assert.equal(vineProof.proofStatus, 'complete', JSON.stringify(vineProof.gaps));
+  assert.match(labels(vineProof), /Enter Vinesweeper via Tool leprechaun at Meadow/);
+  assert.ok(Object.values(vineProof.nodes).some(node => node.rule === 'entity-entrance' && node.viaEntity === 'Tool leprechaun'));
+  graph(vineProof);
+
+  // Indirect Object placement through a prerequisite task binds Cache, not the Divination training seed's NPC.
+  const cacheProof = engine.how(state, 'one', taskId('Extra', 'Deposit memory'));
+  assert.equal(cacheProof.availability, 'available');
+  assert.equal(cacheProof.proofStatus, 'complete', JSON.stringify(cacheProof.gaps));
+  assert.match(labels(cacheProof), /Enter Cache via Energy rift at Colony/);
+  assert.ok(Object.values(cacheProof.nodes).some(node => node.rule === 'entity-entrance' && node.viaEntity === 'Energy rift'));
+  graph(cacheProof);
+
+  // Skill training seed NPCs (Pale wisp in Meadow) cannot bind an area whose permission only lists Skills.
+  const isolatedProof = engine.how(state, 'one', taskId('Extra', 'Touch relic'));
+  assert.equal(isolatedProof.availability, 'available');
+  assert.equal(isolatedProof.proofStatus, 'partial');
+  assert.ok(isolatedProof.gaps.some(gap => gap.kind === 'unbound-entrance'), JSON.stringify(isolatedProof.gaps));
+  graph(isolatedProof);
+
+  // Rederivation fallback: if a cheaper non-connected NPC placement (Courtyard) exists alongside a connected one (Colony),
+  // the proof still binds the connected placement and includes it as a witness.
+  const fallbackDefs = {
+    chunks: {
+      100: { Nickname: 'Meadow' },
+      101: { Nickname: 'Colony', Connect: { 100: true }, NPC: { Guide: 1 } },
+      102: { Nickname: 'Courtyard', NPC: { Guide: 1 } },
+      Sanctum: { Connect: { 101: true }, Object: { Shrine: 1 } },
+    },
+    challenges: {
+      Nonskill: { Sanctum: { UnlocksArea: true, NPCs: ['Guide'] } },
+      Extra: { 'Use shrine': { Objects: ['Shrine'] } },
+    },
+  };
+  const fallbackProof = createTaskEngine(fallbackDefs).how(caveState(['100', '101', '102']), 'one', taskId('Extra', 'Use shrine'));
+  assert.equal(fallbackProof.availability, 'available');
+  assert.equal(fallbackProof.proofStatus, 'complete', JSON.stringify(fallbackProof.gaps));
+  assert.match(labels(fallbackProof), /Enter Sanctum via Guide at Colony/);
+  assert.ok(Object.values(fallbackProof.nodes).some(node => node.kind === 'placement' && node.subjectId === 'Guide' && node.location === '101'));
+  graph(fallbackProof);
+});

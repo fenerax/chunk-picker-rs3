@@ -92,15 +92,27 @@ test('training assumptions stay explicit after the starting method and before qu
   const quest2 = steps.findIndex(label => label.startsWith('The Lost Tribe step 2'));
   assert.ok(method < assumption && assumption < quest1 && quest1 < quest2);
 });
-test('an unbound NPC entry keeps the NPC witness visible instead of claiming a walking route', () => {
-  const definitions = { chunks: { '100': { Nickname: 'Garden', NPC: { Guide: 1 } }, Minigame: { Connect: { '100': true }, Object: { Stile: 1 } } },
+test('connected NPC entries name the entry NPC instead of claiming a walking route; unbound NPC entries stay partial', () => {
+  const boundDefs = { chunks: { '100': { Nickname: 'Garden', NPC: { Guide: 1 } }, Minigame: { Connect: { '100': true }, Object: { Stile: 1 } } },
     challenges: { Nonskill: { Minigame: { UnlocksArea: true, NPCs: ['Guide'] } }, Agility: { 'Cross the stile': { Level: 1, Objects: ['Stile'] } } } };
-  const proof = createTaskEngine(definitions).how(caveState(['100']), 'one', taskId('Agility', 'Cross the stile'));
-  const labels = taskHowSteps(proof).map(step => step.label).join('\n');
-  assert.equal(proof.proofStatus, 'partial');
-  assert.match(labels, /Find Guide in Garden/);
-  assert.match(labels, /hasn't linked Minigame to a reachable entrance/);
-  assert.doesNotMatch(labels, /Get into Minigame from Garden/);
+  const bound = createTaskEngine(boundDefs).how(caveState(['100']), 'one', taskId('Agility', 'Cross the stile'));
+  const boundSteps = taskHowSteps(bound).map(step => step.label);
+  assert.equal(bound.proofStatus, 'complete', JSON.stringify(bound.gaps));
+  assert.deepEqual(boundSteps, [
+    'Enter Minigame via Guide in Garden.',
+    'Cross the stile — in Minigame.',
+  ]);
+  assert.doesNotMatch(boundSteps.join('\n'), /Get into Minigame from Garden/);
+  assert.doesNotMatch(text(renderTaskHow(bound, { document })), /partial explanation/);
+
+  const unboundDefs = { chunks: { '100': { Nickname: 'Garden' }, '101': { Nickname: 'Courtyard', NPC: { Guide: 1 } }, Minigame: { Connect: { '100': true }, Object: { Stile: 1 } } },
+    challenges: { Nonskill: { Minigame: { UnlocksArea: true, NPCs: ['Guide'] } }, Agility: { 'Cross the stile': { Level: 1, Objects: ['Stile'] } } } };
+  const unbound = createTaskEngine(unboundDefs).how(caveState(['100', '101']), 'one', taskId('Agility', 'Cross the stile'));
+  const unboundLabels = taskHowSteps(unbound).map(step => step.label).join('\n');
+  assert.equal(unbound.proofStatus, 'partial');
+  assert.match(unboundLabels, /Find Guide in Courtyard/);
+  assert.match(unboundLabels, /hasn't linked Minigame to a reachable entrance/);
+  assert.doesNotMatch(unboundLabels, /Get into Minigame from Garden|Enter Minigame via Guide/);
 });
 test('How is lazy, stale responses become retryable errors, and close cancels requests', async () => {
   const row = new Node('div'); let count = 0, scope = 'one:1', resolve, signal;

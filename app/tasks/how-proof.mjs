@@ -11,7 +11,7 @@ export function createHowCapture({ state, memberId, definitions, byKey, complete
   const combatSeedSkills = new Set();
   const byId = new Map([...byKey.values()].map(task => [task.id, task]));
   const sharedMap = state.members.length === 2 ? "your partner's map" : "another group member's map";
-  const areaApproaches = new Map(), areaLocations = new Map();
+  const areaApproaches = new Map(), areaLocations = new Map(), entityEntrancePlacements = new Map();
   const definitionRef = task => ({ catalogue: 'effective', pointer: `/challenges/${pointer(task.category)}/${pointer(task.rawLabel)}` });
   const maxCapture = Math.min(100000, limits.captureNodes ?? 50000);
   const deadline = requestDeadline ?? performance.now() + Math.min(25000, limits.replayMs ?? 20000);
@@ -57,7 +57,8 @@ export function createHowCapture({ state, memberId, definitions, byKey, complete
   };
   const location = (id, reason = {}) => {
     if (facts.has(`place:${id}`)) return;
-    if (reason.areaTask) reason = { ...reason, from: boundEntrances.get(id), unbound: !boundEntrances.has(id) };
+    const binding = reason.areaTask ? boundEntrances.get(id) : null;
+    if (reason.areaTask) reason = { ...reason, from: binding?.from, viaEntity: binding?.viaEntity, viaKind: binding?.viaKind, viaPlacementId: binding?.viaPlacementId, unbound: !binding };
     const name = placeLabel(id);
     const deps = reason.from && !reason.areaTask ? [placeRef(reason.from)] : [];
     deps.push(...gateRefs(reason.gate));
@@ -70,10 +71,16 @@ export function createHowCapture({ state, memberId, definitions, byKey, complete
       'unbound-entrance': "The picker hasn't linked this area permission to a reachable entrance.",
     }[unsupported]));
     if (reason.manual) deps.push(gap('manual-assumption', 'This access comes from a manual grant.'));
-    const node = put(`place:${id}`, { kind: 'location', subjectId: id, placeName: name, from: reason.from, fromName: reason.from && placeLabel(reason.from), areaAccess: !!reason.areaTask,
-      label: reason.from ? `Get into ${name} from ${placeLabel(reason.from)}.` : `Reach ${name}.`,
-      rule: reason.from ? 'walking-entrance' : 'owned-chunk', evidenceClass: reason.manual ? 'manual' : 'derived', allOf: deps });
+    const entityEntry = Boolean(reason.from && reason.viaEntity);
+    const node = put(`place:${id}`, { kind: 'location', subjectId: id, placeName: name, from: reason.from, fromName: reason.from && placeLabel(reason.from),
+      ...(entityEntry ? { viaEntity: reason.viaEntity, viaKind: reason.viaKind } : {}),
+      areaAccess: !!reason.areaTask,
+      label: entityEntry ? `Enter ${name} via ${reason.viaEntity} at ${placeLabel(reason.from)}.`
+        : reason.from ? `Get into ${name} from ${placeLabel(reason.from)}.` : `Reach ${name}.`,
+      rule: entityEntry ? 'entity-entrance' : reason.from ? 'walking-entrance' : 'owned-chunk',
+      evidenceClass: reason.manual ? 'manual' : 'derived', allOf: deps });
     if (node && reason.areaTask) areaLocations.set(node, id);
+    if (node && entityEntry && reason.viaPlacementId) entityEntrancePlacements.set(node, reason.viaPlacementId);
     if (node && /^\d+-\d+$/.test(id)) {
       const base = id.split('-')[0];
       if (!baseSections.has(base)) baseSections.set(base, []);
@@ -226,7 +233,8 @@ export function createHowCapture({ state, memberId, definitions, byKey, complete
     }
     if (areaUnlockHasRequirements(task.record)) {
       // A global area permission and a nearby candidate are not a bound route.
-      // Only an admitted access-task chain containing that exact approach binds it.
+      // Only an admitted access-task chain containing that exact approach—or a
+      // directly required NPC/Object placement located in that approach—binds it.
       const approaches = env.access.entranceSources.get(task.rawLabel) ?? [];
       areaApproaches.set(task.rawLabel, approaches);
       const usesPlace = (id, place, seen = new Set()) => {
@@ -240,9 +248,35 @@ export function createHowCapture({ state, memberId, definitions, byKey, complete
         const children = node.field === 'Tasks' && choices.has(id) ? choices.get(id).candidates().map(value => value.id) : node.allOf;
         return children.some(child => usesPlace(child, place, seen));
       };
-      const bound = [...approaches].sort().find(place => deps.some(id => usesPlace(id, place)));
-      if (bound) boundEntrances.set(task.rawLabel, bound);
-      if (!bound) deps.push(gap('unbound-entrance', `The picker hasn't linked ${clean(task.label)} to a reachable entrance.`));
+      const findEntityEntry = (id, place, seen = new Set()) => {
+        if (!id || seen.has(id)) return null; seen.add(id);
+        const node = nodes.get(id);
+        if (!node) return null;
+        if (node.kind === 'placement' && ['NPC', 'Object'].includes(node.entityKind) && node.location
+          && (matchesApproach(node.location, place) || matchesApproach(place, node.location))) {
+          return { from: node.location, kind: 'entity', viaEntity: clean(node.subjectId), viaKind: node.entityKind, viaPlacementId: id };
+        }
+        if (node.kind === 'requirement' && ['NPCs', 'Objects', 'Mix', 'Placements', 'Tasks'].includes(node.field)) {
+          const children = choices.has(id) ? choices.get(id).candidates().map(value => value.id) : node.allOf;
+          for (const child of children) { const hit = findEntityEntry(child, place, seen); if (hit) return hit; }
+          return null;
+        }
+        if (node.kind === 'task') {
+          for (const child of node.allOf) { const hit = findEntityEntry(child, place, seen); if (hit) return hit; }
+        }
+        return null;
+      };
+      const sortedApproaches = [...approaches].sort();
+      const walkingFrom = sortedApproaches.find(place => deps.some(id => usesPlace(id, place)));
+      let binding = walkingFrom ? { from: walkingFrom, kind: 'walking' } : null;
+      if (!binding) {
+        for (const place of sortedApproaches) {
+          for (const id of deps) { binding = findEntityEntry(id, place); if (binding) break; }
+          if (binding) break;
+        }
+      }
+      if (binding) boundEntrances.set(task.rawLabel, binding);
+      if (!binding) deps.push(gap('unbound-entrance', `The picker hasn't linked ${clean(task.label)} to a reachable entrance.`));
     }
     if (task.record.ClueTier) {
       const tier = task.record.ClueTier;
@@ -561,6 +595,18 @@ export function createHowCapture({ state, memberId, definitions, byKey, complete
       if (node?.kind !== 'task' && node?.field !== 'Tasks') return;
       for (const child of node.allOf) { const place = findApproach(child, approaches, seen); if (place) return place; }
     };
+    const findEntityApproach = (id, approaches, seen = new Set()) => {
+      if (!id || seen.has(id)) return null; seen.add(id);
+      const node = nodes.get(id);
+      if (!node) return null;
+      if (node.kind === 'placement' && ['NPC', 'Object'].includes(node.entityKind) && node.location
+        && approaches.some(place => matchesApproach(node.location, place) || matchesApproach(place, node.location))) {
+        return { from: node.location, viaEntity: clean(node.subjectId), viaKind: node.entityKind };
+      }
+      if (node.kind !== 'task' && !(node.kind === 'requirement' && ['NPCs', 'Objects', 'Mix', 'Placements', 'Tasks'].includes(node.field))) return null;
+      for (const child of node.allOf) { const hit = findEntityApproach(child, approaches, seen); if (hit) return hit; }
+      return null;
+    };
     const rederive = (id, depth = 0) => {
       if (depth > 64) return id; // Export's stricter depth cap reports the gap.
       if (rebound.has(id)) return rebound.get(id);
@@ -572,22 +618,41 @@ export function createHowCapture({ state, memberId, definitions, byKey, complete
         selectedChildren = [gap(exhausted ? 'budget' : 'missing-evidence', "The picker couldn't capture a witness for this step.")];
       }
       const children = selectedChildren.map(child => rederive(child, depth + 1));
-      let label = node.label, from = node.from;
+      let label = node.label, from = node.from, viaEntity = node.viaEntity, viaKind = node.viaKind, rule = node.rule;
       const area = areaLocations.get(id);
       if (area) {
         const approaches = areaApproaches.get(area) ?? [];
         const permission = children.find(child => nodes.get(child)?.kind === 'task');
-        from = findApproach(permission, approaches);
-        if (!from && node.from && approaches.includes(node.from)) {
-          from = node.from;
-          const approachRef = rederive(placeRef(from), depth + 1);
-          if (approachRef && !children.includes(approachRef)) children.unshift(approachRef);
+        const walkingFrom = findApproach(permission, approaches);
+        if (walkingFrom) {
+          from = walkingFrom; viaEntity = undefined; viaKind = undefined; rule = 'walking-entrance';
+          label = `Get into ${placeLabel(area)} from ${placeLabel(from)}.`;
+        } else {
+          const entityFrom = findEntityApproach(permission, approaches);
+          if (entityFrom) {
+            ({ from, viaEntity, viaKind } = entityFrom);
+            rule = 'entity-entrance';
+            label = `Enter ${placeLabel(area)} via ${viaEntity} at ${placeLabel(from)}.`;
+          } else if (node.viaEntity && node.from && approaches.some(place => matchesApproach(node.from, place) || matchesApproach(place, node.from))) {
+            from = node.from; viaEntity = node.viaEntity; viaKind = node.viaKind; rule = 'entity-entrance';
+            const placementId = entityEntrancePlacements.get(id);
+            const placementRef = placementId && rederive(placementId, depth + 1);
+            if (placementRef && !children.includes(placementRef)) children.unshift(placementRef);
+            label = `Enter ${placeLabel(area)} via ${viaEntity} at ${placeLabel(from)}.`;
+          } else if (node.from && approaches.includes(node.from)) {
+            from = node.from; viaEntity = undefined; viaKind = undefined; rule = 'walking-entrance';
+            const approachRef = rederive(placeRef(from), depth + 1);
+            if (approachRef && !children.includes(approachRef)) children.unshift(approachRef);
+            label = `Get into ${placeLabel(area)} from ${placeLabel(from)}.`;
+          }
         }
-        if (from) label = `Get into ${placeLabel(area)} from ${placeLabel(from)}.`;
       }
-      const changed = label !== node.label || children.some((child, index) => child !== node.allOf[index]) || children.length !== node.allOf.length;
+      const changed = label !== node.label || from !== node.from || rule !== node.rule || viaEntity !== node.viaEntity || children.some((child, index) => child !== node.allOf[index]) || children.length !== node.allOf.length;
       const selectedSubjects = choices.has(id) ? selectedChildren.map(child => choices.get(id).candidates().find(value => value.id === child)?.subject).filter(Boolean) : node.selectedSubjects;
-      const value = changed ? put(`rederived:${id}:${children.join(',')}`, { ...node, label, from, fromName: from && placeLabel(from), ...(selectedSubjects ? { selectedSubjects } : {}), firstAdmissionOrder: node.firstAdmissionOrder ?? node.admissionOrder, allOf: children }) : id;
+      const next = { ...node, label, from, fromName: from && placeLabel(from), rule, ...(selectedSubjects ? { selectedSubjects } : {}), firstAdmissionOrder: node.firstAdmissionOrder ?? node.admissionOrder, allOf: children };
+      if (viaEntity) { next.viaEntity = viaEntity; next.viaKind = viaKind; }
+      else { delete next.viaEntity; delete next.viaKind; }
+      const value = changed ? put(`rederived:${id}:${children.join(',')}`, next) : id;
       rebuilding.delete(id); rebound.set(id, value); return value;
     };
     let root = target && facts.get(`task:${target.key}`);
