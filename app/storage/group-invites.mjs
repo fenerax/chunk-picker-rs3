@@ -17,6 +17,7 @@ export function stage2SourceEligible(document, accountId, characterId) {
   const p = document.pickers.find(p => p.id === c?.placement?.pickerId);
   return Boolean(c?.requestId === 'initial' && p?.kind === 'default' && p.lifecycle === 'active' && p.provisioning === 'ready'
     && p.ownerAccountId === accountId && p.ownerCharacterId === c.id && p.seats.length === 1 && p.seats[0].memberId === 'owner'
+    && !(document.departures ?? []).some(d => d.completedAt && d.destination.pickerId === p.id)
     && !pickerHasPendingJoin(document, p.id)
     && p.memberIds.length === 1 && !document.capabilities.some(k => k.pickerId === p.id)
     && !document.accounts.some(a => a.memberships.some(m => m.pickerId === p.id && (a.id !== accountId || m.role !== 'owner'))));
