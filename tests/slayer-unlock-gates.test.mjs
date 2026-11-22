@@ -1,13 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { slayerUnlockGates, slayerUnlockGate, slayerHelmetComponents, quickKillMonsters, FUTURE_SLAYER_UNLOCKS_RULE as futureRule } from '../app/data/slayer-unlock-gates.mjs';
+import { slayerUnlockGates, slayerUnlockGate, slayerHelmetComponents, quickKillMonsters, isSlayerLockShortcutTask, FUTURE_SLAYER_UNLOCKS_RULE as futureRule } from '../app/data/slayer-unlock-gates.mjs';
 import { createTaskEngine, taskId } from '../app/tasks/engine.mjs';
 import { explainTask } from '../app/tasks/task-provenance.mjs';
 import { createGroupState, applyCommand, exportBackup, importBackup } from '../app/core/state.mjs';
 import { rulesCatalogue, buildRulesSections, taskRuleValue, ruleEnabled, planTaskRuleChange } from '../app/web/rules-model.mjs';
 import { isKeptTaskRule } from '../app/web/kept-rules.mjs';
 import { createRuleDescriber, catalogued } from '../app/web/task-why.mjs';
+import { taskBlockerGuidance } from '../app/web/screen-task-guidance.mjs';
 
 const names = Object.keys(slayerUnlockGates), helmetNames = names.slice(0, 2), quickName = names[2];
 const unchanged = ['Learn how to craft rings of slaying', 'Learn how to fletch broad bolts and arrows'];
@@ -161,4 +162,97 @@ test('old saves default off and revision-checked commands preserve a disabled ch
   assert.equal(describe(futureRule).section, 'Miscellaneous');
   const result = engineFor(fixture()).evaluate({ ...doc, rules: { 'content.f2p': false }, members: doc.members.map(m => ({ ...m, unlocked: ['100'] })) }, 'a');
   assert.equal(row(result, names[3]).slayerUnlockGate.bypassed, false);
+});
+
+test('active Slayer lock blocks assignment Slayer points and Slayer Rewards tasks until the lock releases', () => {
+  const definitions = {
+    chunks: {
+      100: { NPC: { Jacquelyn: 1 }, Shop: { 'Slayer Rewards': 1 } },
+      200: { Monster: { 'Abyssal demon': 1 } },
+      300: { NPC: { 'City Citizen': 1 } },
+    },
+    codeItems: { slayerTasks: { 'Abyssal demons': { 'Abyssal demon': true } } },
+    slayerMonsters: { 'Abyssal demon': 1 },
+    taskUnlocks: { Shops: { 'Slayer Rewards': { 100: [{ 'Obtain slayer points': 'Nonskill' }] } } },
+    challenges: {
+      Slayer: {
+        'Receive a slayer assignment from ~|Jacquelyn|~': { Level: 1, Primary: true, NPCs: ['Jacquelyn'], Output: 'Slayer points' },
+        'Wear a nose peg': { Level: 60 },
+        'Complete a monster-related ~|City Quest|~': { Level: 1, Primary: true, NPCs: ['City Citizen'], Output: 'Slayer points' },
+      },
+      Nonskill: { 'Obtain slayer points': { Items: ['Slayer points'] } },
+      Crafting: { 'Craft a ~|slayer helmet|~': { Level: 55, Items: ['Slayer points'] } },
+      Extra: {
+        'Learn how to craft rings of slaying': record(),
+        'Learn how to fletch broad bolts and arrows': record(),
+      },
+    },
+  };
+  const engine = engineFor(definitions);
+  const by = (result, cat, label) => result.tasks.find(t => t.id === taskId(cat, label));
+
+  // Without a Slayer lock, assignments supply Slayer points and unlock Slayer Rewards.
+  const unlocked = engine.evaluate(state(['100']), 'a');
+  assert.equal(by(unlocked, 'Slayer', 'Receive a slayer assignment from ~|Jacquelyn|~').status, 'available');
+  assert.equal(by(unlocked, 'Nonskill', 'Obtain slayer points').status, 'available');
+  assert.equal(by(unlocked, 'Extra', 'Learn how to craft rings of slaying').status, 'available');
+  assert.equal(by(unlocked, 'Extra', 'Learn how to fletch broad bolts and arrows').status, 'available');
+
+  // Active Slayer lock suppresses assignment Slayer points and blocks Slayer Rewards & Slayer-point tasks,
+  // while keeping the master assignment row available for Activity Info.
+  const locked = engine.evaluate(state(['100'], {}, { slayerLock: { level: 30, monster: 'Abyssal demons' } }), 'a');
+  assert.equal(locked.effectiveSlayerLock.level, 30);
+  assert.equal(by(locked, 'Slayer', 'Receive a slayer assignment from ~|Jacquelyn|~').status, 'available');
+  assert.equal(by(locked, 'Slayer', 'Wear a nose peg').status, 'blocked');
+  assert.equal(by(locked, 'Nonskill', 'Obtain slayer points').status, 'blocked');
+  assert.equal(by(locked, 'Crafting', 'Craft a ~|slayer helmet|~').status, 'blocked');
+  const rings = by(locked, 'Extra', 'Learn how to craft rings of slaying');
+  assert.equal(rings.status, 'blocked');
+  assert.equal(rings.blockers[0].kind, 'slayer-lock');
+  assert.equal(taskBlockerGuidance(rings, locked).slayerLock, true);
+  assert.equal(by(locked, 'Extra', 'Learn how to fletch broad bolts and arrows').status, 'blocked');
+
+  // Even when a chunk exposes Slayer Rewards without taskUnlocks (or Obtain slayer points was checked),
+  // an active Slayer lock still blocks Slayer Rewards shop tasks when Slayer points cannot be earned.
+  // With incremental unlock reuse enabled, releasing a level-120 lock (where caps.Slayer does not change)
+  // must still invalidate the memoized slayer-lock blocker when the locked monster becomes reachable.
+  const directShopDefinitions = {
+    ...fixture({ monsters: ['Abyssal demon'] }),
+    codeItems: { slayerTasks: { 'Abyssal demons': { 'Abyssal demon': 1 } } },
+  };
+  const incrementalEngine = createTaskEngine(directShopDefinitions, { cacheWalking: false, retainedTaskCorrections: false, incrementalUnlocks: true });
+  const directShopLocked = incrementalEngine.evaluate(state(['100'], {}, { slayerLock: { level: 120, monster: 'Abyssal demons' } }), 'a');
+  assert.equal(row(directShopLocked, 'Learn how to craft rings of slaying').status, 'blocked');
+  assert.equal(row(directShopLocked, 'Learn how to craft rings of slaying').blockers[0].kind, 'slayer-lock');
+  const directShopReleased = incrementalEngine.evaluate(state(['100', '200'], {}, { slayerLock: { level: 120, monster: 'Abyssal demons' } }), 'a');
+  assert.equal(directShopReleased.metrics.unlockCalculation.path, 'incremental');
+  assert.equal(directShopReleased.effectiveSlayerLock, null);
+  assert.equal(row(directShopReleased, 'Learn how to craft rings of slaying').status, 'available');
+  const directShopCold = engineFor(directShopDefinitions).evaluate(state(['100', '200'], {}, { slayerLock: { level: 120, monster: 'Abyssal demons' } }), 'a');
+  assert.equal(row(directShopCold, 'Learn how to craft rings of slaying').status, 'available');
+
+  // Rolling a chunk with the locked monster releases the lock and restores Slayer points and Slayer Rewards.
+  const releasedByTarget = engine.evaluate(state(['100', '200'], {}, { slayerLock: { level: 30, monster: 'Abyssal demons' } }), 'a');
+  assert.equal(releasedByTarget.effectiveSlayerLock, null);
+  assert.equal(by(releasedByTarget, 'Nonskill', 'Obtain slayer points').status, 'available');
+  assert.equal(by(releasedByTarget, 'Extra', 'Learn how to craft rings of slaying').status, 'available');
+
+  // Reaching a non-assignment primary Slayer method (City Quests) also releases the lock and restores Slayer points.
+  const releasedByCityQuest = engine.evaluate(state(['100', '300'], {}, { slayerLock: { level: 30, monster: 'Abyssal demons' } }), 'a');
+  assert.equal(releasedByCityQuest.effectiveSlayerLock, null);
+  assert.equal(by(releasedByCityQuest, 'Nonskill', 'Obtain slayer points').status, 'available');
+  assert.equal(by(releasedByCityQuest, 'Extra', 'Learn how to craft rings of slaying').status, 'available');
+});
+
+test('isSlayerLockShortcutTask matches Slayer, Slayer Rewards, and Slayer-level tasks without matching unrelated tasks', () => {
+  assert.equal(isSlayerLockShortcutTask({ category: 'Slayer', label: 'Wear a nose peg' }), true);
+  assert.equal(isSlayerLockShortcutTask({ category: 'Extra', label: 'Learn how to craft rings of slaying' }), true);
+  assert.equal(isSlayerLockShortcutTask({ category: 'Extra', label: 'Learn how to fletch broad bolts and arrows' }), true);
+  assert.equal(isSlayerLockShortcutTask({ category: 'Extra', rawLabel: 'Learn how to craft a ~|slayer helmet|~' }), true);
+  assert.equal(isSlayerLockShortcutTask({ category: 'Nonskill', label: 'Obtain slayer points' }), true);
+  assert.equal(isSlayerLockShortcutTask({ category: 'Crafting', label: 'Craft a slayer helmet' }), true);
+  assert.equal(isSlayerLockShortcutTask({ category: 'Combat', label: 'Receive a slayer assignment from Jacquelyn' }), true);
+  assert.equal(isSlayerLockShortcutTask({ category: 'Quest', label: 'Some quest', skillRequirements: { Slayer: 30 } }), true);
+  assert.equal(isSlayerLockShortcutTask({ category: 'Woodcutting', label: 'Cut logs' }), false);
+  assert.equal(isSlayerLockShortcutTask({ category: 'Extra', label: 'Unlock a music track' }), false);
 });

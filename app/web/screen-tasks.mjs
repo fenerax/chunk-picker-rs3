@@ -18,6 +18,7 @@ import { createDuoBacklogView } from './duo-backlog-view.mjs';
 import { createTickActiveTasks } from './tick-active-tasks.mjs';
 import { appendTaskWhy, catalogued, createRuleDescriber, savedTaskWhyResult, loadTaskWhyEvidence } from './task-why.mjs';
 import { createTaskFocus } from './task-focus.mjs';
+import { isSlayerLockShortcutTask } from '../data/slayer-unlock-gates.mjs';
 
 // Main-screen tasks; shared values and callbacks live in the explicit screen context.
 export function createScreenTasks(c) {
@@ -134,6 +135,17 @@ export function createScreenTasks(c) {
     appendWhy(row, task);
     // One hop to the Wiki instead of opening the task first.
     if (task.wiki) row.append(c.iconLink(task.wiki, `Open ${c.plain(task.label)} on the RuneScape Wiki`, 'wiki'));
+    if (isSlayerLockShortcutTask(task) && c.infoPanels?.activityInfo) {
+      const lock = c.member()?.slayerLock;
+      const lockLabel = lock ? `Slayer lock active (level ${lock.level}) — open Slayer lock settings` : 'Open Slayer lock settings';
+      const slayerLockAction = c.iconButton(lockLabel, 'slayer-lock', () => c.infoPanels.activityInfo('Slayer'));
+      slayerLockAction.classList?.add('task-slayer-lock');
+      if (lock) slayerLockAction.classList?.add('is-locked');
+      slayerLockAction.dataset.taskControl = 'slayer-lock';
+      slayerLockAction.hidden = !c.canWrite();
+      slayerLockAction.disabled = !c.canWrite() || c.sandbox.active;
+      row.append(slayerLockAction);
+    }
     const backlogAction = taskState.backlogged
       ? c.iconButton(`Restore ${c.plain(task.label)} from the backlog`, 'restore', () => c.command({ type: 'set-task-status', memberId: c.memberId, taskId: task.id, backlogged: false }).catch(c.showError))
       : c.iconButton(`Backlog ${c.plain(task.label)}…`, 'backlog');
@@ -383,6 +395,13 @@ export function createScreenTasks(c) {
         getStorage: () => gameStorage(), getViewerId: () => c.sessionMember ?? (c.canWrite() ? 'admin' : 'viewer'),
         getClaimMember: () => c.sessionMember ?? c.memberId, actingForMember: () => !c.sessionMember,
         command: c.command, backlog: c.backlogForm, showTask: c.showTask, attachHover: c.attachDuoHover, appendWhy, appendIcon: (body, task) => c.taskIconPainter.append(body, task),
+        openSlayerLock: c.infoPanels?.activityInfo ? ownerId => {
+          if (ownerId && c.memberId !== ownerId && c.state?.members?.some(owner => owner.id === ownerId)) {
+            const picker = c.$('member');
+            if (picker) { picker.value = ownerId; picker.dispatchEvent(new Event('change')); }
+          }
+          return c.infoPanels.activityInfo('Slayer');
+        } : undefined,
         readOnly: () => !c.canWrite(), canComplete: () => c.canWrite() && !c.sandbox.active && c.duoEnabled(),
         canEdit: () => c.canWrite() && !c.sandbox.active && c.duoEnabled() && c.duoRowsReady, canInspect: () => !c.sandbox.active && (c.duoRowsReady || !c.canWrite() && c.result?.stateRevision === c.state.revision && c.result.memberId === c.memberId), showError: c.showError, onFilter: c.renderTasks,
         appendPin: (content, entry) => appendTaskPin(document, content, c.duoPins(entry)),

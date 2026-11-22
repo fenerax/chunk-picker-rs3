@@ -38,6 +38,7 @@ import { createLiveSwapCommandClient } from '../app/web/live-swap-client.mjs';
 import { createTaskFocus } from '../app/web/task-focus.mjs';
 import { browserUUID, canSaveAddress } from '../app/web/save-address.mjs';
 import { resolveDeathSettings } from '../app/core/death-settings.mjs';
+import { isSlayerLockShortcutTask } from '../app/data/slayer-unlock-gates.mjs';
 
 const entry = new URL('../app/web/main.mjs', import.meta.url);
 const imports = /^import\s+([\s\S]*?)\s+from\s+['"]([^'"]+)['"];?\r?\n/gm;
@@ -112,6 +113,7 @@ export function runScreenGraph(context, modules) {
   context.createMapAvailability ??= createMapAvailability;
   context.createMapActivityLayers ??= createMapActivityLayers;
   context.createTaskFocus ??= createTaskFocus;
+  context.isSlayerLockShortcutTask ??= isSlayerLockShortcutTask;
   context.browserUUID ??= () => browserUUID(context.crypto ?? globalThis.crypto);
   context.canSaveAddress ??= () => canSaveAddress(context);
   const commandStorage = new Map();

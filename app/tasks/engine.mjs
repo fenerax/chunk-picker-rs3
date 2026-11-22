@@ -625,11 +625,15 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
     const caps = watched('caps', Object.fromEntries(Object.keys(skillCaps).map(skill => [skill, Math.min(skillCaps[skill], f2p ? f2pCap(skill) : Infinity)])));
     for (const [skill, limit] of Object.entries(playerControls.maxLevels)) if (caps[skill] && Number.isFinite(Number(limit)) && Number(limit) >= 1) caps[skill] = Math.min(caps[skill], Number(limit));
     const unlockedSlayerCap = caps.Slayer;
+    const isSlayerAssignmentTask = task => task.category === 'Slayer' && /Receive a slayer assignment from |Reaper assignment/i.test(task.rawLabel);
+    const publications = new Map();
     let effectiveSlayerLock = playerControls.slayerLock, slayerLockRelease = null;
+    memo?.root('slayerLock', () => effectiveSlayerLock ? effectiveSlayerLock.level : null);
     if (effectiveSlayerLock) caps.Slayer = Math.min(caps.Slayer, effectiveSlayerLock.level);
     const releaseSlayerLock = reason => {
       if (!effectiveSlayerLock) return false;
       effectiveSlayerLock = null; slayerLockRelease = reason; caps.Slayer = unlockedSlayerCap;
+      publications.clear();
       wakeList(skillWatchers, 'Slayer');
       return true;
     };
@@ -1320,6 +1324,19 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
       if (task.tags.includes('PortSkills') && !canTrainAllPortSkills(levels, caps)) {
         add('training', explain ? 'These goals start when all twelve port skills can reach level 90.' : undefined);
       }
+      if (effectiveSlayerLock && !items.has('Slayer points')
+        && (record.Shops?.includes('Slayer Rewards') || task.itemRequirements.some(req => (req.alternatives ?? [req.clean]).includes('Slayer points')))) {
+        memo?.depend('slayerLock');
+        add('slayer-lock', explain ? `Slayer is locked at level ${effectiveSlayerLock.level}; finish or unlock your current Slayer assignment to earn Slayer points.` : undefined);
+        if (!explain) {
+          if (useWatchers) {
+            watchAdd(itemWatchers, 'Slayer points', task.order);
+            watchAdd(skillWatchers, 'Slayer', task.order);
+            parkOrder(task.order, 0);
+          }
+          return unavailableCheck;
+        }
+      }
       const slayerGate = slayerGates.get(task);
       if (slayerGate && !slayerGateStatus(task, slayerGate).open) {
         add('slayer-unlock', explain ? `Requires: ${slayerGate.condition}` : undefined);
@@ -1529,9 +1546,9 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
       if (!path.length) outputCache.set(cacheKey, result);
       return result;
     }
-    const publications = new Map();
     let publicationReads;
     function outputGate(name, task, kind = 'task', evidence = {}) {
+      if (effectiveSlayerLock && name === 'Slayer points' && isSlayerAssignmentTask(task)) return false;
       if (itemMembershipBlocker(name, f2p, definitions)) return false;
       if ((evidence.tables ?? []).some(table => sourceMembershipBlocker('DropItem', name, f2p, table))) return false;
       if (access.backloggedSources?.items?.[name]) return false;
@@ -1570,7 +1587,7 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
       const reads = publicationReads = new Map();
       const remember = () => {
         if (!modes) { modes = new Map(); publications.set(task, modes); }
-        const settled = !task.dialogueSupply && own && (multi || primary || !task.record.Primary) && reads.size === 0 && !task.record['Output Object'];
+        const settled = !task.dialogueSupply && !(effectiveSlayerLock && isSlayerAssignmentTask(task)) && own && (multi || primary || !task.record.Primary) && reads.size === 0 && !task.record['Output Object'];
         modes.set(multi, { access: cachedAccess, own, primary, reads, settled });
         publicationReads = undefined;
       };
