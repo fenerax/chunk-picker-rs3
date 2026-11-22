@@ -759,7 +759,19 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
     if (!computeRollPool || fullPools && playPools) return;
     const captured = current;
     const input = captured;
-    const values = await Promise.all(captured.members.map(async member => [member.id, await computeRollPool(input, member.id)]));
+    // Cap concurrent roll-pool jobs below maxOutstandingJobsPerPicker (4) so
+    // larger groups never trigger 429 main-thread fallbacks while duo groups
+    // still evaluate both members in parallel.
+    const concurrency = Math.min(2, captured.members.length);
+    const values = new Array(captured.members.length);
+    let nextIndex = 0;
+    await Promise.all(Array.from({ length: concurrency }, async () => {
+      while (nextIndex < captured.members.length) {
+        const index = nextIndex++;
+        const member = captured.members[index];
+        values[index] = [member.id, await computeRollPool(input, member.id)];
+      }
+    }));
     if (current !== captured) return prepareRollPools();
     fullPools = Object.fromEntries(values.map(([id, value]) => [id, value.pool]));
     playPools = Object.fromEntries(values.map(([id, value]) => [id, { ...value.pool, partnerConnections: value.partnerConnections }]));
