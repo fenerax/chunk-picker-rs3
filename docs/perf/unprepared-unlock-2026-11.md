@@ -212,3 +212,39 @@ Run the focused files individually through `runSelectedTests` in
 lock at BelowNormal priority. No tests or runtime files changed, no timing
 assertions were added, and no new harness or CI job is retained. Full CI remains
 the merge gate; these local Windows checks do not establish hosted CI success.
+
+## Follow-up measurements — November 21, 2026
+
+Re-measured after engine hot-path and warm-closure optimizations (`#350`, `#351`,
+`#352`) and the Option 1 worker/snapshot overhead cut (compact deferred-view state
+so full-data snapshots stay within the 128 MiB hot-graph budget, post-reply
+snapshot admission for `evaluate`, exact-revision `stateJSON` aliasing for
+`roll-pool`, `retainedDataBytes` primitive fast path, parallel `prepareRollPools`,
+and `play-v1` task/registry projection reuse when saved task references are
+unchanged).
+
+Measured over 20 continuous unprepared one-chunk rolls on the same synthetic
+40-chunk BFS fixture (`12850` / `12854`, `seededRandom(1729)`, full `duo-legacy`
+dataset, `predictionPrewarm: false`, `maxCalculators: 1`, HTTP `POST /api/command?view=play-v1`
+followed by `GET /api/tasks?memberId=player1&view=play-v1`). Both runs rolled the
+exact same 20 chunks (`13365, 11825, 12855, 12856, 13110, 12341, 12599, 12600,
+11570, 13366, 12080, 13111, 12598, 12344, 13112, 12088, 12342, 12345, 12601, 13368`)
+with 0 prediction hits, 0 failures, and identical normalized `play-v1` SHA-256 hashes
+across all 20 rolls (combined digest `93ac8aa64ec679fc51d0fa361d7204755cc5c6ad5eb4804b9cd7a750f96c143c`).
+
+Each cell is **median / p95 / maximum** in seconds (back-to-back runs on the same
+desktop; `engineMs` median `0.911s` vs `0.906s` confirms matched CPU load):
+
+| Interval | Before (`67953997`) | After (`bf646864`) |
+| --- | ---: | ---: |
+| Total (`POST /api/command` + `GET /api/tasks`) | 3.172 / 3.994 / 4.510 | 2.684 / 3.784 / 3.941 |
+| Command response | 3.100 / 3.880 / 4.420 | 2.619 / 3.709 / 3.869 |
+| Task fetch (`GET /api/tasks`, `hit: true`) | 0.066 / 0.114 / 0.117 | 0.064 / 0.090 / 0.097 |
+| Worker evaluation total | 2.142 / 2.909 / 3.081 | 1.535 / 2.100 / 2.183 |
+| Core engine (`engineMs`) | 0.911 / 1.314 / 1.361 | 0.906 / 1.216 / 1.271 |
+| Collection | 0.004 / 0.007 / 0.007 | 0.003 / 0.007 / 0.007 |
+| Equipment | 0.043 / 0.055 / 0.055 | 0.033 / 0.072 / 0.072 |
+| Presentation | 0.130 / 0.165 / 0.173 | 0.089 / 0.168 / 0.185 |
+| Worker total less named stages | 0.995 / 1.517 / 1.518 | 0.463 / 0.666 / 0.704 |
+| Rolls exceeding 3.0 s total | 11 / 20 | 4 / 20 (0 / 20 worker) |
+
