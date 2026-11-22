@@ -208,7 +208,7 @@ test('backlog reason dialog preserves optional reasons, owner, cancellation and 
   c.showError = error => errors.push(error);
   runInContext(taskSource + '\ncreateScreenTasks(c);', createContext({
     c, document: h.document, createTaskClaimClock: () => ({}),
-    createTaskIconPainter: () => ({ append() {} }), appendTaskPin() {}, appendTaskWhy() {}, appendTaskHow() {}, isCustomTask: () => false,
+    createTaskIconPainter: () => ({ append() {} }), appendTaskPin() {}, appendTaskWhy() {}, appendTaskHow() {}, isCustomTask: () => false, isSlayerLockShortcutTask: () => false,
   }));
   c.taskFacts = () => ({ personal: false, group: false }); c.hoverTasks = () => ({ attach() {} });
   // Viewers see a completion status instead of a completion control.
