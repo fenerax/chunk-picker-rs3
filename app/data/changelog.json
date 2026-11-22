@@ -2,6 +2,16 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "date": "2026-11-22",
+      "title": "Faster unlocks, Slayer lock polish and group moves",
+      "items": [
+        "Cut unprepared chunk unlock overhead so newly rolled chunks finish task calculations faster.",
+        "How? now explains Slayer tasks, Slayer monster level requirements, XP-reward passive levels and Slayer unlock gates.",
+        "Slayer lock now also blocks Slayer points and Slayer Rewards, with a padlock shortcut on Slayer task rows to adjust your lock directly.",
+        "Established solo characters and non-owner group members can accept a group invite while keeping their earlier map as a read-only Past map, and renaming to an existing character name in your login asks for confirmation."
+      ]
+    },
+    {
       "date": "2026-11-21",
       "title": "Cleaner world map and fuller How? steps",
       "items": [
