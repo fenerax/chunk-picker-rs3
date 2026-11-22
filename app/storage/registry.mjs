@@ -496,6 +496,7 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
   const blockedPicker = id => tombstoneIndex.get(id);
   const groupInvites = createGroupInvites({ read: () => current, now, caps, point,
     admit: next => retained?.admit(next),
+    versionPastMaps: () => retirementVersion(),
     save: next => save(next, { accounts: next.accounts, pickers: next.pickers, characters: true, removedCapabilities: current.capabilities.filter(k => !next.capabilities.some(n => n.kind === k.kind && n.hash === k.hash)) }),
     async version() {
       if (current.schemaVersion >= 3) return;
@@ -723,7 +724,7 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
     finishDeparture(id) { return enqueue(() => departures.finish(id)); },
     departureTransactions() { usable(); return departures.pending(); },
     getDeparture(id) { usable(); return departures.get(id); },
-    departingMemberIds(pickerId) { return [...(current.departures ?? []).filter(d => !d.completedAt && d.source.pickerId === pickerId).map(d => d.source.memberId), ...(ledger.deletions ?? []).filter(d => !d.completedAt).flatMap(d => d.targets.filter(t => t.pickerId === pickerId).map(t => t.memberId))]; },
+    departingMemberIds(pickerId) { return [...(current.departures ?? []).filter(d => !d.completedAt && d.source.pickerId === pickerId).map(d => d.source.memberId), ...(current.groupInvites ?? []).filter(i => i.transaction?.source?.pickerId === pickerId).map(i => i.transaction.source.memberId), ...(ledger.deletions ?? []).filter(d => !d.completedAt).flatMap(d => d.targets.filter(t => t.pickerId === pickerId).map(t => t.memberId))]; },
     retiredMemberIds(pickerId) { return [...new Set([...(current.departures ?? []).filter(d => d.completedAt && d.source.pickerId === pickerId).map(d => d.source.memberId), ...(ledger.slots ?? []).filter(s => s.pickerId === pickerId
       && !(ledger.deletions ?? []).some(d => !d.completedAt && d.targets.some(t => slotKey(t) === slotKey(s)))
       && !(current.departures ?? []).some(d => !d.completedAt && slotKey(d.source) === slotKey(s))
@@ -769,7 +770,14 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
     groupJoinTransactions() { usable(); return groupInvites.transactions(); },
     groupJoinConflict(id) { usable(); return groupInvites.conflict(id); },
     cancelConflictingGroupJoin(id) { return enqueue(() => groupInvites.cancelConflict(id)); },
-    groupJoinEligible(accountId, characterId) { usable(); return groupInvites.eligible(accountId, characterId); },
+    groupJoinSourceEligibility(accountId, characterId, destinationPickerId = null) { usable(); return groupInvites.sourceEligibility(accountId, characterId, destinationPickerId); },
+    groupJoinEligible(accountId, characterId, destinationPickerId = null) { usable(); return groupInvites.eligible(accountId, characterId, destinationPickerId); },
+    hasDuplicateCharacterName(accountId, characterId, name) {
+      usable();
+      const normalized = normalizedCharacterName(characterName(name));
+      if (!normalized) return false;
+      return [...characterIndex.values()].some(c => c.accountId === accountId && c.lifecycle === 'active' && c.id !== characterId && normalizedCharacterName(c.runescapeName) === normalized);
+    },
     cleanGroupInvites() { return enqueue(() => groupInvites.clean()); },
     pickerJoining(id) { return (current.groupInvites ?? []).some(i => i.transaction?.source?.pickerId === id) || (current.departures ?? []).some(d => !d.completedAt && [d.source.pickerId, d.destination.pickerId].includes(id)); },
     pickerAdmissionPending(id) { return (ledger.deletions ?? []).some(d => !d.completedAt && d.targets.some(t => t.pickerId === id)) || (current.groupInvites ?? []).some(i => i.transaction && (i.pickerId === id || i.transaction.source?.pickerId === id)) || (current.departures ?? []).some(d => !d.completedAt && [d.source.pickerId, d.destination.pickerId].includes(id)); },
@@ -817,7 +825,8 @@ export async function openRegistry({ registryDir, pickerRoot, tombstoneDir, lega
       if (pickerId === 'legacy') pickerId = current.pickers.find(p => p.kind === 'legacy-shared')?.id;
       const updates = current.characters.filter(c => c.lifecycle === 'active' && c.placement.pickerId === pickerId
         && !(ledger.deletions ?? []).some(d => d.targets.some(t => t.characterId === c.id))
-        && !(current.departures ?? []).some(d => !d.completedAt && d.characterId === c.id && d.source.pickerId === pickerId))
+        && !(current.departures ?? []).some(d => !d.completedAt && d.characterId === c.id && d.source.pickerId === pickerId)
+        && !(current.groupInvites ?? []).some(i => i.transaction?.source?.pickerId === pickerId && i.acceptingCharacterId === c.id))
         .map(c => {
           const member = members.find(m => m.id === c.placement.memberId);
           if (!member) throw characterError('Saved roster does not match the character placement. Review the mapping before continuing.');

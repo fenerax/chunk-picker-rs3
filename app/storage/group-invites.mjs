@@ -6,11 +6,12 @@ import { departureSoloEligible, pastMapSlots, pickerHasPendingJoin } from './gro
 const DAY = 86400000;
 const hash = secret => createHash('sha256').update(secret).digest('hex');
 const fail = (message, status = 409, code) => { throw Object.assign(new Error(message), { status, code }); };
-export const MOVE_UNAVAILABLE = 'This character already has a map in progress. Choose a new character, or wait until moving characters is available.';
+export const MOVE_UNAVAILABLE = 'This character cannot move to this group right now. Choose another character or create a new character.';
 export const GROUP_INVITE_POINTS = ['invite-backed-up', 'invite-versioned', 'invite-created', 'invite-ids', 'invite-committed', 'invite-roster-prepared', 'invite-roster', 'invite-placed'];
+export const GROUP_MOVE_POINTS = ['invite-committed', 'departure-snapshot-file', 'departure-snapshot', 'departure-roster-prepared', 'move-source-roster', 'departure-keys', 'departure-overlays', 'departure-sessions', 'rejoin-credentials', 'invite-roster-prepared', 'invite-roster', 'retirement-slot', 'invite-placed'];
 
-// Stage 3 replaces this eligibility policy only after preserving Past maps.
-// Gameplay proof is separately checked inside the source picker's write queue.
+// Gameplay proof (untouchedOnboarding) is separately checked inside the source
+// picker's write queue; any other eligible character freezes its map in Past maps.
 export function stage2SourceEligible(document, accountId, characterId) {
   const c = document.characters.find(c => c.id === characterId && c.accountId === accountId && c.lifecycle === 'active');
   const p = document.pickers.find(p => p.id === c?.placement?.pickerId);
@@ -19,6 +20,29 @@ export function stage2SourceEligible(document, accountId, characterId) {
     && !pickerHasPendingJoin(document, p.id)
     && p.memberIds.length === 1 && !document.capabilities.some(k => k.pickerId === p.id)
     && !document.accounts.some(a => a.memberships.some(m => m.pickerId === p.id && (a.id !== accountId || m.role !== 'owner'))));
+}
+
+export function groupJoinSourceEligibility(document, accountId, characterId, destinationPickerId = null) {
+  const c = document.characters.find(c => c.id === characterId && c.accountId === accountId && c.lifecycle === 'active');
+  if (!c) return { eligible: false, mode: null, reason: 'This character is unavailable.' };
+  const p = document.pickers.find(p => p.id === c.placement?.pickerId);
+  if (!p || p.lifecycle !== 'active' || p.provisioning !== 'ready') return { eligible: false, mode: null, reason: 'This character’s current group is unavailable.' };
+  if (destinationPickerId && p.id === destinationPickerId) return { eligible: false, mode: null, reason: 'This character is already in this group.' };
+  if (p.kind !== 'default') return { eligible: false, mode: null, reason: 'The legacy shared picker needs a reviewed migration before moving a character.' };
+  if ((document.deletions ?? []).some(d => !d.completedAt && (d.kind === 'account' && d.accountId === accountId || d.targets.some(t => t.pickerId === p.id || t.characterId === c.id)))) {
+    return { eligible: false, mode: null, reason: 'Deletion is completing. Retry after recovery.' };
+  }
+  if ((document.departures ?? []).some(d => !d.completedAt && (d.source.pickerId === p.id || d.destination.pickerId === p.id || d.characterId === c.id)) || pickerHasPendingJoin(document, p.id)) {
+    return { eligible: false, mode: null, reason: 'Another group change is completing. Retry after recovery.' };
+  }
+  if (p.seats.length > 1) {
+    if (p.ownerCharacterId === c.id) return { eligible: false, mode: null, reason: 'Complete Group ownership handover before moving the designated owner character.' };
+    return { eligible: true, mode: 'group', reason: null };
+  }
+  if (p.seats.length === 1 && p.ownerAccountId === accountId && p.ownerCharacterId === c.id) {
+    return { eligible: true, mode: stage2SourceEligible(document, accountId, characterId) ? 'onboarding-candidate' : 'solo', reason: null };
+  }
+  return { eligible: false, mode: null, reason: MOVE_UNAVAILABLE };
 }
 
 export function validateGroupInvites(doc) {
@@ -50,7 +74,7 @@ export function validateGroupInvites(doc) {
       if (i.status !== 'accepted' || Object.keys(t).some(k => !['source', 'memberId', 'runescapeName', 'newCharacter', ...(doc.schemaVersion >= 4 ? ['pastMapId'] : [])].includes(k))
         || t.pastMapId !== undefined && (t.newCharacter || t.pastMapId !== i.id)
         || !/^m_[0-9a-f]{32}$/.test(t.memberId) || typeof t.newCharacter !== 'boolean'
-        || (t.newCharacter ? t.source !== null : !t.source || typeof t.source.pickerId !== 'string' || t.source.memberId !== 'owner')
+        || (t.newCharacter ? t.source !== null : !t.source || typeof t.source.pickerId !== 'string' || typeof t.source.memberId !== 'string' || !/^[A-Za-z0-9_-]{1,64}$/.test(t.source.memberId))
         || characterName(t.runescapeName) !== t.runescapeName) bad();
       const p = doc.pickers.find(p => p.id === i.pickerId), c = doc.characters.find(c => c.id === i.acceptingCharacterId);
       if (p.lifecycle !== 'active' || p.kind !== 'default' || !doc.accounts.some(a => a.id === i.acceptingAccountId && a.initialProvisioned)
@@ -67,13 +91,18 @@ export function validateGroupInvites(doc) {
   for (const p of doc.pickers) for (const r of p.reservations) if (!doc.groupInvites.some(i => (i.status === 'pending' || i.transaction) && i.id === r.inviteId && i.pickerId === p.id && i.reservationId === r.id && i.expiresAt === r.expiresAt)) bad();
 }
 
-export function createGroupInvites({ read, save, version, issueCharacter, now, caps, point, admit = async () => {} }) {
+export function createGroupInvites({ read, save, version, versionPastMaps = version, issueCharacter, now, caps, point, admit = async () => {} }) {
   let cursor = 0;
   const stamp = () => new Date(now()).toISOString();
   const conflict = (doc, i) => {
-    const source = i?.transaction?.source?.pickerId;
-    return Boolean(source && (doc.pickers.find(p => p.id === source)?.seats.length !== 1
-      || doc.groupInvites.some(other => other.id !== i.id && other.transaction && other.pickerId === source)));
+    const sourceId = i?.transaction?.source?.pickerId;
+    if (!sourceId) return false;
+    const sourcePicker = doc.pickers.find(p => p.id === sourceId);
+    // An outgoing move by a group's designated owner cannot retire the group
+    // once another character is admitted or joining it; handover is explicit.
+    return Boolean(sourcePicker?.ownerCharacterId === i.acceptingCharacterId
+      && (sourcePicker.seats.length !== 1
+        || doc.groupInvites.some(other => other.id !== i.id && other.transaction && other.pickerId === sourceId)));
   };
   const authorized = (doc, i) => {
     const p = doc.pickers.find(p => p.id === i.pickerId);
@@ -111,7 +140,8 @@ export function createGroupInvites({ read, save, version, issueCharacter, now, c
     resumeVersion: version,
     list(accountId, pickerId) { const doc = read(); owner(doc, accountId, pickerId); return (doc.groupInvites ?? []).filter(i => i.pickerId === pickerId).map(i => metadata(doc, i)); },
     preview(secret) { const doc = read(), i = bySecret(doc, secret); return metadata(doc, i); },
-    eligible(accountId, characterId) { return stage2SourceEligible(read(), accountId, characterId) || departureSoloEligible(read(), accountId, characterId); },
+    sourceEligibility(accountId, characterId, destinationPickerId = null) { return groupJoinSourceEligibility(read(), accountId, characterId, destinationPickerId); },
+    eligible(accountId, characterId, destinationPickerId = null) { return groupJoinSourceEligibility(read(), accountId, characterId, destinationPickerId).eligible; },
     transactions() { return structuredClone((read().groupInvites ?? []).filter(i => i.transaction)); },
     conflict(id) { const doc = read(); return conflict(doc, doc.groupInvites?.find(i => i.id === id)); },
     async cancelConflict(id) {
@@ -152,7 +182,7 @@ export function createGroupInvites({ read, save, version, issueCharacter, now, c
       if (i.status === 'pending') terminal(doc, i, state(doc, i) === 'expired' ? 'expired' : 'revoked');
       await save(doc); return metadata(doc, i);
     },
-    async begin(secret, accountId, { characterId, runescapeName = null, acknowledgeDuplicate = false } = {}) {
+    async begin(secret, accountId, { characterId, runescapeName = null, acknowledgeDuplicate = false, freezeSource = false } = {}) {
       let doc = structuredClone(read()), i = bySecret(doc, secret);
       if ((doc.deletions ?? []).some(d => !d.completedAt && (d.targets.some(t => t.pickerId === i.pickerId || t.characterId === characterId) || d.kind === 'account' && d.accountId === accountId))) fail('Deletion is completing. Retry after recovery.');
       if (i.status === 'accepted') {
@@ -163,13 +193,25 @@ export function createGroupInvites({ read, save, version, issueCharacter, now, c
       if (status !== 'pending') { if (i.status === 'pending') { terminal(doc, i, status); await save(doc); } fail(`This player invite is ${status}.`); }
       if ((doc.departures ?? []).some(d => !d.completedAt && [d.source.pickerId, d.destination.pickerId].includes(i.pickerId))) fail('A departure is completing. Retry this invitation after recovery.');
       if (doc.groupInvites.some(other => other.transaction?.source?.pickerId === i.pickerId)) fail('This group is completing an outgoing move. Retry this invitation after recovery.');
-      const account = doc.accounts.find(a => a.id === accountId);
+      let account = doc.accounts.find(a => a.id === accountId);
       if (!account?.initialProvisioned || account.pendingCreation) fail('Finish first sign-in or character creation before joining.');
-      const own = doc.characters.filter(c => c.accountId === accountId && c.lifecycle === 'active');
-      let c;
+      let own = doc.characters.filter(c => c.accountId === accountId && c.lifecycle === 'active');
+      let c, needsPastMap = false;
       if (characterId) {
-        if (!stage2SourceEligible(doc, accountId, characterId) && !departureSoloEligible(doc, accountId, characterId)) fail(MOVE_UNAVAILABLE);
-        if (departureSoloEligible(doc, accountId, characterId) && pastMapSlots(doc) >= 20000) fail('The retained map record limit has been reached. Your solo remains available.');
+        const eligibility = groupJoinSourceEligibility(doc, accountId, characterId, i.pickerId);
+        if (!eligibility.eligible) fail(eligibility.reason);
+        needsPastMap = eligibility.mode !== 'onboarding-candidate' || freezeSource === true;
+        if (needsPastMap) {
+          if (pastMapSlots(doc) >= 20000) fail('The retained map record limit has been reached. Existing maps are unchanged.');
+          await versionPastMaps();
+          doc = structuredClone(read()); i = bySecret(doc, secret);
+          if (state(doc, i) !== 'pending') fail(`This player invite is ${state(doc, i)}.`);
+          const refreshed = groupJoinSourceEligibility(doc, accountId, characterId, i.pickerId);
+          if (!refreshed.eligible) fail(refreshed.reason);
+          if (pastMapSlots(doc) >= 20000) fail('The retained map record limit has been reached. Existing maps are unchanged.');
+          account = doc.accounts.find(a => a.id === accountId);
+          own = doc.characters.filter(c => c.accountId === accountId && c.lifecycle === 'active');
+        }
         c = own.find(c => c.id === characterId);
       } else {
         runescapeName = characterName(runescapeName);
@@ -182,10 +224,9 @@ export function createGroupInvites({ read, save, version, issueCharacter, now, c
       }
       const p = doc.pickers.find(p => p.id === i.pickerId);
       if (p.memberIds.length >= caps.membersPerPicker || p.seats.length + p.reservations.length > 5) fail('The group seat or member record limit has been reached.');
-      const rejoining = characterId && departureSoloEligible(doc, accountId, characterId);
       i.status = 'accepted'; i.terminalAt = stamp(); i.acceptingAccountId = accountId; i.acceptingCharacterId = c.id;
       i.transaction = { source: characterId ? c.placement : null, newCharacter: !characterId, memberId: 'm_' + randomUUID().replaceAll('-', ''), runescapeName: c.runescapeName };
-      if (rejoining) i.transaction.pastMapId = i.id;
+      if (needsPastMap) i.transaction.pastMapId = i.id;
       p.memberIds.push(i.transaction.memberId);
       await admit(doc);
       // Refuse storage admission before consuming irreversible character IDs.
@@ -206,10 +247,19 @@ export function createGroupInvites({ read, save, version, issueCharacter, now, c
       } else {
         if (c?.placement.pickerId !== t.source.pickerId || c.placement.memberId !== t.source.memberId) fail('The source placement changed. Recovery needs review.');
         const source = doc.pickers.find(p => p.id === t.source.pickerId);
-        source.lifecycle = 'retired'; source.ownerCharacterId = null; source.seats = [];
-        for (const other of doc.groupInvites) if (other.pickerId === source.id && other.status === 'pending') terminal(doc, other, 'revoked');
-        a.memberships = a.memberships.filter(m => m.pickerId !== source.id);
-        if (a.defaultPickerId === source.id) a.defaultPickerId = null;
+        if (source.seats.length === 1) {
+          source.lifecycle = 'retired'; source.ownerCharacterId = null; source.seats = [];
+          for (const other of doc.groupInvites) if (other.pickerId === source.id && other.status === 'pending') terminal(doc, other, 'revoked');
+          a.memberships = a.memberships.filter(m => m.pickerId !== source.id || m.memberId !== t.source.memberId);
+          if (a.defaultPickerId === source.id) a.defaultPickerId = null;
+        } else {
+          if (source.ownerCharacterId === c.id) fail('Complete Group ownership handover before moving the designated owner character.');
+          source.seats = source.seats.filter(s => s.characterId !== c.id);
+          a.memberships = a.memberships.filter(m => m.pickerId !== source.id || m.memberId !== t.source.memberId);
+          for (const h of doc.handovers ?? []) if (h.status === 'pending' && (h.toCharacterId === c.id || h.fromCharacterId === c.id)) {
+            h.status = 'cancelled'; h.resolvedAt = stamp();
+          }
+        }
         doc.capabilities = doc.capabilities.filter(k => k.pickerId !== source.id || k.memberId !== t.source.memberId);
       }
       c.placement = { pickerId: p.id, memberId: t.memberId };

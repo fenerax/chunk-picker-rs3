@@ -46,14 +46,24 @@ export async function renderAcceptance({ root, error, el, fetch = globalThis.fet
   const option = (text, id) => { const n = el('option', text); n.value = id; return n; };
   select.append(option('New character', ''));
   for (const c of value.characters) {
-    const n = option(`${c.runescapeName ?? 'Unnamed character'}${c.eligible ? '' : ' · map in progress'}`, c.id); n.disabled = !c.eligible; select.append(n);
+    const n = option(`${c.runescapeName ?? 'Unnamed character'}${c.eligible ? '' : ' · unavailable'}`, c.id); n.disabled = !c.eligible; select.append(n);
     if (!c.eligible) root.append(el('p', `${c.runescapeName ?? 'Unnamed character'}: ${c.reason}`, 'signin-help'));
   }
   label.append(select); nameLabel.append(name);
   const consequence = el('p', '', 'signin-help');
-  const update = () => { nameLabel.hidden = Boolean(select.value); consequence.textContent = select.value ? value.characters.find(c => c.id === select.value)?.rejoining
-    ? 'Your solo map will be frozen in Past maps, read-only and exportable. Rejoining uses the destination map and rules with a fresh slot; your solo progress is not copied. Old solo keys and pending invitations will be revoked.'
-    : 'Your untouched onboarding solo will be retired and its pending invitations revoked. No gameplay progress is discarded. Established-character moves will be available later.' : 'A new character joins directly. Your existing characters and maps stay available.'; };
+  const duplicate = el('label', undefined, 'invite-check'), acknowledge = el('input'); acknowledge.type = 'checkbox'; duplicate.append(acknowledge, el('span', 'If this name is already used in my login, create a separate character.'));
+  const update = () => {
+    const selected = select.value ? value.characters.find(c => c.id === select.value) : null;
+    nameLabel.hidden = Boolean(selected);
+    duplicate.hidden = Boolean(selected);
+    consequence.textContent = selected
+      ? selected.sourceMode === 'group'
+        ? 'A read-only copy of your current group map will be saved in Past maps. You will leave your current group (remaining members keep their map and history) and join this group’s map and rules with a fresh slot; your previous progress is not copied. Old group keys will be revoked.'
+        : selected.rejoining || selected.sourceMode === 'solo'
+          ? 'Your solo map will be frozen in Past maps, read-only and exportable. Moving uses the destination map and rules with a fresh slot; your solo progress is not copied. Old solo keys and pending invitations will be revoked.'
+          : 'Your untouched onboarding solo will be retired and its pending invitations revoked. No gameplay progress is discarded.'
+      : 'A new character joins directly. Your existing characters and maps stay available.';
+  };
   select.addEventListener('change', update); update();
   const review = el('section'), heading = el('h2', 'Destination map and rules');
   review.append(heading, el('p', `${value.review.unlocked.length} unlocked chunks: ${value.review.unlocked.join(', ') || 'None'}. Starting chunk: ${value.review.startingChunk ?? 'Not selected'}.`), el('p', `Blacklisted chunks: ${value.review.blacklisted.join(', ') || 'None'}.`));
@@ -71,7 +81,6 @@ export async function renderAcceptance({ root, error, el, fetch = globalThis.fet
     const rows = Object.entries(value.review[key] ?? {}).map(([label, value]) => ({ label, value }));
     if (rows.length) listRules(title, rows);
   }
-  const duplicate = el('label', undefined, 'invite-check'), acknowledge = el('input'); acknowledge.type = 'checkbox'; duplicate.append(acknowledge, el('span', 'If this name is already used in my login, create a separate character.'));
   const confirmLabel = el('label', undefined, 'invite-check'), confirm = el('input'); confirm.type = 'checkbox'; confirm.required = true; confirmLabel.append(confirm, el('span', 'I reviewed the destination map, rules and source-map consequences.'));
   const submit = el('button', 'Join group', 'signin-provider'); submit.type = 'submit';
   form.append(label, nameLabel, consequence, review, duplicate, confirmLabel, submit); root.append(form);

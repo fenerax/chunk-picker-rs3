@@ -5,8 +5,9 @@ import { mkdtemp, readFile, writeFile, mkdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import { inviteFixture } from './helpers/owner-invite-fixture.mjs';
-import { GROUP_INVITE_POINTS, MOVE_UNAVAILABLE } from '../app/storage/group-invites.mjs';
+import { GROUP_INVITE_POINTS, GROUP_MOVE_POINTS, MOVE_UNAVAILABLE } from '../app/storage/group-invites.mjs';
 import { registryRecoveryDocument } from '../app/storage/registry.mjs';
 import { validateGroupInvites } from '../app/storage/group-invites.mjs';
 import { redact } from '../scripts/test-timing-reporter.mjs';
@@ -56,16 +57,36 @@ test('one concurrent winner; another character cannot reuse; accepted membership
   assert.equal(f.registry.previewGroupInvite(invite.secret).status, 'accepted');
 });
 
-test('progress, Undo and non-onboarding solos cannot move; new character remains available', async t => {
+test('established solos freeze to Past maps on move, require fresh review after edits, and designated multi-player owners require handover', async t => {
   const { f } = await fixture(t), owner = await f.registry.firstLogin('google', 'owner'), a = await f.registry.firstLogin('google', 'a');
   const invite = await f.registry.createGroupInvite(owner.account.id, owner.picker.id), source = await f.open(a.picker.id);
-  const review = await f.service.review(invite.secret, a.account.id); assert.equal(review.characters[0].eligible, true);
+  const review = await f.service.review(invite.secret, a.account.id);
+  assert.equal(review.characters[0].eligible, true); assert.equal(review.characters[0].sourceMode, 'onboarding');
   await source.store.command({ type: 'set-journal', memberId: 'owner', note: 'Synthetic progress' }, 0);
-  await assert.rejects(f.service.accept(invite.secret, a.account.id, { characterId: a.character.id }, review.review.revision), { message: MOVE_UNAVAILABLE });
-  await source.store.command({ type: 'undo' }, 1);
-  assert.equal((await f.service.review(invite.secret, a.account.id)).characters[0].eligible, false);
-  const extra = await f.registry.addCharacter(a.account.id, { requestId: 'extra' }); assert.equal(f.registry.groupJoinEligible(a.account.id, extra.character.id), false);
-  await f.join(invite, a.account); assert.equal(f.registry.getCharacter(a.character.id).placement.pickerId, a.picker.id);
+  await assert.rejects(f.service.accept(invite.secret, a.account.id, { characterId: a.character.id }, review.review.revision), /current map changed/);
+  const refreshed = await f.service.review(invite.secret, a.account.id);
+  assert.equal(refreshed.characters[0].eligible, true); assert.equal(refreshed.characters[0].sourceMode, 'solo');
+  const moved = await f.service.accept(invite.secret, a.account.id, { characterId: a.character.id }, refreshed.review.revision);
+  assert.equal(moved.message, 'Joined group');
+  assert.equal(f.registry.getCharacter(a.character.id).placement.pickerId, owner.picker.id);
+  assert.equal(f.registry.getPicker(a.picker.id).lifecycle, 'retired');
+  const pastMaps = f.registry.listPastMaps(a.account.id);
+  assert.equal(pastMaps.length, 1);
+  const saved = await f.registry.readPastMap(a.account.id, pastMaps[0].id);
+  assert.equal(saved.document.state.members[0].journal, 'Synthetic progress');
+  assert.equal((await f.open(owner.picker.id)).store.getCalculationSnapshot().readState.members.find(m => m.id === f.registry.getCharacter(a.character.id).placement.memberId).journal, undefined);
+  // Add-character solo is also eligible to move directly with a frozen Past map.
+  const extra = await f.registry.addCharacter(a.account.id, { requestId: 'extra' });
+  assert.equal(f.registry.groupJoinEligible(a.account.id, extra.character.id, owner.picker.id), true);
+  // Designated owner of a multi-player group must hand over before moving.
+  const other = await f.registry.firstLogin('google', 'other');
+  const otherInvite = await f.registry.createGroupInvite(other.account.id, other.picker.id);
+  const ownerReview = await f.service.review(otherInvite.secret, owner.account.id);
+  assert.equal(ownerReview.characters[0].eligible, false);
+  assert.match(ownerReview.characters[0].reason, /handover/i);
+  await assert.rejects(f.service.accept(otherInvite.secret, owner.account.id, { characterId: owner.character.id }, ownerReview.review.revision), /handover/i);
+  await f.join(otherInvite, owner.account);
+  assert.equal(f.registry.getCharacter(owner.character.id).placement.pickerId, owner.picker.id);
 });
 
 test('admission copies reviewed geography and rules while preserving existing private progress', async t => {
@@ -234,4 +255,87 @@ for (const [seam, newCharacter] of [...GROUP_INVITE_POINTS.map(s => [s, s === 'i
     assert.equal(f.registry.getPicker(owner.picker.id).reservations.length, 0);
     if (before[0].acceptingCharacterId) assert.equal(joined.character.id, before[0].acceptingCharacterId);
   }
+});
+
+for (const size of [2, 3, 4, 5]) test(`direct multi-player move preserves source group, same-login sibling, Past map and ledger retirement for roster ${size}`, async t => {
+  const h = await fixture(t), f = h.f;
+  const sourceOwner = await f.registry.firstLogin('google', 'source-owner');
+  const destOwner = await f.registry.firstLogin('google', 'dest-owner');
+  const mover = await f.registry.firstLogin('google', 'mover');
+  // Put mover in source group (and when size >= 3, add a second same-login character of mover too).
+  const firstInvite = await f.registry.createGroupInvite(sourceOwner.account.id, sourceOwner.picker.id);
+  await f.join(firstInvite, mover.account, { characterId: mover.character.id });
+  let sibling;
+  if (size >= 3) {
+    const sibInvite = await f.registry.createGroupInvite(sourceOwner.account.id, sourceOwner.picker.id);
+    sibling = (await f.join(sibInvite, mover.account, { runescapeName: 'Sibling' })).character;
+  }
+  for (let n = sibling ? 3 : 2; n < size; n++) {
+    const p = await f.registry.firstLogin('google', `extra-${size}-${n}`);
+    const inv = await f.registry.createGroupInvite(sourceOwner.account.id, sourceOwner.picker.id);
+    await f.join(inv, p.account, { characterId: p.character.id });
+  }
+  const sourceStore = (await f.open(sourceOwner.picker.id)).store;
+  const oldMemberId = f.registry.getCharacter(mover.character.id).placement.memberId;
+  await sourceStore.command({ type: 'set-journal', memberId: oldMemberId, note: `Source note ${size}` }, sourceStore.getInfo().revision);
+  const handover = await f.registry.proposeGroupHandover(sourceOwner.account.id, sourceOwner.character.id, sourceOwner.picker.id, { requestId: `00000000-0000-4000-8000-00000000000${size}`, targetCharacterId: mover.character.id });
+  assert.equal(handover.status, 'pending');
+  const destInvite = await f.registry.createGroupInvite(destOwner.account.id, destOwner.picker.id);
+  const review = await f.service.review(destInvite.secret, mover.account.id);
+  const moverRow = review.characters.find(c => c.id === mover.character.id);
+  assert.equal(moverRow.eligible, true); assert.equal(moverRow.sourceMode, 'group');
+  const moved = await f.service.accept(destInvite.secret, mover.account.id, { characterId: mover.character.id }, review.review.revision);
+  assert.equal(moved.message, 'Joined group');
+  assert.equal(f.registry.getCharacter(mover.character.id).placement.pickerId, destOwner.picker.id);
+  assert.equal(f.registry.getPicker(sourceOwner.picker.id).lifecycle, 'active');
+  assert.equal(f.registry.getPicker(sourceOwner.picker.id).seats.length, size - 1);
+  assert.equal(f.registry.getPicker(destOwner.picker.id).seats.length, 2);
+  if (sibling) assert.equal(f.registry.getCharacter(sibling.id).placement.pickerId, sourceOwner.picker.id);
+  const afterSource = (await f.open(sourceOwner.picker.id)).store.getReadState();
+  assert.equal(afterSource.members.some(m => m.id === oldMemberId), false);
+  assert.ok(afterSource.history.some(e => e.type === 'member-departed'));
+  assert.ok(f.registry.retiredMemberIds(sourceOwner.picker.id).includes(oldMemberId));
+  const afterDest = (await f.open(destOwner.picker.id)).store.getReadState();
+  const newMemberId = f.registry.getCharacter(mover.character.id).placement.memberId;
+  assert.equal(afterDest.members.find(m => m.id === newMemberId).journal, undefined);
+  const pastMaps = f.registry.listPastMaps(mover.account.id);
+  assert.equal(pastMaps.length, 1);
+  const saved = await f.registry.readPastMap(mover.account.id, pastMaps[0].id);
+  assert.equal(saved.document.state.members.find(m => m.id === oldMemberId).journal, `Source note ${size}`);
+  assert.equal((await doc(f)).handovers.find(x => x.id === handover.id).status, 'cancelled');
+  assert.equal((await f.join(destInvite, mover.account, { characterId: mover.character.id })).message, 'Already joined');
+  await h.restart();
+  assert.equal(h.f.registry.getCharacter(mover.character.id).placement.pickerId, destOwner.picker.id);
+  assert.equal(h.f.registry.getPicker(sourceOwner.picker.id).seats.length, size - 1);
+});
+
+for (const seam of GROUP_MOVE_POINTS) test(`crash/retry at ${seam} (multi-player direct move) recovers Past map, source roster and destination placement`, async t => {
+  const h = await fixture(t);
+  const sourceOwner = await h.f.registry.firstLogin('google', 'src-owner');
+  const destOwner = await h.f.registry.firstLogin('google', 'dst-owner');
+  const mover = await h.f.registry.firstLogin('google', 'mover');
+  const joinSource = await h.f.registry.createGroupInvite(sourceOwner.account.id, sourceOwner.picker.id);
+  await h.f.join(joinSource, mover.account, { characterId: mover.character.id });
+  const sourceStore = (await h.f.open(sourceOwner.picker.id)).store;
+  const oldMemberId = h.f.registry.getCharacter(mover.character.id).placement.memberId;
+  await sourceStore.command({ type: 'set-journal', memberId: oldMemberId, note: `Crash move ${seam}` }, sourceStore.getInfo().revision);
+  const destInvite = await h.f.registry.createGroupInvite(destOwner.account.id, destOwner.picker.id);
+  const review = await h.f.service.review(destInvite.secret, mover.account.id);
+  await h.f.close();
+  const crashFile = fileURLToPath(new URL('./fixtures/departure-crash.mjs', import.meta.url));
+  const result = await new Promise((resolve, reject) => {
+    const child = spawn(process.execPath, [crashFile, JSON.stringify([h.root, seam, [destInvite.secret, mover.account.id, { characterId: mover.character.id }, review.review.revision], 'join'])], { stdio: ['ignore', 'pipe', 'pipe'] });
+    let output = ''; child.stdout.on('data', b => { output += b; }); child.stderr.on('data', b => { output += b; }); child.once('error', reject); child.once('close', code => resolve({ code, output }));
+  });
+  assert.equal(result.code, 86, result.output);
+  const f = await h.restart();
+  await f.service.recover();
+  assert.equal(f.registry.getCharacter(mover.character.id).placement.pickerId, destOwner.picker.id);
+  assert.equal(f.registry.getPicker(sourceOwner.picker.id).seats.length, 1);
+  assert.equal(f.registry.getPicker(destOwner.picker.id).seats.length, 2);
+  assert.equal((await f.open(sourceOwner.picker.id)).store.getReadState().members.some(m => m.id === oldMemberId), false);
+  const pastMaps = f.registry.listPastMaps(mover.account.id);
+  assert.equal(pastMaps.length, 1);
+  assert.equal((await f.registry.readPastMap(mover.account.id, pastMaps[0].id)).document.state.members.find(m => m.id === oldMemberId).journal, `Crash move ${seam}`);
+  assert.equal((await f.join(destInvite, mover.account, { characterId: mover.character.id })).message, 'Already joined');
 });

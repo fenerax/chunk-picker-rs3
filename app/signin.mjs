@@ -290,7 +290,8 @@ export async function openSignIn({ publicOrigin, mode = 'off', accounts, invites
         if (identity?.kind !== 'account') throw failure(401, 'Sign in before reviewing this invitation.');
         if (route === '/auth/group-invite/review' && request.method === 'GET') {
           const result = await groupInvites.review(entry.groupSecret, identity.accountId);
-          entry.review = { token: generateToken(), accountId: identity.accountId, revision: result.review?.revision };
+          entry.review = { token: generateToken(), accountId: identity.accountId, revision: result.review?.revision,
+            sources: Object.fromEntries(result.characters.filter(c => c.eligible).map(c => [c.id, { pickerId: c.sourcePickerId, revision: c.sourceRevision }])) };
           await json(request, response, 200, { ...result, reviewToken: entry.review.token }); return true;
         }
         if (route === '/auth/group-invite/accept' && request.method === 'POST') {
@@ -300,7 +301,8 @@ export async function openSignIn({ publicOrigin, mode = 'off', accounts, invites
           if (Object.keys(body).some(k => !['reviewToken', 'characterId', 'runescapeName', 'acknowledgeDuplicate', 'confirmed'].includes(k))
             || body.confirmed !== true || !entry.review || entry.review.accountId !== identity.accountId || !equal(body.reviewToken, entry.review.token)
             || body.acknowledgeDuplicate !== undefined && typeof body.acknowledgeDuplicate !== 'boolean') throw failure(400, 'Review the destination map and confirm before joining.');
-          const result = await groupInvites.accept(entry.groupSecret, identity.accountId, { characterId: body.characterId, runescapeName: body.runescapeName, acknowledgeDuplicate: body.acknowledgeDuplicate }, entry.review.revision);
+          const sourceReview = body.characterId ? entry.review.sources?.[body.characterId] : undefined;
+          const result = await groupInvites.accept(entry.groupSecret, identity.accountId, { characterId: body.characterId, runescapeName: body.runescapeName, acknowledgeDuplicate: body.acknowledgeDuplicate }, entry.review.revision, sourceReview);
           await json(request, response, 200, result); return true;
         }
         throw failure(404, 'Not found.');

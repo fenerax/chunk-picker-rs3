@@ -6,7 +6,7 @@ export async function renderPastMaps(root, id) {
     const { maps } = await read('/api/past-maps');
     if (!maps.length) root.append(el('p', 'No Past maps yet. Leaving or being removed from a group preserves a map here.'));
     for (const m of maps.slice().reverse()) {
-      const row = el('article'), a = el('a', `${m.reason === 'removed' ? 'Removed from group' : m.reason === 'rejoined' ? 'Solo before rejoining' : 'Left group'} · ${new Date(m.createdAt).toLocaleString()}`); a.href = `/past-maps/${m.id}`;
+      const row = el('article'), a = el('a', `${m.reason === 'removed' ? 'Removed from group' : m.reason === 'rejoined' ? 'Before joining another group' : 'Left group'} · ${new Date(m.createdAt).toLocaleString()}`); a.href = `/past-maps/${m.id}`;
       row.append(a, el('p', `Character ${m.characterId.slice(-6)} · read only`)); root.append(row);
     }
     return;
@@ -14,7 +14,7 @@ export async function renderPastMaps(root, id) {
   const { metadata, document: saved } = await read(`/api/past-maps/${id}`), state = saved.state;
   const download = el('a', 'Download saved map (JSON)'); download.href = `/api/past-maps/${id}/download`; download.download = `past-map-${id}.json`;
   const all = el('a', 'All Past maps'); all.href = '/past-maps';
-  root.append(el('h2', `${metadata.reason === 'removed' ? 'Removed from group' : metadata.reason === 'rejoined' ? 'Before rejoining' : 'Left group'} · ${new Date(metadata.createdAt).toLocaleString()}`), el('p', `Frozen revision ${state.revision}. This saved copy cannot roll, edit or restore group access.`), download, el('span', ' · '), all);
+  root.append(el('h2', `${metadata.reason === 'removed' ? 'Removed from group' : metadata.reason === 'rejoined' ? 'Before joining another group' : 'Left group'} · ${new Date(metadata.createdAt).toLocaleString()}`), el('p', `Frozen revision ${state.revision}. This saved copy cannot roll, edit or restore group access.`), download, el('span', ' · '), all);
   for (const member of state.members) {
     const section = el('section'); section.append(el('h2', member.name), el('p', `${member.unlocked.length} unlocked chunks · ${member.completedTasks.length} completed tasks${member.id === metadata.memberId ? ' · Your former slot' : ''}`));
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); svg.setAttribute('role', 'img'); svg.setAttribute('aria-label', `${member.name} saved chunk map`);

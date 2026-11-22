@@ -157,3 +157,36 @@ test('a viewer gets a clear refusal without changing names or History', async t 
   assert.equal(refused.status, 403, refused.text); assert.match(refused.json().message, /view only/i);
   assert.deepEqual((await f.send('/api/state', f.viewerCookie, { headers: { 'X-Picker-Id': f.groupId } })).json().state, before);
 });
+
+test('renaming to a normalized duplicate within the same login requires explicit acknowledgement without changing keys or History first', async t => {
+  const h = await setup(t), { f, owner, pickerId, ownerId, os } = h;
+  assert.equal((await h.rename(owner, os, 'owner', 'Hero_One')).status, 200);
+  const second = await f.send('/api/characters', owner.cookie, { requestId: 'second-for-dup', runescapeName: 'SecondChar' });
+  assert.equal(second.status, 200, second.text);
+  const secondChar = second.json().character, ss = scope(secondChar.placement.pickerId, secondChar.id);
+  const secondKey = (await f.send('/api/game-plugin/keys', owner.cookie, { memberId: 'owner', label: 'Second plugin' }, ss)).json().key;
+  const beforeSecond = (await f.send('/api/state', owner.cookie, undefined, ss)).json().state;
+  // Normalized duplicate ("hero one" matches "Hero_One") refuses with DUPLICATE_CHARACTER_NAME before mutating or revoking keys.
+  const duplicate = await f.send('/api/command', owner.cookie, { expectedRevision: beforeSecond.revision, command: { type: 'set-runescape-name', memberId: 'owner', name: 'hero one' } }, ss);
+  assert.equal(duplicate.status, 409, duplicate.text);
+  assert.equal(duplicate.json().code, 'DUPLICATE_CHARACTER_NAME');
+  assert.deepEqual((await f.send('/api/state', owner.cookie, undefined, ss)).json().state, beforeSecond);
+  assert.equal((await f.send('/api/plugin/v1/status', '', undefined, { Authorization: 'Bearer ' + secondKey })).status, 200);
+  // Non-boolean acknowledgeDuplicate is rejected.
+  const badFlag = await f.send('/api/command', owner.cookie, { expectedRevision: beforeSecond.revision, acknowledgeDuplicate: 'yes', command: { type: 'set-runescape-name', memberId: 'owner', name: 'hero one' } }, ss);
+  assert.equal(badFlag.status, 400, badFlag.text);
+  // Explicit acknowledgement commits the rename, projects into the character menu, and revokes the renamed character's key.
+  const confirmed = await f.send('/api/command', owner.cookie, { expectedRevision: beforeSecond.revision, acknowledgeDuplicate: true, command: { type: 'set-runescape-name', memberId: 'owner', name: 'hero one' } }, ss);
+  assert.equal(confirmed.status, 200, confirmed.text);
+  assert.equal((await f.send('/api/state', owner.cookie, undefined, ss)).json().state.members[0].runescapeName, 'hero one');
+  assert.equal((await f.send('/api/characters', owner.cookie)).json().characters.find(c => c.id === secondChar.id).runescapeName, 'hero one');
+  assert.equal((await f.send('/api/plugin/v1/status', '', undefined, { Authorization: 'Bearer ' + secondKey })).status, 401);
+  // Formatting-only edit on the already-acknowledged duplicate does not re-prompt or revoke its new key.
+  const newKey = (await f.send('/api/game-plugin/keys', owner.cookie, { memberId: 'owner', label: 'Repaired' }, ss)).json().key;
+  const revAfter = (await f.send('/api/state', owner.cookie, undefined, ss)).json().state.revision;
+  const formatted = await f.send('/api/command', owner.cookie, { expectedRevision: revAfter, command: { type: 'set-runescape-name', memberId: 'owner', name: 'Hero_One' } }, ss);
+  assert.equal(formatted.status, 200, formatted.text);
+  assert.equal((await f.send('/api/plugin/v1/status', '', undefined, { Authorization: 'Bearer ' + newKey })).status, 200);
+  // Original character's group remains untouched.
+  assert.equal((await f.send('/api/state', owner.cookie, undefined, os)).json().state.members.find(m => m.id === 'owner').runescapeName, 'Hero_One');
+});

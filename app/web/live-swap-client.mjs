@@ -346,6 +346,8 @@ export function requestError(response, value, delay = retryAfterMs(response)) {
       ? 'The saved task list is ready, but additional calculated details are not available yet.'
       : value?.code === 'TASK_RESULTS_UNAVAILABLE'
       ? 'Saved tasks are not ready yet. Wait for a player to calculate them, then try again.'
+      : value?.code === 'DUPLICATE_CHARACTER_NAME'
+      ? null
       : 'The saved map changed. Review the latest view and try again.'
     : status === 413 ? 'This request is too large. Use a smaller file or make a smaller change, then try again.'
     : status >= 500 && !(status === 507 && value?.code === 'STORAGE_BUDGET_EXCEEDED') ? 'The picker could not complete this request. Try again in a moment.' : null;
