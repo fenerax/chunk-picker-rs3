@@ -757,9 +757,9 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
   async function prepareRollPools() {
     refreshSnapshots();
     if (!computeRollPool || fullPools && playPools) return;
-    const captured = current, values = [];
+    const captured = current;
     const input = captured;
-    for (const member of captured.members) values.push([member.id, await computeRollPool(input, member.id)]);
+    const values = await Promise.all(captured.members.map(async member => [member.id, await computeRollPool(input, member.id)]));
     if (current !== captured) return prepareRollPools();
     fullPools = Object.fromEntries(values.map(([id, value]) => [id, value.pool]));
     playPools = Object.fromEntries(values.map(([id, value]) => [id, { ...value.pool, partnerConnections: value.partnerConnections }]));
@@ -1423,13 +1423,26 @@ export async function openStore({ dataDir, world, registry, initialState, migrat
       !== JSON.stringify(validated.members.map(member => [member.id, member.unlocked]));
     const choicesChanged = JSON.stringify(current.members.map(member => [member.id, member.selected, member.pendingRoll]))
       !== JSON.stringify(validated.members.map(member => [member.id, member.selected, member.pendingRoll]));
-    // A built-in note edit changes no saved task references. Reuse only the
-    // cached catalogue and identity fields; display fields come from durable state.
-    // Owned labels/retirement are also display inputs, independent of those trees.
-    const previousPlay = reuseNoteProjection && validated.tasks === current.tasks
+    // Commands that leave saved task references unchanged (note edits, rolls,
+    // chunk selections, etc.) reuse the cached tasks and identityRegistry play
+    // projection; all other display fields come from the new durable state.
+    const samePlayProjectionRefs = (a, b) => a === b || isDeepStrictEqual(a, b);
+    const samePlayProjectionInputs = validated.tasks === current.tasks
       && validated.identityRegistry === current.identityRegistry
       && (!ownedCatalogueSemantics || validated.provenance?.ownedCatalogue === current.provenance?.ownedCatalogue)
-      && playProjections.get(current);
+      && (reuseNoteProjection || (
+        samePlayProjectionRefs(validated.taskClaims, current.taskClaims)
+        && samePlayProjectionRefs(validated.groupGoals, current.groupGoals)
+        && validated.members.length === current.members.length
+        && validated.members.every((member, index) => {
+          const prior = current.members[index];
+          return prior && member.id === prior.id
+            && samePlayProjectionRefs(member.completedTasks, prior.completedTasks)
+            && samePlayProjectionRefs(member.taskStatus, prior.taskStatus)
+            && samePlayProjectionRefs(member.taskAlternatives, prior.taskAlternatives);
+        })
+      ));
+    const previousPlay = samePlayProjectionInputs && playProjections.get(current);
     if (previousPlay) {
       const { provenance, identityRegistry, progressSnapshots, ...display } = validated;
       playProjections.set(validated, { ...previousPlay, state: { ...display,

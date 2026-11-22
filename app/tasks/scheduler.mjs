@@ -1057,13 +1057,27 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
     const sent = sentSnapshots.get(sentKey);
     const sentKind = entry.type === 'area-check' && sent?.revision !== entry.state.revision ? undefined : sent?.kind;
     const owned = entry.stateInput?.owned ?? (isResidentState(entry.state) ? ownedCalculatorInput(entry.state) : undefined);
-    const fresh = owned ? true : entry.stateInput ? sentKind !== 'json-shared-v1' : !sentKind;
+    let aliasInput, aliasSentKey;
+    if (!owned && entry.type === 'roll-pool' && entry.stateInput && sentKind !== 'json-shared-v1') {
+      const targetBuffer = entry.stateInput.stateJSON;
+      for (const [existingKey, existing] of sentSnapshots) {
+        if (existing?.kind === 'json-shared-v1' && existing.revision === entry.state.revision
+          && existing.bytes === targetBuffer.byteLength && existing.bufferRef?.deref() === targetBuffer
+          && existing.pickerId === entry.pickerId) {
+          aliasInput = existing.input;
+          aliasSentKey = existingKey;
+          break;
+        }
+      }
+    }
+    const fresh = owned ? true : entry.stateInput ? sentKind !== 'json-shared-v1' && aliasInput === undefined : !sentKind;
     const state = owned || entry.stateInput || !fresh ? undefined : entry.state;
     const installed = worker.ownedBaseDigests ?? installedOwnedBases;
     const serialized = owned ? { stateTransport: OWNED_CALCULATOR_TRANSPORT, ownedDocument: owned.document,
       ...(!installed.has(owned.document.storage.base.sha256) ? { ownedBase: owned.installation } : {}) }
       : entry.stateInput ? { stateTransport: 'json-shared-v1', stateRevision: entry.state.revision,
       stateMemberIds: entry.state.members.map(member => member.id), stateJSONBytes: entry.stateInput.stateJSON.byteLength,
+      ...(aliasInput !== undefined ? { stateSnapshotInput: aliasInput } : {}),
       ...(fresh ? { stateJSON: entry.stateInput.stateJSON } : {}) } : {};
     entry.snapshotKey = snapshotKey;
     try { const workerMessage = { id: entry.id, pickerId: entry.pickerId, type: entry.type, reportProgress: true, state, snapshotKey, input: entry.input, memberId: entry.memberId, chunkId: entry.chunkId, chunkIds: entry.chunkIds, cancellation: entry.cancellation,
@@ -1076,7 +1090,21 @@ async function createWorkerLane({ workerData, workerPreparation, workerFactory =
         : entry.type === 'sandbox' ? { resultTransport: 'json-shared-v1' } : {}) };
       if (PROFILE_ENABLED) { profile.sending(entry); if (entry._profile) workerMessage._profile = entry._profile; profile.span('worker.message.send', () => worker.postMessage(workerMessage), entry._profile); }
       else worker.postMessage(workerMessage);
-      if (snapshotKey) { sentSnapshots.delete(sentKey); sentSnapshots.set(sentKey, fresh ? { kind: entry.stateInput ? 'json-shared-v1' : 'object', revision: entry.state.revision } : sent); while (sentSnapshots.size > STATE_SNAPSHOT_LIMIT) sentSnapshots.delete(sentSnapshots.keys().next().value); }
+      if (snapshotKey) {
+        if (aliasSentKey !== undefined) {
+          const existing = sentSnapshots.get(aliasSentKey);
+          if (existing) { sentSnapshots.delete(aliasSentKey); sentSnapshots.set(aliasSentKey, existing); }
+        } else {
+          sentSnapshots.delete(sentKey);
+          sentSnapshots.set(sentKey, fresh
+            ? entry.stateInput && !owned
+              ? { kind: 'json-shared-v1', revision: entry.state.revision, pickerId: entry.pickerId, input: snapshotInput,
+                bytes: entry.stateInput.stateJSON.byteLength, bufferRef: new WeakRef(entry.stateInput.stateJSON) }
+              : { kind: 'object', revision: entry.state.revision }
+            : sent);
+          while (sentSnapshots.size > STATE_SNAPSHOT_LIMIT) sentSnapshots.delete(sentSnapshots.keys().next().value);
+        }
+      }
     }
     catch { failure('worker-send'); }
     // The worker now owns its structured clone; do not retain another snapshot.

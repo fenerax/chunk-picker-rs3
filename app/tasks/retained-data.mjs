@@ -9,15 +9,29 @@ export function retainedDataBytes(roots) {
   const seen = new WeakSet();
   let bytes = 0;
   function visit(value) {
-    if (typeof value === 'string') { bytes += 32 + 2 * value.length; return; }
-    if (value === null || !['object', 'function'].includes(typeof value)) return;
+    const type = typeof value;
+    if (type === 'string') { bytes += 32 + 2 * value.length; return; }
+    if (value === null || (type !== 'object' && type !== 'function')) return;
     if (seen.has(value)) return;
     seen.add(value);
     // A resident state retains its complete verified base through a WeakMap,
     // even when its visible task/dictionary delta hides most of that base.
     const base = residentBase(value);
     if (base) visit(base);
-    if (typeof value === 'function') { bytes += 256; return; }
+    if (type === 'function') { bytes += 256; return; }
+    if (Array.isArray(value)) {
+      const len = value.length;
+      bytes += 64 + len * 16;
+      for (let i = 0; i < len; i++) {
+        const child = value[i];
+        const ct = typeof child;
+        if (ct === 'string') bytes += 32 + 2 * child.length;
+        else if (child !== null && (ct === 'object' || ct === 'function')) {
+          if (!seen.has(child)) visit(child);
+        }
+      }
+      return;
+    }
     if (value instanceof ArrayBuffer || value instanceof SharedArrayBuffer) { bytes += 64 + value.byteLength; return; }
     if (ArrayBuffer.isView(value)) { bytes += 128; visit(value.buffer); return; }
     if (isIdentityDictionary(value)) {
@@ -27,11 +41,24 @@ export function retainedDataBytes(roots) {
     }
     if (value instanceof Map || value instanceof Set) {
       bytes += 128 + value.size * 64;
-      if (value instanceof Map) for (const [key, child] of value) { visit(key); visit(child); }
-      else for (const child of value) visit(child);
+      if (value instanceof Map) for (const [key, child] of value) {
+        if (typeof key === 'string') bytes += 32 + 2 * key.length;
+        else visit(key);
+        const ct = typeof child;
+        if (ct === 'string') bytes += 32 + 2 * child.length;
+        else if (child !== null && (ct === 'object' || ct === 'function')) {
+          if (!seen.has(child)) visit(child);
+        }
+      }
+      else for (const child of value) {
+        const ct = typeof child;
+        if (ct === 'string') bytes += 32 + 2 * child.length;
+        else if (child !== null && (ct === 'object' || ct === 'function')) {
+          if (!seen.has(child)) visit(child);
+        }
+      }
       return;
     }
-    if (Array.isArray(value)) { bytes += 64 + value.length * 16; for (const child of value) visit(child); return; }
     bytes += 64;
     if (Object.getOwnPropertyDescriptor(value, 'baseFormat')?.value === OWNED_BASE_FORMAT) {
       const tasks = Object.getOwnPropertyDescriptor(value, 'tasks')?.value;
@@ -39,12 +66,32 @@ export function retainedDataBytes(roots) {
         // Reserve the resident-copy taskBases Map, including its keys, whether
         // already built or still lazy. Row payloads are visited through tasks.
         bytes += 128 + tasks.length * 64;
-        for (const task of tasks) visit(task.id);
+        for (let i = 0; i < tasks.length; i++) {
+          const id = tasks[i].id;
+          if (typeof id === 'string') bytes += 32 + 2 * id.length;
+          else visit(id);
+        }
       }
     }
-    for (const key of Reflect.ownKeys(value)) {
+    const names = Object.getOwnPropertyNames(value);
+    for (let i = 0; i < names.length; i++) {
+      const key = names[i];
       const descriptor = Object.getOwnPropertyDescriptor(value, key);
-      bytes += 32; visit(key);
+      bytes += 64 + 2 * key.length;
+      if ('value' in descriptor) {
+        const child = descriptor.value;
+        const ct = typeof child;
+        if (ct === 'string') bytes += 32 + 2 * child.length;
+        else if (child !== null && (ct === 'object' || ct === 'function')) {
+          if (!seen.has(child)) visit(child);
+        }
+      } else { visit(descriptor.get); visit(descriptor.set); }
+    }
+    const symbols = Object.getOwnPropertySymbols(value);
+    for (let i = 0; i < symbols.length; i++) {
+      const key = symbols[i];
+      const descriptor = Object.getOwnPropertyDescriptor(value, key);
+      bytes += 32;
       if ('value' in descriptor) visit(descriptor.value);
       else { visit(descriptor.get); visit(descriptor.set); }
     }

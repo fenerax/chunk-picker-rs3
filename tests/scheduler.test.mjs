@@ -945,3 +945,27 @@ for (const pooled of [false, true]) {
     }
   });
 }
+
+test('roll-pool aliases an already-sent same-revision stateJSON buffer without resending it', async t => {
+  const { workers, scheduler } = await fixture(t);
+  const metadata = { revision: 3, members: [{ id: 'actor1' }] };
+  const stateJSON = sharedBytes(JSON.stringify({ schemaVersion: 1, ...metadata, rules: {}, tasks: [], history: [] }));
+  const evalReq = scheduler.evaluate(metadata, 'actor1', 'evaluate', undefined, 'eval-3', 'gameplay-3', undefined, [], 'play-v1', { stateJSON, inputKey: 'gameplay-3' });
+  assert.equal(workers[0].messages.at(-1).stateJSON, stateJSON);
+  assert.equal(workers[0].messages.at(-1).stateSnapshotInput, undefined);
+  finishPlay(workers[0]); await evalReq;
+
+  const poolReq = scheduler.evaluate(metadata, 'actor1', 'roll-pool', undefined, 'pool-3', 'roll-input-3', undefined, [], 'full', { stateJSON, inputKey: 'roll-input-3' });
+  const poolMsg = workers[0].messages.at(-1);
+  assert.equal(poolMsg.stateJSON, undefined);
+  assert.equal(poolMsg.stateSnapshotInput, 'gameplay-3');
+  assert.equal(poolMsg.stateRevision, 3);
+  workers[0].finish({ pool: { eligible: [] }, partnerConnections: {} }); await poolReq;
+
+  const nextMeta = { revision: 4, members: [{ id: 'actor1' }] };
+  const nextJSON = sharedBytes(JSON.stringify({ schemaVersion: 1, ...nextMeta, rules: {}, tasks: [], history: [] }));
+  const nextPool = scheduler.evaluate(nextMeta, 'actor1', 'roll-pool', undefined, 'pool-4', 'roll-input-4', undefined, [], 'full', { stateJSON: nextJSON, inputKey: 'roll-input-4' });
+  assert.equal(workers[0].messages.at(-1).stateJSON, nextJSON);
+  assert.equal(workers[0].messages.at(-1).stateSnapshotInput, undefined);
+  workers[0].finish({ pool: { eligible: [] }, partnerConnections: {} }); await nextPool;
+});

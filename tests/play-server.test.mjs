@@ -312,3 +312,25 @@ test('opted-in small state preserves identity, Brotli, wildcard and refusal nego
   }
   assert.equal((await request('/api/state', { headers: { 'Accept-Encoding': '*;q=0' } })).status, 406);
 });
+
+test('compact play evaluation then full hydration preserves deferred views and unlock reuses play task projection', async t => {
+  const { request } = await fixture(t);
+  const initial = await (await request('/api/state?view=play-v1')).json();
+  const unlocked = await (await request('/api/command?view=play-v1', {
+    body: { expectedRevision: initial.state.revision, command: { type: 'set-chunk', memberId: 'one', chunkId: '12342', status: 'unlocked' } },
+  })).json();
+  assert.equal(unlocked.format, 'play-v1');
+  assert.ok(unlocked.unchangedFields.includes('tasks'));
+  assert.ok(unlocked.unchangedFields.includes('identityRegistry'));
+  const fullState = await (await request('/api/state')).json();
+  const playState = await (await request('/api/state?view=play-v1')).json();
+  assert.deepEqual(playState.state.tasks, projectPlayState(fullState.state).tasks);
+  assert.deepEqual(playState.state.identityRegistry, projectPlayState(fullState.state).identityRegistry);
+
+  const playTasks = await (await request(`/api/tasks?memberId=one&view=play-v1&revision=${unlocked.state.revision}`)).json();
+  assert.equal(playTasks.format, 'play-v1');
+  const fullTasks = await (await request(`/api/tasks?memberId=one&revision=${unlocked.state.revision}`)).json();
+  assert.ok(fullTasks.currentBiS && fullTasks.activityInfo, 'deferred views hydrate from compact viewContextState');
+  assert.equal(fullTasks.currentBiS.memberId, 'one');
+  assert.equal(fullTasks.activityInfo.memberId, 'one');
+});

@@ -12,11 +12,11 @@ import { prepareWorkerDefinitions } from '../dataset-pipeline.mjs';
 import { selectedDataset } from '../dataset-runtime.mjs';
 import { parentPort, workerData } from 'node:worker_threads';
 import { createTaskEngine, taskId, plainLabel } from './engine.mjs';
-import { legacyTaskId } from './identity.mjs';
+import { legacyTaskId, resolveIdentity } from './identity.mjs';
 import { applySkillGuideTasks } from '../data/skill-guides.mjs';
 import { prepareChunkPredictionState, predictChunkFromPreparedState } from '../core/planning.mjs';
 import { hasResidentIdentities } from '../core/resident-copy.mjs';
-import { identityEntries } from './identity-dictionary.mjs';
+import { identityEntries, identityValue } from './identity-dictionary.mjs';
 import { createRuleRegistry, createRollPoolCache, evaluateRollPool, partnerConnections } from '../core/rules.mjs';
 import { buildWorld } from '../data/world.mjs';
 import { configureAutomaticTransport } from '../core/automatic-transport.mjs';
@@ -75,9 +75,9 @@ function mapLocationsFor(result) {
   }
   return locations;
 }
-function mapPlayResult(result) {
+function mapPlayResult(result, { refreshCache = true } = {}) {
   const locations = mapLocationsFor(result);
-  completeCache.refreshResult(result); sandboxCache.refreshResult(result);
+  if (refreshCache) { completeCache.refreshResult(result); sandboxCache.refreshResult(result); }
   return { ...projectPlayResult(result), taskLocations: locations };
 }
 const compileStarted = performance.now();
@@ -155,6 +155,48 @@ function evaluateCore(state, memberId, timingMs, cacheSizing = false, pickerId) 
   return result;
 }
 const viewContexts = new WeakMap();
+function compactViewIdentityRegistry(state) {
+  const registry = state.identityRegistry;
+  const entries = {}, aliases = {}, savedAliases = registry.savedAliases ? {} : undefined;
+  const ids = new Set();
+  for (const member of state.members ?? []) {
+    for (const id of member.completedTasks ?? []) if (typeof id === 'string') ids.add(id);
+    for (const id of Object.keys(member.taskStatus ?? {})) ids.add(id);
+    for (const groups of Object.values(member.taskAlternatives ?? {})) {
+      for (const id of Object.values(groups ?? {})) if (typeof id === 'string') ids.add(id);
+    }
+  }
+  const addEntry = id => {
+    if (typeof id !== 'string' || Object.hasOwn(entries, id)) return;
+    const entry = identityValue(registry.entries, id);
+    if (entry !== undefined) entries[id] = entry;
+  };
+  for (const id of ids) {
+    const saved = identityValue(registry.aliases, id);
+    if (saved !== undefined) aliases[id] = saved;
+    const savedAlt = savedAliases ? identityValue(registry.savedAliases, id) : undefined;
+    if (savedAlt !== undefined) savedAliases[id] = savedAlt;
+    addEntry(id);
+    if (typeof saved === 'string') addEntry(saved);
+    else if (Array.isArray(saved)) for (const target of saved) addEntry(target);
+    if (typeof savedAlt === 'string') addEntry(savedAlt);
+    else if (Array.isArray(savedAlt)) for (const target of savedAlt) addEntry(target);
+    for (const candidate of resolveIdentity(id, registry).candidates) addEntry(candidate);
+  }
+  return { schemaVersion: registry.schemaVersion ?? 1, entries, aliases, ...(savedAliases ? { savedAliases } : {}) };
+}
+// Deferred views (Current BiS and Activity Info) never read the full 24k-row
+// state.tasks catalogue or unreferenced identity aliases. Retain only the slice
+// they consume so full-data snapshots stay within the hot-graph heap budget.
+function viewContextState(state) {
+  return {
+    rules: state.rules,
+    taskRules: state.taskRules,
+    members: state.members,
+    ...(state.legacy !== undefined ? { legacy: state.legacy } : {}),
+    ...(state.identityRegistry ? { identityRegistry: compactViewIdentityRegistry(state) } : {}),
+  };
+}
 function appendViews(result, timingMs) {
   const context = viewContexts.get(result);
   if (!context) return result;
@@ -203,7 +245,7 @@ function evaluateFull(state, memberId, { includeViews = true, timingMs, cacheSiz
     result.equipmentPlanning.obligationIds = result.equipmentPlanning.obligationIds.filter(id => !retired.has(id));
     result.collectionPlanning.obligationIds = result.collectionPlanning.obligationIds.filter(id => !retired.has(id));
   }
-  viewContexts.set(result, { equipment, state, memberId });
+  viewContexts.set(result, { equipment, state: viewContextState(state), memberId });
   if (includeViews) appendViews(result, timingMs);
   result.metrics.availableCount = result.tasks.filter(task => task.status === 'available' && task.obligation !== false).length;
   return result;
@@ -256,7 +298,7 @@ const pickerSnapshotKey = (pickerId, input) => JSON.stringify([pickerId, input])
 // one key the revision, and rules still separate states at an unchanged revision.
 const calculationKey = (state, memberId, input) => [typeof input === 'string' ? null : state.revision, memberId, input ?? null, state.rules, state.taskRules,
   state.members.map(owner => [owner.id, owner.taskRules, state.legacy?.maps?.[owner.sourceMapId]?.rules])];
-function snapshotFor(state, memberId, timingMs, input, includeViews = true, pickerId = 'legacy-shared', includeLocations = false) {
+function snapshotFor(state, memberId, timingMs, input, includeViews = true, pickerId = 'legacy-shared', includeLocations = false, admit = true) {
   const key = JSON.stringify(calculationKey(state, memberId, input));
   let snapshot = snapshots.get(key), hit = !!snapshot;
   if (!snapshot) {
@@ -274,8 +316,8 @@ function snapshotFor(state, memberId, timingMs, input, includeViews = true, pick
   // An HTTP evaluation always needs these locations. Build them before the
   // first admission so a cold graph is not walked and encoded twice.
   if (includeLocations) mapLocationsFor(snapshot.baseline);
-  completeCache.set(key, snapshot, state, pickerId);
-  return { snapshot, hit };
+  if (admit) { completeCache.set(key, snapshot, state, pickerId); return { snapshot, hit }; }
+  return { snapshot, hit, admit: () => completeCache.set(key, snapshot, state, pickerId) };
 }
 const taskReuseFingerprint = createTaskReuseFingerprint({ ownedCatalogueSemantics: workerData.ownedCatalogueSemantics === true });
 // Rebuild native roll topology here; explicit worlds retain their supplied indexes.
@@ -485,17 +527,23 @@ const receiveOwnedState = createOwnedCalculatorReceiver(selectedDataset.digest, 
   maxEntries: memoryBudget.enforced ? 2 : null,
   maxBytes: boundedMemoryOption(process.env.RS3_STATE_SNAPSHOT_BYTES, inputByteCeiling),
   onEvict: key => evictedOwnedBases.add(key) });
-function serializedState({ stateJSON, stateJSONBytes, stateRevision, stateMemberIds, snapshotKey, input, pickerId }) {
+function serializedState({ stateJSON, stateJSONBytes, stateRevision, stateMemberIds, snapshotKey, input, pickerId, stateSnapshotInput }) {
   if (typeof input !== 'string' || !Number.isSafeInteger(stateRevision) || stateRevision < 0
     || typeof snapshotKey !== 'string' || snapshotKey !== JSON.stringify([stateRevision, input])
     || !Number.isSafeInteger(stateJSONBytes) || stateJSONBytes < 1
     || !Array.isArray(stateMemberIds) || stateMemberIds.length < 1 || !stateMemberIds.every(id => typeof id === 'string' && id.length > 0)
-    || new Set(stateMemberIds).size !== stateMemberIds.length) throw new TypeError('Worker serialized state metadata is invalid.');
+    || new Set(stateMemberIds).size !== stateMemberIds.length
+    || stateSnapshotInput !== undefined && (typeof stateSnapshotInput !== 'string' || !stateSnapshotInput || stateJSON !== undefined)) throw new TypeError('Worker serialized state metadata is invalid.');
   let state, rebound = false;
   if (stateJSON !== undefined) {
     if (!(stateJSON instanceof SharedArrayBuffer) || stateJSON.byteLength !== stateJSONBytes) throw new TypeError('Worker serialized state bytes are invalid.');
     try { state = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(stateJSON)); }
     catch { throw new TypeError('Worker state JSON is invalid.'); }
+  } else if (stateSnapshotInput !== undefined) {
+    // Exact-revision alias (e.g. roll-pool reusing the stateJSON just parsed
+    // for evaluate at the same revision): never rebind across revisions.
+    const candidate = stateSnapshots.get(pickerSnapshotKey(pickerId, stateSnapshotInput));
+    if (candidate && candidate.revision === stateRevision) state = candidate;
   } else {
     // A display-only save changes the bytes but not the task input, so only an
     // unchanged revision can still prove the referenced bytes are identical.
@@ -511,7 +559,7 @@ function serializedState({ stateJSON, stateJSONBytes, stateRevision, stateMember
   return state;
 }
 const handleMessage = async ({ id, pickerId = 'legacy-shared', type = 'evaluate', state, memberId, chunkId, draft, chunkIds = [], revision, input, snapshotKey, resultTransport, resultView = 'full', cancellation, predictionProgress = false, previewProgress = false,
-  stateTransport, stateJSON, stateJSONBytes, stateRevision, stateMemberIds, duoProjection = false, duoSidebarProjection = false, reportProgress = false, residentOnly = false, seedEligibility = false, proof, ownedDocument, ownedBase }) => {
+  stateTransport, stateJSON, stateJSONBytes, stateRevision, stateMemberIds, stateSnapshotInput, duoProjection = false, duoSidebarProjection = false, reportProgress = false, residentOnly = false, seedEligibility = false, proof, ownedDocument, ownedBase }) => {
   if (type === 'eligibility-seed') {
     const reply = requests.get(id)?.pickerId === pickerId ? requests.get(id).seedReply : undefined;
     if (reply) reply(proof); else releaseEligibilityChunk({ type, proof });
@@ -545,6 +593,7 @@ const handleMessage = async ({ id, pickerId = 'legacy-shared', type = 'evaluate'
     if (eligibilitySeeded && type === 'predict' && (predictionProgress || seedEligibility)) parentPort.postMessage({ id, type: 'progress', eligibilitySeeded });
   };
   requests.set(id, request);
+  let replied = false;
   try {
     if (stateTransport === OWNED_CALCULATOR_TRANSPORT) {
       if (state !== undefined || stateJSON !== undefined || pickerId === 'legacy-shared') throw new TypeError('Worker owned state transport is invalid.');
@@ -552,9 +601,9 @@ const handleMessage = async ({ id, pickerId = 'legacy-shared', type = 'evaluate'
       if (ownedBase) parentPort.postMessage({ id, type: 'progress', ownedBaseInstalled: ownedDocument.storage.base.sha256 });
     } else if (stateTransport !== undefined || stateJSON !== undefined) {
       if (stateTransport !== 'json-shared-v1' || !['evaluate', 'chunk-planning', 'sandbox', 'area-check', 'how-task', 'why-task', 'roll-pool'].includes(type) || state !== undefined) throw new TypeError('Worker state transport is invalid.');
-      state = serializedState({ stateJSON, stateJSONBytes, stateRevision, stateMemberIds, snapshotKey, input, pickerId });
+      state = serializedState({ stateJSON, stateJSONBytes, stateRevision, stateMemberIds, snapshotKey, input, pickerId, stateSnapshotInput });
     }
-    if (snapshotKey !== undefined) {
+    if (snapshotKey !== undefined && stateSnapshotInput === undefined) {
       if (typeof snapshotKey !== 'string') throw new TypeError('Worker snapshotKey must be a string.');
       // Scheduler keys are [captured revision, task input]: the LRU keys only the
       // input, and a reference rebinds the equivalent state to that revision.
@@ -591,7 +640,7 @@ const handleMessage = async ({ id, pickerId = 'legacy-shared', type = 'evaluate'
       parentPort.postMessage({ id, ...restored, evaluationMs: timingMs.totalMs, timingMs });
       return;
     }
-    let result, unlockReuse, partnerUnlockReuse;
+    let result, unlockReuse, partnerUnlockReuse, deferAdmit;
     if (type === 'prepare-rules') {
       timed(timingMs, 'preparationMs', () => engine.prepare(state.rules));
       result = { prepared: true };
@@ -676,8 +725,10 @@ const handleMessage = async ({ id, pickerId = 'legacy-shared', type = 'evaluate'
         parentPort.postMessage({ id, result: { cancelled: true }, evaluationMs: timingMs.totalMs, timingMs }); return;
       }
       const compact = type === 'evaluate' && resultTransport === 'json-shared-v1' && resultView === 'play-v1';
-      const { snapshot } = snapshotFor(state, memberId, timingMs, input, type !== 'predict' && type !== 'chunk-planning' && !compact, pickerId,
-        type === 'evaluate' && resultTransport === 'json-shared-v1');
+      const deferEvaluateAdmission = type === 'evaluate';
+      const { snapshot, admit } = snapshotFor(state, memberId, timingMs, input, type !== 'predict' && type !== 'chunk-planning' && !compact, pickerId,
+        type === 'evaluate' && resultTransport === 'json-shared-v1', !deferEvaluateAdmission);
+      deferAdmit = admit;
       eligibilitySeeded &&= snapshot.baseline.metrics.eligibilityCacheHit === true;
       if (type === 'predict') {
         // Let panel closure cancel a completed baseline before starting the
@@ -733,7 +784,7 @@ const handleMessage = async ({ id, pickerId = 'legacy-shared', type = 'evaluate'
     }
     // The HTTP thread can cache and send these immutable bytes without cloning
     // or serializing the full task graph. Direct worker clients keep objects.
-    const playResult = type === 'evaluate' && resultTransport === 'json-shared-v1' ? mapPlayResult(result) : undefined;
+    const playResult = type === 'evaluate' && resultTransport === 'json-shared-v1' ? mapPlayResult(result, { refreshCache: !deferAdmit }) : undefined;
     // Both group lanes need the owner's ordinary Completed and Backlog rows,
     // including completion families absent from the active presentation.
     const duoSidebarJSON = playResult && resultView === 'play-v1' && (duoProjection || duoSidebarProjection)
@@ -750,11 +801,18 @@ const handleMessage = async ({ id, pickerId = 'legacy-shared', type = 'evaluate'
     if (!abandoned() && state.revision >= pickerRevision(pickerId)) warmResults?.put(warmKey, reply);
     notifyPredictionMetadata();
     parentPort.postMessage({ id, ...reply, evaluationMs: timingMs.totalMs, timingMs });
+    replied = true;
+    // Admit the hot snapshot after sending the reply so heap metering and cold
+    // demotion of the previous snapshot do not delay the caller while still
+    // completing strictly before this worker processes any subsequent message.
+    deferAdmit?.();
   } catch (error) {
-    timingMs.totalMs = performance.now() - started;
-    notifyPredictionMetadata();
-    parentPort.postMessage({ id, error: { name: error.name, message: error.message,
-      ...(error.code === 'OWNED_CALCULATOR_BASE_REFUSED' ? { code: error.code } : {}) }, evaluationMs: timingMs.totalMs, timingMs });
+    if (!replied) {
+      timingMs.totalMs = performance.now() - started;
+      notifyPredictionMetadata();
+      parentPort.postMessage({ id, error: { name: error.name, message: error.message,
+        ...(error.code === 'OWNED_CALCULATOR_BASE_REFUSED' ? { code: error.code } : {}) }, evaluationMs: timingMs.totalMs, timingMs });
+    }
   } finally { completeCache.releaseTransient(); sandboxCache.releaseTransient(); requests.delete(id); }
 };
 if (PROFILE_ENABLED) profile.installWorker(parentPort, handleMessage);

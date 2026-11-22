@@ -304,3 +304,46 @@ test('response cache pressure preserves durable save bytes while archived Histor
   const ledger = store.retentionLedger();
   assert.equal(ledger.complete, false); assert.equal(charge(ledger).cap, null); assert(charge(ledger).used > 0);
 });
+
+test('retainedDataBytes fast path matches reference recursive traversal exactly', () => {
+  const sym = Symbol('tag');
+  const shared = { label: '雪'.repeat(12), count: 7, flag: false, empty: null };
+  const withGetter = { a: 'plain', [sym]: { nested: ['x', shared] } };
+  Object.defineProperty(withGetter, 'computed', { get() { return 1; }, enumerable: true });
+  const graph = {
+    rows: [shared, shared, 'inline', 42, undefined, null],
+    map: new Map([['key', shared], ['str', 'value']]),
+    set: new Set(['alpha', shared]),
+    bytes: new Uint8Array(new ArrayBuffer(128), 0, 8),
+    withGetter,
+  };
+  const reference = roots => {
+    const seen = new WeakSet(); let bytes = 0;
+    const visit = value => {
+      if (typeof value === 'string') { bytes += 32 + 2 * value.length; return; }
+      if (value === null || !['object', 'function'].includes(typeof value)) return;
+      if (seen.has(value)) return;
+      seen.add(value);
+      if (typeof value === 'function') { bytes += 256; return; }
+      if (value instanceof ArrayBuffer || value instanceof SharedArrayBuffer) { bytes += 64 + value.byteLength; return; }
+      if (ArrayBuffer.isView(value)) { bytes += 128; visit(value.buffer); return; }
+      if (value instanceof Map || value instanceof Set) {
+        bytes += 128 + value.size * 64;
+        if (value instanceof Map) for (const [k, v] of value) { visit(k); visit(v); }
+        else for (const v of value) visit(v);
+        return;
+      }
+      if (Array.isArray(value)) { bytes += 64 + value.length * 16; for (const child of value) visit(child); return; }
+      bytes += 64;
+      for (const key of Reflect.ownKeys(value)) {
+        const d = Object.getOwnPropertyDescriptor(value, key);
+        bytes += 32; visit(key);
+        if ('value' in d) visit(d.value);
+        else { visit(d.get); visit(d.set); }
+      }
+    };
+    for (const root of roots) visit(root);
+    return Math.ceil(bytes / 8) * 8;
+  };
+  assert.equal(retainedDataBytes([graph]), reference([graph]));
+});
