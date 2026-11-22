@@ -193,6 +193,11 @@ test('roadmap is valid: known statuses, unique ids, dates on done items', async 
     assert.ok(map.statuses[item.status], `${item.id} status ${item.status}`);
     assert.ok(map.sizes[item.size], `${item.id} size ${item.size}`);
     if (item.status === 'done') assert.match(item.done, /^\d{4}-\d{2}-\d{2}$/, item.id);
+    if (item.issues !== undefined) {
+      assert.ok(Array.isArray(item.issues) && item.issues.length > 0, `${item.id} issues`);
+      assert.ok(item.issues.every(num => Number.isInteger(num) && num > 0), `${item.id} issue numbers`);
+      assert.equal(new Set(item.issues).size, item.issues.length, `${item.id} duplicate issues`);
+    }
   }
 });
 

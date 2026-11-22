@@ -2,6 +2,15 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "date": "2026-11-21",
+      "title": "Cleaner world map and fuller How? steps",
+      "items": [
+        "Removed stray minimap-only dots that appeared as blurry yellow and red blobs on the world map (such as Cooks' Guild, northeast of Lumbridge, Shantay Pass, East Ardougne, Yanille, Rellekka and Piscatoris).",
+        "How? now explains innate melee, Ranged, Prayer and Combat training seeds, clue tiers, section connectors, and NPC or object area entrances.",
+        "Free-to-play maps no longer list members-only area unlock tasks as available."
+      ]
+    },
+    {
       "date": "2026-11-18",
       "title": "Plan ahead and move between pickers",
       "items": [

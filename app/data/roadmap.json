@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updated": "2026-11-20",
+  "updated": "2026-11-21",
   "statuses": {
     "working": "In progress",
     "next": "Up next",
@@ -109,7 +109,10 @@
           "why": "Solo players and every Group Ironman size should have a place.",
           "size": "L",
           "status": "working",
-          "note": "Discord and Google sign-in, up to 10 characters per login, character switching, group invitations and group sizes 1–5 are implemented. Moving established characters between groups still needs work."
+          "issues": [
+            301
+          ],
+          "note": "Discord and Google sign-in, up to 10 characters per login, character switching, owner invitations with seat reservations, group sizes 1–5, ownership handover, leave/rejoin with read-only past maps, login-scoped renames and deletion are implemented. Final beta-journey checks remain."
         },
         {
           "id": "R1",
@@ -758,8 +761,12 @@
           "what": "Measure slower unlocks and cut the wait from rolling a chunk to seeing its tasks.",
           "why": "Some chunks still miss the three-second goal.",
           "size": "M–L",
-          "status": "next",
-          "note": "Prepared chunks open quickly; Nov 2026 measurements found unprepared unlocks taking 6.9–11.3 seconds median. Next steps trim snapshot accounting overhead and incrementalize unlock calculation."
+          "status": "working",
+          "issues": [
+            285,
+            296
+          ],
+          "note": "Prepared chunks open quickly. Recent updates sped up engine hot paths, worker snapshots and warm-started processing closures; re-measuring unprepared unlocks against the 3-second target is up next."
         },
         {
           "id": "G2",
@@ -990,8 +997,11 @@
           "what": "Find tasks shown as available whose How? steps cannot reach the required place, quest, level or item, then fix the most common cause.",
           "why": "Trust that an available task has a route you can follow.",
           "size": "M–L",
-          "status": "next",
-          "note": "Check free-to-play and members maps of different sizes and report the remaining gaps."
+          "status": "working",
+          "issues": [
+            286
+          ],
+          "note": "Clean How? routes now cover about 93% of surveyed tasks after adding sectioned chunks, produced objects, innate melee/Ranged/Prayer/Combat seeds, clue tiers, section connectors, NPC/object area entrances and F2P area gates. About 7% remain to close."
         }
       ]
     }
