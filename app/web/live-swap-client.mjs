@@ -123,8 +123,14 @@ export function createLiveSwapCommandClient({ storage = sessionStorage(), fetch 
     } catch { throw pendingError('The pending save is unreadable. Keep this tab open and recover its session storage before saving.'); }
   }
   function validCommand(body) {
-    return body && integer(body.expectedRevision) && body.command && typeof body.command.type === 'string' && body.command.type !== 'sync-original';
+    return body && integer(body.expectedRevision) && body.command && typeof body.command.type === 'string' && body.command.type !== 'sync-original'
+      && (body.acknowledgeDuplicate === undefined || typeof body.acknowledgeDuplicate === 'boolean');
   }
+  const commandPayload = body => ({
+    expectedRevision: body.expectedRevision,
+    command: body.command,
+    ...(body.acknowledgeDuplicate === true ? { acknowledgeDuplicate: true } : {}),
+  });
   function persist(record) {
     active();
     const value = JSON.stringify(record);
@@ -280,7 +286,7 @@ export function createLiveSwapCommandClient({ storage = sessionStorage(), fetch 
         if (!validCommand(body)) throw new TypeError('A valid command and revision are required.');
         record ??= { version: 2, clientId: uuid(), session: null, confirmed: 0, lastReceipt: null, body: null };
         if (!uuidPattern.test(record.clientId)) throw new TypeError('A valid client UUID is required.');
-        const unsent = record.unsent ?? JSON.stringify({ expectedRevision: body.expectedRevision, command: body.command });
+        const unsent = record.unsent ?? JSON.stringify(commandPayload(body));
         const ownership = ensureOwnership(record); if (ownership) await ownership;
         // Keep the reviewed intention even if registration never answers.
         record = { ...record, unsent };
@@ -288,7 +294,7 @@ export function createLiveSwapCommandClient({ storage = sessionStorage(), fetch 
         record = await ensureSession(record, signal, budget);
         body = JSON.parse(record.unsent);
         if (!Number.isSafeInteger(record.confirmed + 1)) throw pendingError('This save session has reached its sequence limit. Check History before starting another session.');
-        const frozen = { requestId: idFor(record.session, record.confirmed + 1), requestAck: record.confirmed, expectedRevision: body.expectedRevision, command: body.command };
+        const frozen = { requestId: idFor(record.session, record.confirmed + 1), requestAck: record.confirmed, ...commandPayload(body) };
         record = { ...record, body: JSON.stringify(frozen), unsent: null };
         persist(record);
       }
@@ -302,11 +308,11 @@ export function createLiveSwapCommandClient({ storage = sessionStorage(), fetch 
         const pending = JSON.parse(record.body);
         // Persist the new registration identity and original intention together.
         record = { version: 2, clientId: uuid(), session: null, confirmed: 0, lastReceipt: null, body: null,
-          unsent: JSON.stringify({ expectedRevision: pending.expectedRevision, command: pending.command }) };
+          unsent: JSON.stringify(commandPayload(pending)) };
         persist(record);
         record = await ensureSession(record, signal, budget);
         record = { ...record, body: JSON.stringify({ requestId: idFor(record.session, 1), requestAck: 0,
-          expectedRevision: pending.expectedRevision, command: pending.command }), unsent: null };
+          ...commandPayload(pending) }), unsent: null };
         persist(record);
         result = await retryRequest('/api/command?view=play-v1', record.body, signal, record, budget);
       }

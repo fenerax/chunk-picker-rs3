@@ -1038,3 +1038,27 @@ test('a storage budget refusal is definitive: no retry, no retained request, and
   assert.equal(requests[1].requestId, requests[0].requestId);
   assert.equal(requestError({ status: 507, headers: new Map() }, { message: 'x' }).message, 'The picker could not complete this request. Try again in a moment.');
 });
+
+test('acknowledgeDuplicate is preserved across durable dispatch and session renewal, and DUPLICATE_CHARACTER_NAME keeps its message', async () => {
+  const outbox = registeredStorage(), sent = [];
+  let commands = 0;
+  const transport = protocolClient(outbox, async (path, init) => {
+    if (path === '/api/action-session') {
+      if (JSON.parse(init.body).acknowledge) return answer(200, {});
+      return answer(200, { slot: 0, generation: 1, sequence: 0, acknowledged: 0, scope: ids[1] });
+    }
+    sent.push(JSON.parse(init.body));
+    commands++;
+    if (commands === 1) return answer(409, { code: 'ACTION_SESSION_RETIRED' });
+    return committed(init);
+  }, { uuid: () => ids[1] });
+  await transport.send({ expectedRevision: 7, command: { type: 'set-runescape-name', memberId: 'owner', name: 'Hero' }, acknowledgeDuplicate: true });
+  assert.equal(sent.length, 2);
+  assert.equal(sent[0].acknowledgeDuplicate, true);
+  assert.equal(sent[1].acknowledgeDuplicate, true);
+  assert.equal(transport.pending(), null);
+  const dup = requestError({ status: 409, headers: new Map() }, { code: 'DUPLICATE_CHARACTER_NAME', message: 'This login already has another character with that RuneScape name.' });
+  assert.equal(dup.code, 'DUPLICATE_CHARACTER_NAME');
+  assert.match(dup.message, /already has another character/);
+  transport.close();
+});
