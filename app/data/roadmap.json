@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updated": "2026-11-21",
+  "updated": "2026-11-22",
   "statuses": {
     "working": "In progress",
     "next": "Up next",
@@ -92,6 +92,9 @@
           "why": "Ends manual ticking and fills the gaps web sync can’t see, like achievements and quest steps.",
           "size": "L",
           "status": "working",
+          "issues": [
+            370
+          ],
           "note": "Progress, location, achievements, items and bank reporting are implemented, with testing mode keeping test-world progress out of live maps. Plugin v1.1 bug fixes and public listing verification are in progress."
         },
         {
@@ -100,7 +103,10 @@
           "what": "One group map, with players sharing the grinds.",
           "why": "An alternative to separate personal maps; the details still need deciding.",
           "size": "L",
-          "status": "maybe"
+          "status": "maybe",
+          "issues": [
+            377
+          ]
         },
         {
           "id": "A13",
@@ -108,11 +114,12 @@
           "what": "Keep up to ten RuneScape characters under one login, switch between their maps, and play in groups of one to five.",
           "why": "Solo players and every Group Ironman size should have a place.",
           "size": "L",
-          "status": "working",
+          "status": "done",
+          "done": "2026-11-22",
           "issues": [
             301
           ],
-          "note": "Discord and Google sign-in, up to 10 characters per login, character switching, owner invitations with seat reservations, group sizes 1–5, ownership handover, leave/rejoin with read-only past maps, login-scoped renames and deletion are implemented. Final beta-journey checks remain."
+          "note": "Discord and Google sign-in, up to 10 characters per login, character switching, owner invitations with seat reservations, group sizes 1–5, ownership handover, established-character moves, leave/rejoin with read-only past maps, duplicate-name rename warnings and deletion are implemented. Outside-tester beta acceptance is tracked under A19."
         },
         {
           "id": "R1",
@@ -197,7 +204,12 @@
           "why": "Let more players try the picker and report the problems they encounter.",
           "size": "L",
           "status": "soon",
-          "note": "Beta-sized multi-group load checks have run; outside-tester walkthrough, real-phone check (G6), timed off-site restore drill and live alert verification remain before opening. Wider sign-up waits for a separate decision."
+          "issues": [
+            363,
+            364,
+            365
+          ],
+          "note": "The multi-group load harness is ready; verifying the ~100-group envelope and beta runtime limits, outside-tester walkthrough, real-phone check (G6), timed off-site restore drill and live alert verification remain before opening. Wider sign-up waits for a separate decision."
         },
         {
           "id": "A20",
@@ -206,7 +218,10 @@
           "why": "Let new players try the picker immediately without creating an account first.",
           "size": "M",
           "status": "working",
-          "note": "Browser-owned solo guest mode is implemented behind an operator flag while save recovery and upload isolation fixes finish before public launch."
+          "issues": [
+            371
+          ],
+          "note": "Browser-owned solo guest mode is implemented behind an operator flag, with save recovery and upload isolation fixes landed; final rollout check and enablement decision remain."
         }
       ]
     },
@@ -249,7 +264,10 @@
           "what": "Flick across the candidate chunks on the map, land, zoom in, then “Take me there”.",
           "why": "The current animation is a simple card fade; the original’s was bigger.",
           "size": "M",
-          "status": "later"
+          "status": "later",
+          "issues": [
+            375
+          ]
         },
         {
           "id": "B5",
@@ -582,7 +600,10 @@
           "what": "Manual additions to a chunk’s contents.",
           "why": "Old additions still count, but you can’t add new ones.",
           "size": "M",
-          "status": "later"
+          "status": "later",
+          "issues": [
+            372
+          ]
         },
         {
           "id": "E3",
@@ -720,6 +741,9 @@
           "why": "Small tidy-up.",
           "size": "S",
           "status": "maybe",
+          "issues": [
+            376
+          ],
           "note": "Part of the Settings rework."
         },
         {
@@ -764,9 +788,10 @@
           "status": "working",
           "issues": [
             285,
-            296
+            296,
+            366
           ],
-          "note": "Prepared chunks open quickly. Recent updates sped up engine hot paths, worker snapshots and warm-started processing closures; re-measuring unprepared unlocks against the 3-second target is up next."
+          "note": "Prepared chunks open quickly. Unprepared unlock HTTP latency is down to 2.68 s median (3.78 s p95, worker 1.54 s) after engine, closure and worker/snapshot optimizations; re-measuring browser roll-to-tasks latency (#366) will decide whether incremental calculation (#296) is still needed."
         },
         {
           "id": "G2",
@@ -813,6 +838,9 @@
           "why": "Test browsers cannot catch every touch or display problem.",
           "size": "S",
           "status": "soon",
+          "issues": [
+            363
+          ],
           "note": "Simulated phone checks have passed; real-device testing remains open."
         },
         {
@@ -925,6 +953,9 @@
           "why": "Keep imported progress from hiding tasks that still need doing.",
           "size": "S",
           "status": "later",
+          "issues": [
+            374
+          ],
           "note": "Only resolve ambiguous checks with the player who made them."
         },
         {
@@ -997,11 +1028,12 @@
           "what": "Find tasks shown as available whose How? steps cannot reach the required place, quest, level or item, then fix the most common cause.",
           "why": "Trust that an available task has a route you can follow.",
           "size": "M–L",
-          "status": "working",
+          "status": "done",
+          "done": "2026-11-22",
           "issues": [
             286
           ],
-          "note": "Clean How? routes now cover about 93% of surveyed tasks after adding sectioned chunks, produced objects, innate melee/Ranged/Prayer/Combat seeds, clue tiers, section connectors, NPC/object area entrances and F2P area gates. About 7% remain to close."
+          "note": "Clean How? routes now cover 97.8% of surveyed available tasks (6,057 / 6,192) after adding sectioned chunks, produced objects, innate melee/Ranged/Prayer/Combat seeds, clue tiers, section connectors, NPC/object area entrances, F2P area gates, Slayer tasks/monster levels/unlock gates and XP-reward passive levels. The remaining 2.2% are intentional proof-budget caps and item/permission-only areas without a bound entrance."
         }
       ]
     }
