@@ -29,8 +29,18 @@ export function taskBlockerGuidance(task, result = {}) {
 export function renderTaskBlockerGuidance(c, task, result, { memberId, openTask }) {
   if (!task.blockers?.length) return null;
   const guidance = taskBlockerGuidance(task, result), host = c.el('div', undefined, 'form-stack task-blocker-guidance');
+  const switchToOwner = () => {
+    if (c.state && !c.state.members.some(owner => owner.id === memberId)) throw new Error('This player is no longer in the group. Refresh Tasks.');
+    if (memberId && c.memberId !== memberId) {
+      const picker = c.$('member'); picker.value = memberId; picker.dispatchEvent(new Event('change'));
+    }
+  };
   for (const ruleId of guidance.rules) host.append(c.button(`View blocking rule: ${c.plain(ruleId)}`, () => c.rulesDialog({ ruleId, memberId })));
-  if (guidance.slayerLock && c.infoPanels?.activityInfo) host.append(c.button('Open Slayer lock settings', () => c.infoPanels.activityInfo('Slayer')));
+  if (guidance.slayerLock && c.infoPanels?.activityInfo) host.append(c.button('Open Slayer lock settings', () => {
+    // Slayer lock settings belong to the task owner, including in Group view.
+    switchToOwner();
+    c.infoPanels.activityInfo('Slayer');
+  }));
   if (guidance.unknownUnlock) host.append(c.el('p', 'No specific unlock recommendation is known. Review the recorded requirements, training methods and locations before choosing a chunk.', 'field-help'));
   for (const training of guidance.training) {
     const body = c.el('div', undefined, 'form-stack');
@@ -72,10 +82,7 @@ export function renderTaskBlockerGuidance(c, task, result, { memberId, openTask 
       body.append(c.el('p', `${region.ownerName}: ${region.reason}`, 'status-detail'));
       if (id) body.append(c.button(`View disconnected chunk: ${c.plain(c.world.chunks.get(id)?.name ?? id)}`, () => {
         // Connection facts belong to the task owner, including in Group view.
-        if (c.state && !c.state.members.some(owner => owner.id === memberId)) throw new Error('This player is no longer in the group. Refresh Tasks.');
-        if (c.memberId !== memberId) {
-          const picker = c.$('member'); picker.value = memberId; picker.dispatchEvent(new Event('change'));
-        }
+        switchToOwner();
         c.closeDialog(); c.map.centerOnChunk(id); c.showChunk(id);
       }));
     }

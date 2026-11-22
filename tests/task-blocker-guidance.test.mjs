@@ -212,14 +212,21 @@ test('task dialog explains both completion controls beside their distinct existi
   }
 });
 
-test('slayer-lock blocker guidance routes directly to Slayer lock settings in Activity Info', () => {
-  const { c } = harness(), tabs = [];
-  c.infoPanels = { activityInfo: tab => tabs.push(tab) };
+test('slayer-lock blocker guidance switches to the task owner before opening Activity Info', () => {
+  const { c } = harness(), events = [];
+  c.memberId = 'selected';
+  c.state = { members: [{ id: 'selected', name: 'Player A' }, { id: 'owner', name: 'Player B' }] };
+  const picker = { value: 'selected', dispatchEvent(event) { assert.equal(event.type, 'change'); c.memberId = this.value; events.push(['select', this.value]); } };
+  c.$ = id => { assert.equal(id, 'member'); return picker; };
+  c.infoPanels = { activityInfo: tab => events.push(['activityInfo', tab, c.memberId]) };
   const task = { blockers: [{ kind: 'slayer-lock', detail: 'Slayer is locked at level 30; finish or unlock your current Slayer assignment to earn Slayer points.' }] };
   const node = renderTaskBlockerGuidance(c, task, {}, { memberId: 'owner', openTask() {} });
   const button = walk(node).find(row => row.tag === 'button');
   assert.equal(button.textContent, 'Open Slayer lock settings');
   button.action();
-  assert.deepEqual(tabs, ['Slayer']);
+  assert.deepEqual(events, [['select', 'owner'], ['activityInfo', 'Slayer', 'owner']]);
   assert.equal(taskBlockerGuidance(task).unknownUnlock, false);
+
+  const removedNode = renderTaskBlockerGuidance(c, task, {}, { memberId: 'gone', openTask() {} });
+  assert.throws(() => walk(removedNode).find(row => row.tag === 'button').action(), /no longer in the group/);
 });

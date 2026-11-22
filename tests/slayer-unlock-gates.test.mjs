@@ -214,9 +214,22 @@ test('active Slayer lock blocks assignment Slayer points and Slayer Rewards task
 
   // Even when a chunk exposes Slayer Rewards without taskUnlocks (or Obtain slayer points was checked),
   // an active Slayer lock still blocks Slayer Rewards shop tasks when Slayer points cannot be earned.
-  const directShopLocked = engineFor(fixture()).evaluate(state(['100'], {}, { slayerLock: { level: 30, monster: 'Abyssal demons' } }), 'a');
+  // With incremental unlock reuse enabled, releasing a level-120 lock (where caps.Slayer does not change)
+  // must still invalidate the memoized slayer-lock blocker when the locked monster becomes reachable.
+  const directShopDefinitions = {
+    ...fixture({ monsters: ['Abyssal demon'] }),
+    codeItems: { slayerTasks: { 'Abyssal demons': { 'Abyssal demon': 1 } } },
+  };
+  const incrementalEngine = createTaskEngine(directShopDefinitions, { cacheWalking: false, retainedTaskCorrections: false, incrementalUnlocks: true });
+  const directShopLocked = incrementalEngine.evaluate(state(['100'], {}, { slayerLock: { level: 120, monster: 'Abyssal demons' } }), 'a');
   assert.equal(row(directShopLocked, 'Learn how to craft rings of slaying').status, 'blocked');
   assert.equal(row(directShopLocked, 'Learn how to craft rings of slaying').blockers[0].kind, 'slayer-lock');
+  const directShopReleased = incrementalEngine.evaluate(state(['100', '200'], {}, { slayerLock: { level: 120, monster: 'Abyssal demons' } }), 'a');
+  assert.equal(directShopReleased.metrics.unlockCalculation.path, 'incremental');
+  assert.equal(directShopReleased.effectiveSlayerLock, null);
+  assert.equal(row(directShopReleased, 'Learn how to craft rings of slaying').status, 'available');
+  const directShopCold = engineFor(directShopDefinitions).evaluate(state(['100', '200'], {}, { slayerLock: { level: 120, monster: 'Abyssal demons' } }), 'a');
+  assert.equal(row(directShopCold, 'Learn how to craft rings of slaying').status, 'available');
 
   // Rolling a chunk with the locked monster releases the lock and restores Slayer points and Slayer Rewards.
   const releasedByTarget = engine.evaluate(state(['100', '200'], {}, { slayerLock: { level: 30, monster: 'Abyssal demons' } }), 'a');

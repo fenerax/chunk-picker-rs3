@@ -628,6 +628,7 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
     const isSlayerAssignmentTask = task => task.category === 'Slayer' && /Receive a slayer assignment from |Reaper assignment/i.test(task.rawLabel);
     const publications = new Map();
     let effectiveSlayerLock = playerControls.slayerLock, slayerLockRelease = null;
+    memo?.root('slayerLock', () => effectiveSlayerLock ? effectiveSlayerLock.level : null);
     if (effectiveSlayerLock) caps.Slayer = Math.min(caps.Slayer, effectiveSlayerLock.level);
     const releaseSlayerLock = reason => {
       if (!effectiveSlayerLock) return false;
@@ -1325,7 +1326,7 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
       }
       if (effectiveSlayerLock && !items.has('Slayer points')
         && (record.Shops?.includes('Slayer Rewards') || task.itemRequirements.some(req => (req.alternatives ?? [req.clean]).includes('Slayer points')))) {
-        void caps.Slayer;
+        memo?.depend('slayerLock');
         add('slayer-lock', explain ? `Slayer is locked at level ${effectiveSlayerLock.level}; finish or unlock your current Slayer assignment to earn Slayer points.` : undefined);
         if (!explain) {
           if (useWatchers) {
