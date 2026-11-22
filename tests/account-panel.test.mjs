@@ -115,6 +115,28 @@ test('group invitation review offers New character, disables progressed maps and
   assert.deepEqual(destinations, ['/characters/joined']);
 });
 
+test('group invitation review explains established solo and multi-player group moves and hides duplicate check for existing characters', async () => {
+  const root = el('div'), error = el('p');
+  const value = { invite: { status: 'pending' }, reviewToken: 'review', characters: [
+    { id: 'solo-prog', eligible: true, rejoining: true, sourceMode: 'solo', runescapeName: 'SoloHero' },
+    { id: 'group-mem', eligible: true, rejoining: true, sourceMode: 'group', runescapeName: 'GroupHero' },
+    { id: 'owner-blocked', eligible: false, reason: 'Complete Group ownership handover before moving the designated owner character.', runescapeName: 'GroupOwner' },
+  ], review: { unlocked: ['12341'], blacklisted: [], rules: {}, taskRules: {}, startingChunk: '12341' } };
+  await renderAcceptance({ root, error, el: (...args) => Object.assign(el(...args), { style: {} }), location: { assign() {} },
+    fetch: async () => ({ ok: true, json: async () => value }) });
+  const nodes = walk(root), select = nodes.find(n => n.tag === 'select');
+  const dupLabel = nodes.find(n => n.tag === 'label' && text(n).includes('already used in my login'));
+  assert.equal(dupLabel.hidden, false);
+  select.value = 'solo-prog'; select.listeners.change();
+  assert.equal(dupLabel.hidden, true);
+  assert.match(text(root), /solo map will be frozen in Past maps/);
+  select.value = 'group-mem'; select.listeners.change();
+  assert.equal(dupLabel.hidden, true);
+  assert.match(text(root), /current group map will be saved in Past maps.*leave your current group/);
+  assert.equal(nodes.filter(n => n.tag === 'option').find(n => n.value === 'owner-blocked').disabled, true);
+  assert.match(text(root), /Group ownership handover/);
+});
+
 test('owner controls return a link once for copying and send scoped revoke/replace requests', async () => {
   const sent = [], copied = [];
   const root = ownerInviteControls({ el, scopeHeaders: { 'X-Character-Id': 'owner' }, clipboard: { writeText: async value => copied.push(value) },

@@ -1,5 +1,5 @@
 import { createTransferReviews } from './save-transfer.mjs';
-import { DELETION_PAUSED } from './storage/registry-characters.mjs';
+import { DELETION_PAUSED, characterName, normalizedCharacterName } from './storage/registry-characters.mjs';
 import { reserveImportUser } from './import-jobs.mjs';
 import { boundedOutput, displayText } from './import-output.mjs';
 import { originalTransfer } from './original-transfer.mjs';
@@ -1889,6 +1889,17 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
                 originalSyncPreviews.delete(previewId);
                 await commandJSON(request, response, saved); return;
               }
+              if (body.acknowledgeDuplicate !== undefined && typeof body.acknowledgeDuplicate !== 'boolean') throw httpError(400, 'Invalid duplicate-name acknowledgement.');
+              if (command?.type === 'set-runescape-name' && pickerRouting?.hasDuplicateCharacterName && identity.accountId
+                && identity.memberId === command.memberId && body.acknowledgeDuplicate !== true
+                && (body.expectedRevision === undefined || body.expectedRevision === store.getInfo().revision)) {
+                const candidate = characterName(command.name);
+                const currentMember = store.getState().members.find(member => member.id === command.memberId);
+                if (candidate && normalizedCharacterName(currentMember?.runescapeName) !== normalizedCharacterName(candidate)
+                  && pickerRouting.hasDuplicateCharacterName(identity.accountId, identity.characterId, candidate)) {
+                  throw Object.assign(httpError(409, 'This login already has another character with that RuneScape name. Confirm that you want both characters to use it.'), { code: 'DUPLICATE_CHARACTER_NAME' });
+                }
+              }
               await commandJSON(request, response, await store.commandSerialized(command, body.expectedRevision, { omitUnchanged: true, actor: identity.actor, admin: identity.admin, view: viewFor(request), requestId: body.requestId, requestAck: body.requestAck })); return;
             }
             if (isImportRoute(route)) {
@@ -1971,7 +1982,7 @@ export async function createPickerContext({ pickerId, dataDir, runtime,
         return;
       }
       await json(request, response, status, { message: status === 500 ? 'The save could not be completed. Your previous save remains available.' : error.code === 'ENOENT' ? 'Not found.' : redactInviteTokens(error.message),
-        ...(['TASK_RESULTS_UNAVAILABLE', 'TASK_DETAILS_UNAVAILABLE', 'TASK_WHY_UNAVAILABLE', 'SAVED_WHY_BUSY', 'STORAGE_BUDGET_EXCEEDED'].includes(error.code) || error.code === 'PICKER_UPDATING' || /^(?:REQUEST_|ACTION_SESSION_)/.test(error.code ?? '') ? { code: error.code } : {}),
+        ...(['TASK_RESULTS_UNAVAILABLE', 'TASK_DETAILS_UNAVAILABLE', 'TASK_WHY_UNAVAILABLE', 'SAVED_WHY_BUSY', 'STORAGE_BUDGET_EXCEEDED', 'DUPLICATE_CHARACTER_NAME'].includes(error.code) || error.code === 'PICKER_UPDATING' || /^(?:REQUEST_|ACTION_SESSION_)/.test(error.code ?? '') ? { code: error.code } : {}),
         ...(error.code === 'ACTION_SESSION_RETIRED' && error.safeToRetry === true ? { safeToRetry: true } : {}),
         ...(error.code === 'REVISION_CONFLICT' ? await viewEnvelope(error.importConflict ? store.getState() : error.state, viewFor(request)) : {}),
         ...(error.code === 'REVISION_CONFLICT' && error.claimOnlyChanges === true ? { claimOnlyChanges: true } : {}),

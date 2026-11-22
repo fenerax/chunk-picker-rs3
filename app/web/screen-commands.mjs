@@ -166,6 +166,8 @@ export function createScreenCommands(c, { commandClient: providedClient } = {}) 
       const displayOnly = displayCommands.includes(payload.type) || displayCommands.includes(undoTarget?.type);
       const displayResult = displayOnly && c.result?.memberId === c.memberId && c.result.stateRevision === priorRevision ? c.result : null;
       const requestCommand = JSON.parse(JSON.stringify(payload));
+      const acknowledgeDuplicate = requestCommand.type === 'set-runescape-name' && requestCommand.acknowledgeDuplicate === true;
+      if (acknowledgeDuplicate) delete requestCommand.acknowledgeDuplicate;
       const targetClaimCommand = ['claim-task', 'clear-task-claim'].includes(requestCommand.type);
       const alias = targetClaimCommand ? c.state.identityRegistry?.aliases?.[requestCommand.taskId] : undefined;
       const claimId = typeof alias === 'string' ? alias : Array.isArray(alias) && alias.length === 1 ? alias[0] : requestCommand.taskId;
@@ -193,7 +195,7 @@ export function createScreenCommands(c, { commandClient: providedClient } = {}) 
         const expectedRevision = reviewedNoteRevision(c.state, requestCommand, claimRetryRevision ?? reviewedRevision, reviewedNote);
         const gameplayAttempt = !displayOnly && typeof c.beginGameplayAttempt === 'function' ? c.beginGameplayAttempt(expectedRevision) : undefined;
         try {
-          response = await c.api('/api/command', { expectedRevision, command: requestCommand });
+          response = await c.api('/api/command', { expectedRevision, command: requestCommand, ...(acknowledgeDuplicate ? { acknowledgeDuplicate: true } : {}) });
           if (displayOnly && c.state.revision === expectedRevision && response.state.revision === expectedRevision + 1) {
             c.rememberUnchangedTaskRevisions(expectedRevision, response.state.revision);
           }

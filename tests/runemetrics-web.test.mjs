@@ -82,6 +82,31 @@ test('rename is visible only for the controlling login and explains plugin pairi
   }
 });
 
+test('rename duplicate warning reveals acknowledgement checkbox, sends acknowledgeDuplicate on retry, and resets on input', async () => {
+  const h = harness();
+  const checkbox = h.walk(h.ui.nodes).find(node => node.tag === 'input' && node.type === 'checkbox');
+  const dupLabel = h.walk(h.ui.nodes).find(node => node.tag === 'label' && node.children?.includes(checkbox));
+  assert.equal(dupLabel.hidden, true);
+  h.context.command = async (command, revision) => {
+    h.attempts.commands.push({ command, revision });
+    if (!command.acknowledgeDuplicate) throw Object.assign(new Error('This login already has another character with that RuneScape name.'), { status: 409, code: 'DUPLICATE_CHARACTER_NAME' });
+  };
+  h.find('input').value = 'DupName'; h.find('input').events.input();
+  await h.click('Save RuneScape name');
+  assert.equal(dupLabel.hidden, false);
+  assert.match(h.text(), /already has another character/);
+  // Editing the name clears the duplicate confirmation until needed again.
+  h.find('input').value = 'DupName2'; h.find('input').events.input();
+  assert.equal(dupLabel.hidden, true); assert.equal(checkbox.checked, false);
+  await h.click('Save RuneScape name');
+  assert.equal(dupLabel.hidden, false);
+  checkbox.checked = true;
+  await h.click('Save RuneScape name');
+  assert.equal(h.attempts.commands.at(-1).command.acknowledgeDuplicate, true);
+  assert.equal(dupLabel.hidden, true); assert.equal(checkbox.checked, false);
+  assert.equal(h.ui.refreshed, 1);
+});
+
 test('preview shows increases, decreases, unknown prior XP, personal quests and unmatched evidence without applying', async () => {
   const h = harness(); await h.click('Sync progress');
   assert.equal(h.attempts.fetch[0][0], '/api/runemetrics/preview');

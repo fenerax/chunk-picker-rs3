@@ -25,11 +25,14 @@ export function createRuneMetricsControls(context, { memberId, isCurrent, onAppl
   root.setAttribute('aria-label', `progress for ${owner.name}`);
   status.setAttribute('role', 'status'); status.setAttribute('aria-live', 'polite');
   const account = el('input'); account.type = 'text'; account.value = owner.runescapeName ?? ''; account.maxLength = 12; account.autocomplete = 'off';
+  const duplicate = el('label', undefined, 'field-check'), acknowledge = el('input');
+  acknowledge.type = 'checkbox'; duplicate.hidden = true;
+  duplicate.append(acknowledge, el('span', 'Keep this RuneScape name on both characters in my login.'));
   let serial = 0, busy = false, preview, controller;
   const current = () => isCurrent() && context.memberId() === memberId && context.state().members.some(member => member.id === memberId);
   const active = request => current() && request === serial;
   const setStatus = (message, failed = false) => { status.textContent = message; status.className = failed ? 'warning' : 'info-meta'; };
-  const setBusy = value => { busy = value; saveName.disabled = fetchPreview.disabled = account.disabled = value; };
+  const setBusy = value => { busy = value; saveName.disabled = fetchPreview.disabled = account.disabled = acknowledge.disabled = value; };
   const discard = () => { serial++; controller?.abort(); controller = undefined; preview = undefined; review.replaceChildren(); setBusy(false); setStatus('Preview cancelled.'); };
   const savedAccount = () => context.state().members.find(member => member.id === memberId)?.runescapeName ?? '';
   const saveName = button('Save RuneScape name', async () => {
@@ -38,11 +41,17 @@ export function createRuneMetricsControls(context, { memberId, isCurrent, onAppl
     if (!name) { setStatus('Enter this player’s RuneScape account name.', true); return; }
     const request = ++serial; preview = undefined; review.replaceChildren(); setBusy(true);
     try {
-      await context.command({ type: 'set-runescape-name', memberId, name }, revision);
+      await context.command({ type: 'set-runescape-name', memberId, name, ...(acknowledge.checked ? { acknowledgeDuplicate: true } : {}) }, revision);
       if (!active(request)) return;
+      acknowledge.checked = false; duplicate.hidden = true;
       setStatus('RuneScape account name saved.');
       await onNameSaved?.();
-    } catch (error) { if (active(request)) setStatus(error.message || String(error), true); }
+    } catch (error) {
+      if (active(request)) {
+        if (error?.code === 'DUPLICATE_CHARACTER_NAME') duplicate.hidden = false;
+        setStatus(error.message || String(error), true);
+      }
+    }
     finally { if (active(request)) setBusy(false); }
   });
 
@@ -113,7 +122,7 @@ export function createRuneMetricsControls(context, { memberId, isCurrent, onAppl
       if (active(request)) { review.replaceChildren(); setStatus(error.message || String(error), true); }
     } finally { if (active(request)) { controller = undefined; setBusy(false); } }
   });
-  account.addEventListener('input', () => { serial++; preview = undefined; review.replaceChildren(); setStatus('Save the edited account name before fetching a preview.'); });
+  account.addEventListener('input', () => { serial++; preview = undefined; review.replaceChildren(); acknowledge.checked = false; duplicate.hidden = true; setStatus('Save the edited account name before fetching a preview.'); });
   const help = el('p', 'Sync your levels and completed quests from the game plugin or the web, review the changes, then apply them as personal progress.', 'field-help');
   help.id = `runemetrics-help-${memberId}`; account.setAttribute('aria-describedby', help.id);
   const accountField = field('RuneScape account name', account); accountField.className = 'form-field';
@@ -124,7 +133,7 @@ export function createRuneMetricsControls(context, { memberId, isCurrent, onAppl
   // The dialog title or the Activity Info section already names it.
   root.append(
     el('p', `${owner.name} · Last applied web snapshot: ${time(owner.runeMetricsSync?.fetchedAt)}${owner.runeMetricsSync?.runescapeName ? ` · ${owner.runeMetricsSync.runescapeName}` : ''}`, 'info-meta'),
-    help, ...(canRename() ? [accountField,
+    help, ...(canRename() ? [accountField, duplicate,
       el('p', 'Changing your RuneScape name requires pairing the game plugin again. Case and equivalent space/underscore formatting keep existing keys. Fetch a new progress preview after any name edit.', 'field-help')]
       : [el('p', `RuneScape account name: ${owner.runescapeName || 'Not set'}. Only the login controlling this character can change it.`, 'info-meta')]),
     actions, status, review);

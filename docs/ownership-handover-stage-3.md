@@ -1,9 +1,10 @@
 # Group lifecycle: stage 3
 
-Part of #301 (stage 3). Handover, leave, owner removal, fresh-invite rejoin and
-frozen Past maps are followed by character, final-group and login deletion,
-following [Groups and accounts](groups-and-accounts.md). General moves of
-established characters remain deferred. The owner approved registry **4 → 5**
+Part of #301 (stage 3). Handover, leave, owner removal, fresh-invite rejoin,
+general established-character moves (established solos and non-owner multi-player
+group members), frozen Past maps, duplicate-name rename acknowledgement, and
+character, final-group and login deletion follow
+[Groups and accounts](groups-and-accounts.md). The owner approved registry **4 → 5**
 and external ledger **2 → 3**, including migration and restore reconciliation.
 Gameplay save schema 1 and authentication sidecar formats keep their versions.
 Deployment, retention-policy publication and outside-user acceptance remain

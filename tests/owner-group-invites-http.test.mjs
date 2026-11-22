@@ -52,19 +52,50 @@ test('GET previews only, secret exchange survives first login, explicit untouche
   const raw = await readFile(path.join(f.multiPicker.registryDir, 'registry.json'), 'utf8'); assert.equal(raw.includes(link.pathname.slice(6)), false);
 });
 
-test('established map refusal offers new character; owner scope, CSRF, revoke and secret-free lists', async t => {
-  const f = await groupHttpFixture(t), owner = await f.login('101'), player = await f.login('102');
+test('established solo and multi-player moves preserve Past maps, revoke exact keys and follow stable character links; owner handover, CSRF, revoke and secret-free lists hold', async t => {
+  const f = await groupHttpFixture(t), owner = await f.login('101'), player = await f.login('102'), destOwner = await f.login('103');
   const created = await f.send('/api/group-invites', owner.cookie, {}); assert.equal(created.status, 200, created.text); const invite = created.json();
   assert.equal((await f.send('/api/group-invites', player.cookie, {}, { 'X-Picker-Id': invite.pickerId })).status, 403);
   assert.equal((await f.send('/api/group-invites', owner.cookie, {}, { Origin: 'https://outside.example' })).status, 403);
-  const changed = await f.send('/api/command', player.cookie, { expectedRevision: 0, command: { type: 'set-journal', memberId: 'owner', note: 'Map progress' } }); assert.equal(changed.status, 200, changed.text);
+  // Progress on player's solo makes it an established solo move that preserves its map in Past maps.
+  const changed = await f.send('/api/command', player.cookie, { expectedRevision: 0, command: { type: 'set-journal', memberId: 'owner', note: 'Solo progress' } }); assert.equal(changed.status, 200, changed.text);
   const opened = await f.send(new URL(invite.link).pathname, player.cookie), cookie = f.cookies(opened, player.cookie);
   const reviewed = await f.send('/auth/group-invite/review', cookie); assert.equal(reviewed.status, 200, reviewed.text); const review = reviewed.json();
-  assert.equal(review.characters[0].eligible, false); assert.match(review.characters[0].reason, /map in progress.*new character/);
-  const denied = await f.send('/auth/group-invite/accept', cookie, { confirmed: true, reviewToken: review.reviewToken, characterId: review.characters[0].id }); assert.equal(denied.status, 409, denied.text);
-  const accepted = await f.send('/auth/group-invite/accept', cookie, { confirmed: true, reviewToken: review.reviewToken, runescapeName: 'Sample' }); assert.equal(accepted.status, 200, accepted.text);
-  const d = await f.document(), character = d.characters.find(c => c.id === accepted.json().character.id); assert.equal(character.placement.pickerId, invite.pickerId);
-  const prior = await f.send(`/api/state?character=${review.characters[0].id}`, cookie); assert.equal(prior.status, 200, prior.text); assert.equal(prior.json().state.members.length, 1);
+  assert.equal(review.characters[0].eligible, true); assert.equal(review.characters[0].sourceMode, 'solo');
+  const playerCharId = review.characters[0].id;
+  // Moving the established solo succeeds, freezes Past map, and places player in owner's group.
+  const movedSolo = await f.send('/auth/group-invite/accept', cookie, { confirmed: true, reviewToken: review.reviewToken, characterId: playerCharId });
+  assert.equal(movedSolo.status, 200, movedSolo.text);
+  const pastAfterSolo = (await f.send('/api/past-maps', cookie)).json().maps;
+  assert.equal(pastAfterSolo.length, 1);
+  assert.equal((await f.send(`/api/past-maps/${pastAfterSolo[0].id}`, cookie)).json().document.state.members[0].journal, 'Solo progress');
+  // Issue plugin keys for both owner and player in owner's group, then move player directly to destOwner's group.
+  const d1 = await f.document(), ownerCharId = d1.pickers.find(p => p.id === invite.pickerId).ownerCharacterId;
+  const oldMemberId = d1.characters.find(c => c.id === playerCharId).placement.memberId;
+  const ownerKey = (await f.send('/api/game-plugin/keys', owner.cookie, { memberId: 'owner', label: 'Owner key' }, { 'X-Picker-Id': invite.pickerId, 'X-Character-Id': ownerCharId })).json().key;
+  const playerKey = (await f.send('/api/game-plugin/keys', cookie, { memberId: oldMemberId, label: 'Player key' }, { 'X-Picker-Id': invite.pickerId, 'X-Character-Id': playerCharId })).json().key;
+  const destCreated = await f.send('/api/group-invites', destOwner.cookie, {}); assert.equal(destCreated.status, 200, destCreated.text); const destInvite = destCreated.json();
+  // Owner of a multi-player group is ineligible until handover, while New character stays available.
+  const ownerOpened = await f.send(new URL(destInvite.link).pathname, owner.cookie), ownerCookie = f.cookies(ownerOpened, owner.cookie);
+  const ownerReview = (await f.send('/auth/group-invite/review', ownerCookie)).json();
+  assert.equal(ownerReview.characters[0].eligible, false); assert.match(ownerReview.characters[0].reason, /handover/i);
+  assert.equal((await f.send('/auth/group-invite/accept', ownerCookie, { confirmed: true, reviewToken: ownerReview.reviewToken, characterId: ownerCharId })).status, 409);
+  // Non-owner player moves directly from owner's group into destOwner's group.
+  const pOpened = await f.send(new URL(destInvite.link).pathname, cookie), pCookie = f.cookies(pOpened, cookie);
+  const pReview = (await f.send('/auth/group-invite/review', pCookie)).json();
+  assert.equal(pReview.characters[0].eligible, true); assert.equal(pReview.characters[0].sourceMode, 'group');
+  const movedGroup = await f.send('/auth/group-invite/accept', pCookie, { confirmed: true, reviewToken: pReview.reviewToken, characterId: playerCharId });
+  assert.equal(movedGroup.status, 200, movedGroup.text);
+  assert.equal((await f.send('/api/plugin/v1/status', '', undefined, { Authorization: 'Bearer ' + playerKey })).status, 401);
+  assert.equal((await f.send('/api/plugin/v1/status', '', undefined, { Authorization: 'Bearer ' + ownerKey })).status, 200);
+  // Stable character link follows move; old group path refuses former member.
+  const followed = await f.send(`/characters/${playerCharId}`, pCookie); assert.equal(followed.status, 303, followed.text);
+  assert.equal(followed.headers.location, `/pickers/${destInvite.pickerId}/?character=${playerCharId}`);
+  const oldGroupLink = await f.send(`/pickers/${invite.pickerId}/?character=${playerCharId}`, pCookie); assert.equal(oldGroupLink.status, 403);
+  const destState = await f.send(`/api/state?character=${playerCharId}`, pCookie); assert.equal(destState.status, 200, destState.text);
+  assert.equal(destState.json().state.members.length, 2);
+  assert.equal((await f.send('/api/past-maps', pCookie)).json().maps.length, 2);
+  // Owner invite replace, revoke, and secret-free listing.
   const next = await f.send('/api/group-invites', owner.cookie, {}); assert.equal(next.status, 200, next.text);
   const replaced = await f.send('/api/group-invites', owner.cookie, { replaceId: next.json().id }); assert.equal(replaced.status, 200, replaced.text);
   const revoked = await f.send('/api/group-invites', owner.cookie, { revokeId: replaced.json().id }); assert.equal(revoked.status, 200, revoked.text);
