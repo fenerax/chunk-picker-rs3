@@ -1599,11 +1599,41 @@ function createCompiledTaskEngine(definitions, { dataset, cacheWalking = false, 
       remember();
       return changed;
     }
+    function xpContributors(skill) {
+      if (!caps[skill]) return [];
+      const totals = new Map();
+      const add = (task, amount) => {
+        if (!task || !Number.isFinite(amount) || amount <= 0) return;
+        totals.set(task, (totals.get(task) ?? 0) + amount);
+      };
+      for (const task of pointTasks) if (valid.has(task.key)) {
+        const amount = task.record.XpReward?.[skill];
+        if (typeof amount === 'number') add(task, amount);
+      }
+      for (const { category, rawLabel, allocation } of xpAllocations) {
+        const key = keyOf(category, rawLabel);
+        const task = byKey.get(key);
+        if (valid.has(key) && !authoredXpTasks.has(task?.id) && Object.hasOwn(allocation, skill)) add(task, Number(allocation[skill]));
+      }
+      for (const task of pointTasks) if (valid.has(task.key) && authoredXpTasks.has(task.id)) {
+        const allocation = xpChoiceAllocation(task, member.xpChoices[task.id]);
+        if (Object.hasOwn(allocation, skill)) add(task, Number(allocation[skill]));
+      }
+      return [...totals.entries()].map(([task, amount]) => ({ task, amount }));
+    }
     function proofEnvironment() {
       return { available: requirementNameAvailable, sources: sourceList, matches: matchesItemSources, get access() { return access; }, valid, levels, passive,
         observed: observedProgress, controls: playerControls, caps, anyAchievements, rules, ownLocation,
         ownBase: id => ownAccess.bases.has(id), ownClue: tier => (ownAccess.clues.get(tier) ?? 0) > 0,
-        monsterGate: name => bossGateData.some(gate => gate.monsters?.includes(name)) ? 'boss-gates' : Object.hasOwn(definitions.slayerMonsters ?? {}, name) ? 'slayer-level' : null, slayerGate: task => slayerGates.has(task),
+        monsterGate: name => bossGateData.some(gate => gate.monsters?.includes(name)) ? 'boss-gates' : null,
+        slayerMonsterLevel: name => Object.hasOwn(definitions.slayerMonsters ?? {}, name) ? Number(definitions.slayerMonsters[name]) : null,
+        slayerGateInfo: task => {
+          const gate = slayerGates.get(task);
+          if (!gate) return null;
+          return { gate, status: slayerGateStatus(task, gate),
+            entranceTaskKey: gate.entrance ? slayerEntranceTasks.get(gate.entrance.questTask) : undefined };
+        },
+        xpContributors,
         // Usefulness waits are not compiled requirements; the proof reports them as a gap.
         usefulGate: task => ['balloon', 'attunement', 'nexus', 'cannon'].includes(usefulGates.get(task)) };
     }
