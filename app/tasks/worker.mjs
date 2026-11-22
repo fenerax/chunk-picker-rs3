@@ -75,9 +75,9 @@ function mapLocationsFor(result) {
   }
   return locations;
 }
-function mapPlayResult(result, { refreshCache = true } = {}) {
+function mapPlayResult(result) {
   const locations = mapLocationsFor(result);
-  if (refreshCache) { completeCache.refreshResult(result); sandboxCache.refreshResult(result); }
+  completeCache.refreshResult(result); sandboxCache.refreshResult(result);
   return { ...projectPlayResult(result), taskLocations: locations };
 }
 const compileStarted = performance.now();
@@ -298,7 +298,7 @@ const pickerSnapshotKey = (pickerId, input) => JSON.stringify([pickerId, input])
 // one key the revision, and rules still separate states at an unchanged revision.
 const calculationKey = (state, memberId, input) => [typeof input === 'string' ? null : state.revision, memberId, input ?? null, state.rules, state.taskRules,
   state.members.map(owner => [owner.id, owner.taskRules, state.legacy?.maps?.[owner.sourceMapId]?.rules])];
-function snapshotFor(state, memberId, timingMs, input, includeViews = true, pickerId = 'legacy-shared', includeLocations = false, admit = true) {
+function snapshotFor(state, memberId, timingMs, input, includeViews = true, pickerId = 'legacy-shared', includeLocations = false) {
   const key = JSON.stringify(calculationKey(state, memberId, input));
   let snapshot = snapshots.get(key), hit = !!snapshot;
   if (!snapshot) {
@@ -316,8 +316,8 @@ function snapshotFor(state, memberId, timingMs, input, includeViews = true, pick
   // An HTTP evaluation always needs these locations. Build them before the
   // first admission so a cold graph is not walked and encoded twice.
   if (includeLocations) mapLocationsFor(snapshot.baseline);
-  if (admit) { completeCache.set(key, snapshot, state, pickerId); return { snapshot, hit }; }
-  return { snapshot, hit, admit: () => completeCache.set(key, snapshot, state, pickerId) };
+  completeCache.set(key, snapshot, state, pickerId);
+  return { snapshot, hit };
 }
 const taskReuseFingerprint = createTaskReuseFingerprint({ ownedCatalogueSemantics: workerData.ownedCatalogueSemantics === true });
 // Rebuild native roll topology here; explicit worlds retain their supplied indexes.
@@ -593,7 +593,6 @@ const handleMessage = async ({ id, pickerId = 'legacy-shared', type = 'evaluate'
     if (eligibilitySeeded && type === 'predict' && (predictionProgress || seedEligibility)) parentPort.postMessage({ id, type: 'progress', eligibilitySeeded });
   };
   requests.set(id, request);
-  let replied = false;
   try {
     if (stateTransport === OWNED_CALCULATOR_TRANSPORT) {
       if (state !== undefined || stateJSON !== undefined || pickerId === 'legacy-shared') throw new TypeError('Worker owned state transport is invalid.');
@@ -640,7 +639,7 @@ const handleMessage = async ({ id, pickerId = 'legacy-shared', type = 'evaluate'
       parentPort.postMessage({ id, ...restored, evaluationMs: timingMs.totalMs, timingMs });
       return;
     }
-    let result, unlockReuse, partnerUnlockReuse, deferAdmit;
+    let result, unlockReuse, partnerUnlockReuse;
     if (type === 'prepare-rules') {
       timed(timingMs, 'preparationMs', () => engine.prepare(state.rules));
       result = { prepared: true };
@@ -725,10 +724,8 @@ const handleMessage = async ({ id, pickerId = 'legacy-shared', type = 'evaluate'
         parentPort.postMessage({ id, result: { cancelled: true }, evaluationMs: timingMs.totalMs, timingMs }); return;
       }
       const compact = type === 'evaluate' && resultTransport === 'json-shared-v1' && resultView === 'play-v1';
-      const deferEvaluateAdmission = type === 'evaluate';
-      const { snapshot, admit } = snapshotFor(state, memberId, timingMs, input, type !== 'predict' && type !== 'chunk-planning' && !compact, pickerId,
-        type === 'evaluate' && resultTransport === 'json-shared-v1', !deferEvaluateAdmission);
-      deferAdmit = admit;
+      const { snapshot } = snapshotFor(state, memberId, timingMs, input, type !== 'predict' && type !== 'chunk-planning' && !compact, pickerId,
+        type === 'evaluate' && resultTransport === 'json-shared-v1');
       eligibilitySeeded &&= snapshot.baseline.metrics.eligibilityCacheHit === true;
       if (type === 'predict') {
         // Let panel closure cancel a completed baseline before starting the
@@ -784,7 +781,7 @@ const handleMessage = async ({ id, pickerId = 'legacy-shared', type = 'evaluate'
     }
     // The HTTP thread can cache and send these immutable bytes without cloning
     // or serializing the full task graph. Direct worker clients keep objects.
-    const playResult = type === 'evaluate' && resultTransport === 'json-shared-v1' ? mapPlayResult(result, { refreshCache: !deferAdmit }) : undefined;
+    const playResult = type === 'evaluate' && resultTransport === 'json-shared-v1' ? mapPlayResult(result) : undefined;
     // Both group lanes need the owner's ordinary Completed and Backlog rows,
     // including completion families absent from the active presentation.
     const duoSidebarJSON = playResult && resultView === 'play-v1' && (duoProjection || duoSidebarProjection)
@@ -801,18 +798,11 @@ const handleMessage = async ({ id, pickerId = 'legacy-shared', type = 'evaluate'
     if (!abandoned() && state.revision >= pickerRevision(pickerId)) warmResults?.put(warmKey, reply);
     notifyPredictionMetadata();
     parentPort.postMessage({ id, ...reply, evaluationMs: timingMs.totalMs, timingMs });
-    replied = true;
-    // Admit the hot snapshot after sending the reply so heap metering and cold
-    // demotion of the previous snapshot do not delay the caller while still
-    // completing strictly before this worker processes any subsequent message.
-    deferAdmit?.();
   } catch (error) {
-    if (!replied) {
-      timingMs.totalMs = performance.now() - started;
-      notifyPredictionMetadata();
-      parentPort.postMessage({ id, error: { name: error.name, message: error.message,
-        ...(error.code === 'OWNED_CALCULATOR_BASE_REFUSED' ? { code: error.code } : {}) }, evaluationMs: timingMs.totalMs, timingMs });
-    }
+    timingMs.totalMs = performance.now() - started;
+    notifyPredictionMetadata();
+    parentPort.postMessage({ id, error: { name: error.name, message: error.message,
+      ...(error.code === 'OWNED_CALCULATOR_BASE_REFUSED' ? { code: error.code } : {}) }, evaluationMs: timingMs.totalMs, timingMs });
   } finally { completeCache.releaseTransient(); sandboxCache.releaseTransient(); requests.delete(id); }
 };
 if (PROFILE_ENABLED) profile.installWorker(parentPort, handleMessage);

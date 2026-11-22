@@ -217,11 +217,10 @@ the merge gate; these local Windows checks do not establish hosted CI success.
 
 Re-measured after engine hot-path and warm-closure optimizations (`#350`, `#351`,
 `#352`) and the Option 1 worker/snapshot overhead cut (compact deferred-view state
-so full-data snapshots stay within the 128 MiB hot-graph budget, post-reply
-snapshot admission for `evaluate`, exact-revision `stateJSON` aliasing for
-`roll-pool`, `retainedDataBytes` primitive fast path, parallel `prepareRollPools`,
-and `play-v1` task/registry projection reuse when saved task references are
-unchanged).
+so full-data snapshots stay within the 128 MiB hot-graph budget, exact-revision
+`stateJSON` aliasing for `roll-pool`, `retainedDataBytes` primitive fast path,
+parallel `prepareRollPools`, and `play-v1` task/registry projection reuse when
+saved task references are unchanged).
 
 Measured over 20 continuous unprepared one-chunk rolls on the same synthetic
 40-chunk BFS fixture (`12850` / `12854`, `seededRandom(1729)`, full `duo-legacy`
