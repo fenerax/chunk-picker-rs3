@@ -117,10 +117,13 @@ export function createDuoTaskView({ document, getState, getSelectedMember, comma
     if (!backlogged) defer.title = 'Backlog task. Shift-click to backlog immediately without a reason.';
     appendWhy(node, entry.tasksByMember?.[ownerId] ?? task, ownerId);
     if (openSlayerLock && isSlayerLockShortcutTask(task)) {
-      const lock = getState().members.find(owner => owner.id === getSelectedMember())?.slayerLock;
-      const lockBtn = button(lock ? 'Slayer locked' : 'Slayer lock', () => openSlayerLock(), 'duo-task-slayer-lock');
-      if (lock) lockBtn.classList?.add('is-locked');
-      lockBtn.title = lock ? `Slayer lock active (level ${lock.level}) — open Slayer lock settings` : 'Open Slayer lock settings in Activity Info';
+      const owners = (entry.displayMemberIds ?? entry.memberIds).map(id => getState().members.find(owner => owner.id === id)).filter(Boolean);
+      const lockedOwners = owners.filter(owner => owner.slayerLock);
+      const lockBtn = button(lockedOwners.length ? 'Slayer locked' : 'Slayer lock', () => choose(node, entry, owner => openSlayerLock(owner), 'Open Slayer lock'), 'duo-task-slayer-lock');
+      if (lockedOwners.length) lockBtn.classList?.add('is-locked');
+      lockBtn.title = lockedOwners.length
+        ? `Slayer lock active (${lockedOwners.map(owner => `${owner.name}: level ${owner.slayerLock.level}`).join(', ')}) — open Slayer lock settings`
+        : owners.length === 1 ? `Open Slayer lock settings for ${owners[0].name}` : 'Open Slayer lock settings in Activity Info';
       lockBtn.hidden = lockBtn.disabled = !canEdit(); lockBtn.dataset.taskControl = 'slayer-lock'; node.append(lockBtn);
     }
     defer.hidden = defer.disabled = !canEdit(); defer.dataset.taskControl = 'backlog'; node.append(defer);

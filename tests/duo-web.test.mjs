@@ -378,26 +378,39 @@ test('owner chips refresh their command targets when membership changes', async 
   assert.equal(h.commands.length, 0);
 });
 
-test('duo rows show a Slayer lock shortcut beside backlog only on Slayer-relevant tasks', async () => {
+test('duo rows show a Slayer lock shortcut beside backlog only on Slayer-relevant tasks and target the row owner', async () => {
   const state = { revision: 7, members: [{ id: 'actor1', name: 'Player', taskStatus: {}, completedTasks: [] }, { id: 'reed', name: 'Reed', taskStatus: {}, completedTasks: [] }] };
-  let opened = 0;
+  const openedFor = [];
   const view = createDuoTaskView({ document: { createElement: tag => new Node(tag) }, getState: () => state, getSelectedMember: () => 'actor1',
     command: async () => {}, backlog: () => {}, showTask: () => {}, attachHover: () => {},
-    openSlayerLock: () => { opened++; }, appendIcon() {}, showError: error => { throw error; }, canEdit: () => true });
+    openSlayerLock: owner => { openedFor.push(owner); }, appendIcon() {}, showError: error => { throw error; }, canEdit: () => true });
 
   const miningRow = view.row(entry(['actor1']));
   assert.equal(find(miningRow, 'button', 'Slayer lock'), undefined);
 
-  const slayerEntry = entry(['actor1']);
-  slayerEntry.task = slayerEntry.tasksByMember.actor1 = { id: 'rs3:task:slayer', label: 'Wear a nose peg', category: 'Slayer', status: 'available', level: 60 };
-  const slayerRow = view.row(slayerEntry);
-  await click(slayerRow, 'Slayer lock');
-  assert.equal(opened, 1);
+  // Partner-only row reads partner's lock state and opens Slayer lock for the partner, not the selected member.
+  state.members[1].slayerLock = { level: 30, monster: 'Abyssal demons' };
+  const partnerSlayerEntry = entry(['reed']);
+  partnerSlayerEntry.task = partnerSlayerEntry.tasksByMember.reed = { id: 'rs3:task:rings', label: 'Learn how to craft rings of slaying', category: 'Extra', status: 'blocked', level: 1 };
+  const partnerRow = view.row(partnerSlayerEntry);
+  await click(partnerRow, 'Slayer locked');
+  assert.deepEqual(openedFor, ['reed']);
 
-  state.members[0].slayerLock = { level: 30, monster: 'Abyssal demons' };
-  const ringsEntry = entry(['actor1']);
-  ringsEntry.task = ringsEntry.tasksByMember.actor1 = { id: 'rs3:task:rings', label: 'Learn how to craft rings of slaying', category: 'Extra', status: 'blocked', level: 1 };
-  const ringsRow = view.row(ringsEntry);
-  await click(ringsRow, 'Slayer locked');
-  assert.equal(opened, 2);
+  // Own unlocked row stays "Slayer lock" even while partner is locked, and opens for actor1.
+  const ownSlayerEntry = entry(['actor1']);
+  ownSlayerEntry.task = ownSlayerEntry.tasksByMember.actor1 = { id: 'rs3:task:slayer', label: 'Wear a nose peg', category: 'Slayer', status: 'available', level: 60 };
+  const ownRow = view.row(ownSlayerEntry);
+  await click(ownRow, 'Slayer lock');
+  assert.deepEqual(openedFor, ['reed', 'actor1']);
+
+  // Shared ("Both") row uses the inline owner chooser before opening Slayer lock.
+  const sharedEntry = entry(['actor1', 'reed']);
+  sharedEntry.task = sharedEntry.tasksByMember.actor1 = sharedEntry.tasksByMember.reed = { id: 'rs3:task:shared-slayer', label: 'Wear a nose peg', category: 'Slayer', status: 'available', level: 60 };
+  const sharedRow = view.row(sharedEntry);
+  await click(sharedRow, 'Slayer locked');
+  const chooser = find(sharedRow, 'select');
+  assert.ok(chooser);
+  chooser.value = 'reed';
+  await click(sharedRow, 'Open Slayer lock');
+  assert.deepEqual(openedFor, ['reed', 'actor1', 'reed']);
 });

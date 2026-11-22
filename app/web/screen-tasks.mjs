@@ -395,7 +395,13 @@ export function createScreenTasks(c) {
         getStorage: () => gameStorage(), getViewerId: () => c.sessionMember ?? (c.canWrite() ? 'admin' : 'viewer'),
         getClaimMember: () => c.sessionMember ?? c.memberId, actingForMember: () => !c.sessionMember,
         command: c.command, backlog: c.backlogForm, showTask: c.showTask, attachHover: c.attachDuoHover, appendWhy, appendIcon: (body, task) => c.taskIconPainter.append(body, task),
-        openSlayerLock: c.infoPanels?.activityInfo ? () => c.infoPanels.activityInfo('Slayer') : undefined,
+        openSlayerLock: c.infoPanels?.activityInfo ? ownerId => {
+          if (ownerId && c.memberId !== ownerId && c.state?.members?.some(owner => owner.id === ownerId)) {
+            const picker = c.$('member');
+            if (picker) { picker.value = ownerId; picker.dispatchEvent(new Event('change')); }
+          }
+          return c.infoPanels.activityInfo('Slayer');
+        } : undefined,
         readOnly: () => !c.canWrite(), canComplete: () => c.canWrite() && !c.sandbox.active && c.duoEnabled(),
         canEdit: () => c.canWrite() && !c.sandbox.active && c.duoEnabled() && c.duoRowsReady, canInspect: () => !c.sandbox.active && (c.duoRowsReady || !c.canWrite() && c.result?.stateRevision === c.state.revision && c.result.memberId === c.memberId), showError: c.showError, onFilter: c.renderTasks,
         appendPin: (content, entry) => appendTaskPin(document, content, c.duoPins(entry)),
