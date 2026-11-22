@@ -1020,9 +1020,11 @@ img.skill-badge{border-radius:0;object-fit:contain;image-rendering:auto}
 /* Backlog: front and centre on every task, with an optional reason. */
 .icon-backlog{--icon:url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%2016%2016%27%3E%3Cpath%20fill-rule%3D%27evenodd%27%20d%3D%27M1%202.5h14v3.5H1zM2%207h12v7.5H2zM6%209h4v1.5H6z%27%2F%3E%3C%2Fsvg%3E")}
 .icon-restore{--icon:url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%2016%2016%27%3E%3Cpath%20fill-rule%3D%27evenodd%27%20d%3D%27M6.5%201.5%201.5%205.75%206.5%2010V7.25h3.25a2.75%202.75%200%200%201%200%205.5H6v1.75h3.75a4.5%204.5%200%200%200%200-9H6.5z%27%2F%3E%3C%2Fsvg%3E")}
-.task-row>.task-backlog{order:1}
+.icon-slayer-lock{--icon:url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%2016%2016%27%3E%3Cpath%20fill-rule%3D%27evenodd%27%20d%3D%27M5%207V5a3%203%200%200%201%206%200v2h1.5A1.5%201.5%200%200%201%2014%208.5v5a1.5%201.5%200%200%201-1.5%201.5h-9A1.5%201.5%200%200%201%202%2013.5v-5A1.5%201.5%200%200%201%203.5%207zm1.75%200h2.5V5a1.25%201.25%200%200%200-2.5%200zM7.25%209.75v2.5h1.5v-2.5z%27%2F%3E%3C%2Fsvg%3E")}
+.task-row>.task-slayer-lock,.task-row>.task-backlog{order:1}
 .task-row>a.icon-button{order:2;margin-left:calc(-1 * var(--space-3))}
-@media(hover:hover){.task-row>.icon-button.task-backlog{opacity:.6}.task-row:hover>.icon-button.task-backlog,.task-row:focus-within>.icon-button.task-backlog{opacity:1}}
+.task-row>.icon-button.task-slayer-lock.is-locked,.duo-task-slayer-lock.is-locked{color:var(--gold);opacity:1}
+@media(hover:hover){.task-row>.icon-button.task-backlog,.task-row>.icon-button.task-slayer-lock{opacity:.6}.task-row:hover>.icon-button.task-backlog,.task-row:focus-within>.icon-button.task-backlog,.task-row:hover>.icon-button.task-slayer-lock,.task-row:focus-within>.icon-button.task-slayer-lock,.task-row>.icon-button.task-slayer-lock.is-locked{opacity:1}}
 @media(hover:none){.task-row>.icon-button,.content-row button{opacity:1}}
 .backlog-form{display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-3);margin-top:var(--space-3)}
 .task-row>.backlog-form{grid-column:2 / -1;order:3;margin-top:0}

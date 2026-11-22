@@ -50,6 +50,26 @@ export const slayerUnlockGates = Object.freeze({
 });
 
 export const slayerUnlockTaskName = label => String(label).replace(/~\|([^|]*)\|~/g, (_, name) => name.split('#')[0]);
+export const slayerRewardShopTasks = Object.freeze([
+  ...Object.keys(slayerUnlockGates),
+  'Learn how to craft rings of slaying',
+  'Learn how to fletch broad bolts and arrows',
+]);
+const slayerRewardShopSet = new Set(slayerRewardShopTasks);
+
+/** Match tasks affected by Slayer level or Slayer points locking for quick access to Slayer lock controls. */
+export function isSlayerLockShortcutTask(task) {
+  if (!task) return false;
+  if (task.category === 'Slayer') return true;
+  if (Number(task.skillRequirements?.Slayer ?? 0) >= 1) return true;
+  const label = slayerUnlockTaskName(task.rawLabel ?? task.label ?? '');
+  if (task.category === 'Extra' && slayerRewardShopSet.has(label)) return true;
+  if (task.category === 'Nonskill' && label === 'Obtain slayer points') return true;
+  if (task.category === 'Crafting' && /^Craft a (?:(?:full|mighty|corrupted) )?slayer helmet$/i.test(label)) return true;
+  if (task.category === 'Combat' && /^Receive a slayer assignment from /i.test(label)) return true;
+  return false;
+}
+
 /** Match only the named Extra shop tasks; leave pack records and identities intact. */
 export function slayerUnlockGate(category, label, record) {
   return category === 'Extra' && record.Shops?.includes('Slayer Rewards')

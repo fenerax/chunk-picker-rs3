@@ -4,6 +4,7 @@ import { duoCommandTarget } from './duo-tasks.mjs';
 import { appendTaskClaim } from './task-claims.mjs';
 import { isCustomTask, customTaskAssignedTo } from './custom-tasks-model.mjs';
 import { readDuoPersonalFilter, writeDuoPersonalFilter, normalizeDuoPersonalFilter } from './duo-task-preferences.mjs';
+import { isSlayerLockShortcutTask } from '../data/slayer-unlock-gates.mjs';
 
 // The command identity a row's controls act on; task-focus.mjs matches it across redraws.
 export function duoTaskFocusKey(entry) {
@@ -12,7 +13,7 @@ export function duoTaskFocusKey(entry) {
 }
 
 /** Duo rows keep their task owner separate from the selected map. */
-export function createDuoTaskView({ document, getState, getSelectedMember, command, backlog, showTask, attachHover,
+export function createDuoTaskView({ document, getState, getSelectedMember, command, backlog, showTask, attachHover, openSlayerLock,
   getClaimMember = getSelectedMember, appendWhy = () => {}, getViewerId = () => 'viewer', getStorage = () => gameStorage(), actingForMember = () => false, appendIcon = () => {}, appendPin = () => {}, appendEdit = () => {}, showError, readOnly = () => false, canEdit = () => true, canComplete = canEdit, canInspect = canEdit, onFilter = () => {} }) {
   const el = (tag, text, cls) => { const node = document.createElement(tag); if (text !== undefined) node.textContent = text; if (cls) node.className = cls; return node; };
   const button = (text, action, cls) => { const node = el('button', text, cls); node.type = 'button'; node.addEventListener('click', event => Promise.resolve().then(() => action(event)).catch(showError)); return node; };
@@ -115,6 +116,13 @@ export function createDuoTaskView({ document, getState, getSelectedMember, comma
       : backlog(node, { ...(entry.tasksByMember?.[owner] ?? task), id: commandTaskId }, undefined, owner, { quick: event?.shiftKey === true && event.detail > 0 }), backlogged ? 'Restore' : 'Backlog…'), 'duo-task-backlog');
     if (!backlogged) defer.title = 'Backlog task. Shift-click to backlog immediately without a reason.';
     appendWhy(node, entry.tasksByMember?.[ownerId] ?? task, ownerId);
+    if (openSlayerLock && isSlayerLockShortcutTask(task)) {
+      const lock = getState().members.find(owner => owner.id === getSelectedMember())?.slayerLock;
+      const lockBtn = button(lock ? 'Slayer locked' : 'Slayer lock', () => openSlayerLock(), 'duo-task-slayer-lock');
+      if (lock) lockBtn.classList?.add('is-locked');
+      lockBtn.title = lock ? `Slayer lock active (level ${lock.level}) — open Slayer lock settings` : 'Open Slayer lock settings in Activity Info';
+      lockBtn.hidden = lockBtn.disabled = !canEdit(); lockBtn.dataset.taskControl = 'slayer-lock'; node.append(lockBtn);
+    }
     defer.hidden = defer.disabled = !canEdit(); defer.dataset.taskControl = 'backlog'; node.append(defer);
     attachHover?.(node, label, entry.tasksByMember?.[ownerId] ?? task, ownerId);
     return node;

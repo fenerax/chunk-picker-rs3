@@ -211,3 +211,15 @@ test('task dialog explains both completion controls beside their distinct existi
     } else assert.equal(commands.length, 0);
   }
 });
+
+test('slayer-lock blocker guidance routes directly to Slayer lock settings in Activity Info', () => {
+  const { c } = harness(), tabs = [];
+  c.infoPanels = { activityInfo: tab => tabs.push(tab) };
+  const task = { blockers: [{ kind: 'slayer-lock', detail: 'Slayer is locked at level 30; finish or unlock your current Slayer assignment to earn Slayer points.' }] };
+  const node = renderTaskBlockerGuidance(c, task, {}, { memberId: 'owner', openTask() {} });
+  const button = walk(node).find(row => row.tag === 'button');
+  assert.equal(button.textContent, 'Open Slayer lock settings');
+  button.action();
+  assert.deepEqual(tabs, ['Slayer']);
+  assert.equal(taskBlockerGuidance(task).unknownUnlock, false);
+});

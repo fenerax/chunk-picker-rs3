@@ -22,13 +22,15 @@ export function taskBlockerGuidance(task, result = {}) {
     for (const id of Array.isArray(task.record?.CompletedTasks) ? task.record.CompletedTasks : []) dependencies.add(id);
   }
   return { rules, training, connections, prerequisites: rows.filter(row => row.id !== task.id && dependencies.has(row.id)),
-    unknownUnlock: blockers.some(row => !['rule', 'backlog', 'outclassed'].includes(row.kind)) };
+    slayerLock: blockers.some(row => row.kind === 'slayer-lock'),
+    unknownUnlock: blockers.some(row => !['rule', 'backlog', 'outclassed', 'slayer-lock'].includes(row.kind)) };
 }
 
 export function renderTaskBlockerGuidance(c, task, result, { memberId, openTask }) {
   if (!task.blockers?.length) return null;
   const guidance = taskBlockerGuidance(task, result), host = c.el('div', undefined, 'form-stack task-blocker-guidance');
   for (const ruleId of guidance.rules) host.append(c.button(`View blocking rule: ${c.plain(ruleId)}`, () => c.rulesDialog({ ruleId, memberId })));
+  if (guidance.slayerLock && c.infoPanels?.activityInfo) host.append(c.button('Open Slayer lock settings', () => c.infoPanels.activityInfo('Slayer')));
   if (guidance.unknownUnlock) host.append(c.el('p', 'No specific unlock recommendation is known. Review the recorded requirements, training methods and locations before choosing a chunk.', 'field-help'));
   for (const training of guidance.training) {
     const body = c.el('div', undefined, 'form-stack');

@@ -377,3 +377,27 @@ test('owner chips refresh their command targets when membership changes', async 
   await click(h.view.controls(), 'New'); assert.equal(h.view.filter(), 'new');
   assert.equal(h.commands.length, 0);
 });
+
+test('duo rows show a Slayer lock shortcut beside backlog only on Slayer-relevant tasks', async () => {
+  const state = { revision: 7, members: [{ id: 'actor1', name: 'Player', taskStatus: {}, completedTasks: [] }, { id: 'reed', name: 'Reed', taskStatus: {}, completedTasks: [] }] };
+  let opened = 0;
+  const view = createDuoTaskView({ document: { createElement: tag => new Node(tag) }, getState: () => state, getSelectedMember: () => 'actor1',
+    command: async () => {}, backlog: () => {}, showTask: () => {}, attachHover: () => {},
+    openSlayerLock: () => { opened++; }, appendIcon() {}, showError: error => { throw error; }, canEdit: () => true });
+
+  const miningRow = view.row(entry(['actor1']));
+  assert.equal(find(miningRow, 'button', 'Slayer lock'), undefined);
+
+  const slayerEntry = entry(['actor1']);
+  slayerEntry.task = slayerEntry.tasksByMember.actor1 = { id: 'rs3:task:slayer', label: 'Wear a nose peg', category: 'Slayer', status: 'available', level: 60 };
+  const slayerRow = view.row(slayerEntry);
+  await click(slayerRow, 'Slayer lock');
+  assert.equal(opened, 1);
+
+  state.members[0].slayerLock = { level: 30, monster: 'Abyssal demons' };
+  const ringsEntry = entry(['actor1']);
+  ringsEntry.task = ringsEntry.tasksByMember.actor1 = { id: 'rs3:task:rings', label: 'Learn how to craft rings of slaying', category: 'Extra', status: 'blocked', level: 1 };
+  const ringsRow = view.row(ringsEntry);
+  await click(ringsRow, 'Slayer locked');
+  assert.equal(opened, 2);
+});
