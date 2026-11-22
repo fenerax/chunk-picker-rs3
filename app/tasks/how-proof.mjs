@@ -6,6 +6,12 @@ const pointer = value => String(value).replaceAll('~', '~0').replaceAll('/', '~1
 const AREA_POLICY_KEYS = new Set(['UnlocksArea', 'Not F2P', 'Category', 'Label', 'Priority', 'Description', 'NoBoost']);
 export const areaUnlockHasRequirements = record => Boolean(record?.UnlocksArea && Object.keys(record).some(key => !AREA_POLICY_KEYS.has(key)));
 const matchesApproach = (subject, place) => subject === place || /^\d+$/.test(subject) && place.startsWith(`${subject}-`);
+const xpForLevel = target => {
+  if (target <= 1) return 0;
+  let points = 0;
+  for (let level = 1; level < target; level++) points += Math.floor(level + 300 * 2 ** (level / 7));
+  return Math.floor(points / 4);
+};
 export function createHowCapture({ state, memberId, definitions, byKey, completedTask, limits = {}, deadline: requestDeadline }) {
   const facts = new Map(), nodes = new Map(), boundEntrances = new Map(), sourceReasons = new Map(), choices = new Map(), baseSections = new Map(), producedObjects = new Map(), clueLocations = new Map(), usedTraining = new Set();
   const combatSeedSkills = new Set();
@@ -165,37 +171,62 @@ export function createHowCapture({ state, memberId, definitions, byKey, complete
     if (completedTask(task)) {
       put(`task:${task.key}`, { kind: 'task', subjectId: task.id, definitionRef: definitionRef(task), label: `You recorded completing ${clean(task.label)}.`, rule: 'recorded-completion', evidenceClass: 'personal' }); return;
     }
+    const slayerLevelRef = name => {
+      const required = env.slayerMonsterLevel?.(name);
+      return Number.isFinite(required) && required > 1 ? skillRef('Slayer', required, env) : null;
+    };
+    const itemSourceWitness = (name, source) => {
+      const id = sourceRef(name, source);
+      if (!id) return id;
+      const slayerReq = source.kind === 'drop' && !env.monsterGate?.(source.source) ? slayerLevelRef(source.source) : null;
+      if (!slayerReq) return id;
+      return put(`slayer-item-source:${name}:${JSON.stringify(source)}`, { kind: 'requirement', field: 'Items',
+        label: `Obtain ${clean(name)} from ${clean(source.source)}.`, rule: 'slayer-monster-drop', allOf: [id, slayerReq] });
+    };
+    const itemChoiceFor = (scope, name) => {
+      const matchingSources = () => env.sources(name).filter(source => env.matches([source], task.record, task.category, name))
+        .sort((a, b) => Number(b.kind === 'recorded') - Number(a.kind === 'recorded')
+          || Number(b.own) - Number(a.own)
+          || Number(a.kind === 'drop' && Boolean(env.monsterGate?.(a.source))) - Number(b.kind === 'drop' && Boolean(env.monsterGate?.(b.source)))
+          || Number(a.kind === 'drop' && (env.slayerMonsterLevel?.(a.source) ?? 0) > 1) - Number(b.kind === 'drop' && (env.slayerMonsterLevel?.(b.source) ?? 0) > 1)
+          || JSON.stringify(a).localeCompare(JSON.stringify(b)));
+      const sources = matchingSources();
+      if (!sources.length) return gap('source-selectors', `Different sources jointly satisfy the constraints for ${clean(name)}; a single source is not established.`);
+      const candidates = sources.map(source => ({ subject: sourceKey(name, source), id: itemSourceWitness(name, source) }));
+      const choice = put(`item-choice:${scope}:${name}`, { kind: 'requirement', field: 'Sources', label: `Obtain ${clean(name)}.`, rule: 'selected-source', allOf: [candidates[0].id] });
+      if (choice) choices.set(choice, { count: 1, candidates: () => matchingSources()
+        .map(source => ({ subject: sourceKey(name, source), id: itemSourceWitness(name, source) })) });
+      return choice;
+    };
+    const placementWitness = (kinds, name, scope, fieldLabel) => {
+      const candidates = kinds.flatMap(kind => [...(env.access.locations.get(`${kind}:${name}`) ?? [])].map(place => ({ kind, place })))
+        .sort((a, b) => a.place.localeCompare(b.place));
+      const found = candidates.filter(({ kind, place }) => facts.has(`entity:${kind}:${name}:${place}`));
+      const produced = kinds.includes('Object') ? [...(producedObjects.get(name) ?? [])] : [];
+      const allFound = [
+        ...found.map(value => ({ subject: `${value.kind}:${name}:${value.place}`, id: facts.get(`entity:${value.kind}:${name}:${value.place}`) })),
+        ...produced,
+      ];
+      const isMonster = kinds.includes('Monster') && (found.length ? found.every(value => value.kind === 'Monster') : true);
+      const monsterGate = isMonster ? env.monsterGate?.(name) ?? null : null;
+      const monsterSlayer = isMonster && !monsterGate ? slayerLevelRef(name) : null;
+      const placement = allFound.length ? put(`placement-choice:${scope}:${name}`, { kind: 'requirement', field: 'Placements', label: `Reach ${clean(name)}.`, rule: 'selected-placement', allOf: [allFound[0].id] }) : candidates.length && candidates.every(candidate => !env.ownLocation(candidate.place)) ? gap('partner-duo', `Found on ${sharedMap}.`) : gap('unsupported-kind', `The picker can't show the ${fieldLabel} step for ${clean(name)} yet.`);
+      if (allFound.length && placement) choices.set(placement, { count: 1, candidates: () => [
+        ...found.map(value => ({ subject: `${value.kind}:${name}:${value.place}`, id: facts.get(`entity:${value.kind}:${name}:${value.place}`) })),
+        ...(kinds.includes('Object') ? producedObjects.get(name) ?? [] : []),
+      ] });
+      if (monsterGate) return put(`gated-placement:${scope}:${name}`, { kind: 'placement', label: `Reach ${clean(name)}.`, allOf: [placement, gap(monsterGate, `The picker can't show this ${monsterGate.replaceAll('-', ' ')} step yet.`)] });
+      if (monsterSlayer) return put(`slayer-placement:${scope}:${name}`, { kind: 'requirement', field: 'Placements', label: `Reach ${clean(name)}.`, rule: 'slayer-monster-requirement', allOf: [placement, monsterSlayer] });
+      return placement;
+    };
     const deps = [];
     for (const requirement of task.requirements) {
       const chosen = select(requirement, name => env.available(requirement.field, name, task));
       const witness = name => {
         if (requirement.field === 'Chunks') return env.ownLocation(name) ? placeRef(name) : gap('partner-duo', `This location is on ${sharedMap}.`);
-        if (requirement.field === 'Items') {
-          const sources = env.sources(name).filter(source => env.matches([source], task.record, task.category, name))
-            .sort((a, b) => Number(b.kind === 'recorded') - Number(a.kind === 'recorded') || Number(b.own) - Number(a.own) || JSON.stringify(a).localeCompare(JSON.stringify(b)));
-          if (!sources.length) return gap('source-selectors', `Different sources jointly satisfy the constraints for ${clean(name)}; a single source is not established.`);
-          const candidates = sources.map(source => ({ subject: sourceKey(name, source), id: sourceRef(name, source) }));
-          const choice = put(`item-choice:${task.id}:${name}`, { kind: 'requirement', field: 'Sources', label: `Obtain ${clean(name)}.`, rule: 'selected-source', allOf: [candidates[0].id] });
-          if (choice) choices.set(choice, { count: 1, candidates: () => env.sources(name).filter(source => env.matches([source], task.record, task.category, name))
-            .map(source => ({ subject: sourceKey(name, source), id: sourceRef(name, source) })) });
-          return choice;
-        }
+        if (requirement.field === 'Items') return itemChoiceFor(task.id, name);
         const kinds = requirement.field === 'Mix' ? ['NPC', 'Monster'] : [{ Objects: 'Object', NPCs: 'NPC', Monsters: 'Monster', Monster: 'Monster', Shops: 'Shop' }[requirement.field]];
-        const candidates = kinds.flatMap(kind => [...(env.access.locations.get(`${kind}:${name}`) ?? [])].map(place => ({ kind, place })))
-          .sort((a, b) => a.place.localeCompare(b.place));
-        const found = candidates.filter(({ kind, place }) => facts.has(`entity:${kind}:${name}:${place}`));
-        const produced = kinds.includes('Object') ? [...(producedObjects.get(name) ?? [])] : [];
-        const allFound = [
-          ...found.map(value => ({ subject: `${value.kind}:${name}:${value.place}`, id: facts.get(`entity:${value.kind}:${name}:${value.place}`) })),
-          ...produced,
-        ];
-        const monsterGate = kinds.includes('Monster') ? env.monsterGate(name) : null;
-        const placement = allFound.length ? put(`placement-choice:${task.id}:${name}`, { kind: 'requirement', field: 'Placements', label: `Reach ${clean(name)}.`, rule: 'selected-placement', allOf: [allFound[0].id] }) : candidates.length && candidates.every(candidate => !env.ownLocation(candidate.place)) ? gap('partner-duo', `Found on ${sharedMap}.`) : gap('unsupported-kind', `The picker can't show the ${requirement.field} step for ${clean(name)} yet.`);
-        if (allFound.length && placement) choices.set(placement, { count: 1, candidates: () => [
-          ...found.map(value => ({ subject: `${value.kind}:${name}:${value.place}`, id: facts.get(`entity:${value.kind}:${name}:${value.place}`) })),
-          ...(kinds.includes('Object') ? producedObjects.get(name) ?? [] : []),
-        ] });
-        return monsterGate ? put(`gated-placement:${task.id}:${name}`, { kind: 'placement', label: `Reach ${clean(name)}.`, allOf: [placement, gap(monsterGate, `The picker can't show this ${monsterGate.replaceAll('-', ' ')} step yet.`)] }) : placement;
+        return placementWitness(kinds, name, task.id, requirement.field);
       };
       const refs = chosen.map(witness);
       const choice = put(`requirement:${task.id}:${requirement.field}:${requirement.token}`, { kind: 'requirement', field: requirement.field, label: `${requirement.field === 'Items' ? 'Obtain' : 'Reach'} ${clean(requirement.displayLabel)}.`,
@@ -212,18 +243,20 @@ export function createHowCapture({ state, memberId, definitions, byKey, complete
         deps.push(put(`self:${task.id}`, { kind: 'policy', label: 'The picker treats this self-reference as an alternative production annotation.', rule: 'self-link-annotation' })); continue;
       }
       const relaxed = env.anyAchievements ? dependency.relaxedAny : dependency.relaxedAlways;
+      const requireCompleted = task.category === 'Slayer' && dependency.category === 'Quest';
       const chosen = new Map();
       for (const name of names.sort((a, b) => Number(completedTask(byKey.get(`${dependency.category}\0${b.split('--')[0]}`) ?? {})) - Number(completedTask(byKey.get(`${dependency.category}\0${a.split('--')[0]}`) ?? {})) || a.localeCompare(b))) {
         const raw = name.split('--')[0], key = `${dependency.category}\0${raw}`;
         if (key === task.key || chosen.has(key)) continue;
         if (relaxed.has(raw)) chosen.set(key, put(`relaxed:${task.id}:${key}`, { kind: 'policy', label: `Rules waive ${clean(raw)}.`, rule: 'relaxed-dependency' }));
-        else if (env.valid.has(key)) chosen.set(key, taskRef(key));
+        else if (requireCompleted ? completedTask(byKey.get(key) ?? {}) : env.valid.has(key)) chosen.set(key, taskRef(key));
         if (chosen.size === dependency.count) break;
       }
       const choice = put(`dependency:${task.id}:${dependency.category}:${dependency.token}`, { kind: 'requirement', field: 'Tasks',
         label: `Complete ${clean(dependency.displayLabel)}.`, rule: 'selected-task-alternatives', distinctCount: dependency.count, allOf: [...chosen.values()] });
       if (choice) choices.set(choice, { count: dependency.count, candidates: () => [...new Set(names.map(name => name.split('--')[0]))]
         .filter(raw => `${dependency.category}\0${raw}` !== task.key)
+        .filter(raw => relaxed.has(raw) || !requireCompleted || completedTask(byKey.get(`${dependency.category}\0${raw}`) ?? {}))
         .map(raw => ({ subject: `${dependency.category}\0${raw}`, id: relaxed.has(raw) ? chosen.get(`${dependency.category}\0${raw}`) : facts.get(`task:${dependency.category}\0${raw}`) })).filter(value => value.id) });
       deps.push(choice);
       if (chosen.size < dependency.count) deps.push(gap('missing-evidence', 'The picker did not capture enough distinct prerequisites.'));
@@ -352,9 +385,82 @@ export function createHowCapture({ state, memberId, definitions, byKey, complete
         label: `Reach ${sections.map(placeLabel).join(' or ')}.`, rule: 'connects-sections', allOf: first ? [first] : [] });
       if (choice) { choices.set(choice, { count: 1, candidates: reachableSections }); deps.push(choice); }
     }
+    const slayerGateInfo = env.slayerGateInfo?.(task);
+    if (slayerGateInfo) {
+      const { gate, status, entranceTaskKey } = slayerGateInfo;
+      if (status?.bypassed) {
+        deps.push(put(`slayer-unlock-bypass:${task.id}`, { kind: 'policy',
+          label: 'Future Slayer unlocks is on; this reward does not wait for its target.',
+          rule: 'slayer-unlock-bypass', evidenceClass: 'policy' }));
+      } else if (gate.kind === 'items') {
+        const targetRefs = [];
+        for (const target of gate.targets) {
+          const names = [target, ...(gate.itemAlternatives?.[target] ?? [])].filter(name => env.available('Items', name, task)).sort();
+          if (!names.length) { targetRefs.length = 0; break; }
+          const refs = names.map(name => itemChoiceFor(`slayer-unlock:${task.id}`, name));
+          const choice = put(`slayer-unlock-item:${task.id}:${target}`, { kind: 'requirement', field: 'Items',
+            label: `Obtain ${clean(target)}.`, rule: names.length > 1 ? 'selected-alternatives' : 'required',
+            distinctCount: 1, selectedSubjects: [names[0]], alternativesAvailable: names.length, allOf: [refs[0]] });
+          if (choice) {
+            choices.set(choice, { count: 1, candidates: () => names.map(name => ({ subject: name, id: itemChoiceFor(`slayer-unlock:${task.id}`, name) })) });
+            targetRefs.push(choice);
+          }
+        }
+        if (targetRefs.length === gate.targets.length) {
+          deps.push(put(`slayer-unlock:${task.id}`, { kind: 'requirement', field: 'Items',
+            label: gate.condition, rule: 'slayer-unlock-gate', allOf: targetRefs }));
+        } else {
+          deps.push(gap('slayer-unlock', "The picker can't show this slayer unlock step yet."));
+        }
+      } else if (gate.kind === 'monsters') {
+        const names = gate.targets.filter(name => env.access.monsters.has(name)).sort();
+        if (names.length) {
+          const refs = names.map(name => placementWitness(['Monster'], name, `slayer-unlock:${task.id}`, 'Monsters'));
+          const choice = put(`slayer-unlock:${task.id}`, { kind: 'requirement', field: 'Monsters',
+            label: gate.condition, rule: 'slayer-unlock-gate', distinctCount: 1, selectedSubjects: [names[0]],
+            alternativesAvailable: names.length, allOf: [refs[0]] });
+          if (choice) {
+            choices.set(choice, { count: 1, candidates: () => names.map(name => ({ subject: name, id: placementWitness(['Monster'], name, `slayer-unlock:${task.id}`, 'Monsters') })) });
+            deps.push(choice);
+          }
+        } else {
+          deps.push(gap('slayer-unlock', "The picker can't show this slayer unlock step yet."));
+        }
+      } else if (gate.kind === 'areas') {
+        const routeCandidates = () => {
+          const list = [];
+          for (const area of gate.targets) if (env.access.areas.has(area)) {
+            const id = env.ownLocation(area) ? placeRef(area) : gap('partner-duo', `This location is on ${sharedMap}.`);
+            if (id) list.push({ subject: `area:${area}`, id });
+          }
+          const entry = gate.entrance;
+          if (entry && !env.access.blockedAreas?.has(gate.targets[0]) && env.access.npcs.has(entry.npc)
+            && entranceTaskKey && env.valid.has(entranceTaskKey) && env.levels.Slayer >= (entry.slayer ?? 1)) {
+            const entryDeps = [placementWitness(['NPC'], entry.npc, `slayer-unlock:${task.id}`, 'NPCs'), taskRef(entranceTaskKey)];
+            if ((entry.slayer ?? 1) > 1) entryDeps.push(skillRef('Slayer', entry.slayer, env));
+            const id = put(`slayer-unlock-entrance:${task.id}:${entry.npc}`, { kind: 'requirement', field: 'Tasks',
+              label: `Reach ${clean(entry.npc)} after ${clean(entry.questTask)}.`, rule: 'slayer-unlock-entrance', allOf: entryDeps });
+            if (id) list.push({ subject: `entrance:${entry.npc}`, id });
+          }
+          return list;
+        };
+        const initial = routeCandidates();
+        if (initial.length) {
+          const choice = put(`slayer-unlock:${task.id}`, { kind: 'requirement', field: 'Areas',
+            label: gate.condition, rule: 'slayer-unlock-gate', distinctCount: 1, selectedSubjects: [initial[0].subject],
+            alternativesAvailable: initial.length, allOf: [initial[0].id] });
+          if (choice) {
+            choices.set(choice, { count: 1, candidates: routeCandidates });
+            deps.push(choice);
+          }
+        } else {
+          deps.push(gap('slayer-unlock', "The picker can't show this slayer unlock step yet."));
+        }
+      } else {
+        deps.push(gap('slayer-unlock', "The picker can't show this slayer unlock step yet."));
+      }
+    }
     const unsupported = [];
-    if (task.category === 'Slayer') unsupported.push('slayer-assignments');
-    if (env.slayerGate?.(task)) unsupported.push('slayer-unlock');
     if (env.usefulGate?.(task)) unsupported.push('useful-unlock');
     if (['QuestPointsNeeded', 'KudosNeeded', 'CombatScoreNeeded', 'TotalLevelNeeded', 'TotalVirtualLevelNeeded'].some(key => task.record[key] !== undefined)) unsupported.push('points');
     if (task.record.RequirementAlternatives || task.record.PersonalQuestProgress || task.personalAlternatives.length || task.dialogueSupply || task.sourceLocations.length) unsupported.push('special-requirements');
@@ -370,8 +476,30 @@ export function createHowCapture({ state, memberId, definitions, byKey, complete
       const observation = env.observed[skill];
       if (observation?.level >= required) return put(`observed:${skill}:${required}`, { kind: 'skill', skill, required, label: `Your recorded ${skill} level is ${observation.level}.`, rule: 'observed-level', evidenceClass: 'personal', source: observation.source, fetchedAt: observation.fetchedAt });
       if (Number(env.controls.passiveLevels[skill] ?? 1) >= required) return put(`manual-level:${skill}:${required}`, { kind: 'skill', skill, required, label: `You set your ${skill} level to ${env.controls.passiveLevels[skill]}.`, rule: 'manual-level', evidenceClass: 'manual', allOf: [gap('manual-assumption', 'This level comes from a manual setting.')] });
+      if (skill === 'Slayer' && Number(env.controls.slayerLock?.level ?? 1) >= required) return put(`slayer-lock-level:${required}`, { kind: 'skill', skill, required, label: `Your Slayer lock records Slayer level ${env.controls.slayerLock.level}.`, rule: 'slayer-lock-level', evidenceClass: 'personal' });
       const completion = [...byKey.values()].find(value => value.category === skill && value.level >= required && completedTask(value));
       if (completion) return taskRef(completion.key);
+      const neededXp = xpForLevel(required);
+      const contributors = (env.xpContributors?.(skill) ?? [])
+        .filter(entry => entry.amount > 0 && facts.has(`task:${entry.task.key}`))
+        .sort((a, b) => Number(completedTask(b.task)) - Number(completedTask(a.task))
+          || b.amount - a.amount
+          || (nodes.get(facts.get(`task:${a.task.key}`))?.admissionOrder ?? Infinity) - (nodes.get(facts.get(`task:${b.task.key}`))?.admissionOrder ?? Infinity)
+          || a.task.key.localeCompare(b.task.key));
+      let total = 0;
+      const chosen = [];
+      for (const entry of contributors) {
+        chosen.push(entry);
+        total += entry.amount;
+        if (total >= neededXp) break;
+      }
+      if (total >= neededXp && chosen.length) {
+        const ids = chosen.map(entry => taskRef(entry.task.key));
+        const key = `xp-rewards:${skill}:${required}:${chosen.map(entry => entry.task.id).join(',')}`;
+        return put(key, { kind: 'skill', skill, required, xpRequired: neededXp, xpTotal: total,
+          label: `Reach ${skill} ${required} from XP rewards (${total.toLocaleString('en-US')} XP).`,
+          rule: 'xp-rewards', evidenceClass: 'derived', allOf: ids });
+      }
       return gap('xp-contributors', `The picker uses potential XP rewards for ${skill} ${required}.`);
     }
     usedTraining.add(skill);
@@ -386,10 +514,13 @@ export function createHowCapture({ state, memberId, definitions, byKey, complete
     if (source.kind === 'recorded') return 0;
     if (source.own === true) {
       if (['spawn', 'shop', 'object'].includes(source.kind)) return 1;
-      if (source.kind === 'drop' && env.monsterGate?.(source.source)) return 3;
+      if (source.kind === 'drop') {
+        if (env.monsterGate?.(source.source)) return 4;
+        if ((env.slayerMonsterLevel?.(source.source) ?? 0) > 1) return 3;
+      }
       return 2;
     }
-    return 4;
+    return 5;
   };
   const selectOrdinarySources = (name, env) => env.sources(name)
     .filter(source => source.processingMode !== 'multi')
@@ -399,10 +530,18 @@ export function createHowCapture({ state, memberId, definitions, byKey, complete
     const id = sourceRef(name, source);
     if (!id) return null;
     const gate = source.kind === 'drop' ? env.monsterGate?.(source.source) ?? null : null;
-    if (!gate) return id;
-    return put(`gated-source-seed:${name}:${JSON.stringify(source)}`, { kind: 'requirement', field: 'Items',
-      label: `Obtain ${clean(name)} from ${clean(source.source)}.`, rule: 'gated-monster-drop',
-      allOf: [id, gap(gate, `The picker can't show this ${gate.replaceAll('-', ' ')} step yet.`)] });
+    if (gate) {
+      return put(`gated-source-seed:${name}:${JSON.stringify(source)}`, { kind: 'requirement', field: 'Items',
+        label: `Obtain ${clean(name)} from ${clean(source.source)}.`, rule: 'gated-monster-drop',
+        allOf: [id, gap(gate, `The picker can't show this ${gate.replaceAll('-', ' ')} step yet.`)] });
+    }
+    const slayerLevel = source.kind === 'drop' ? env.slayerMonsterLevel?.(source.source) : null;
+    if (Number.isFinite(slayerLevel) && slayerLevel > 1) {
+      return put(`slayer-source-seed:${name}:${JSON.stringify(source)}`, { kind: 'requirement', field: 'Items',
+        label: `Obtain ${clean(name)} from ${clean(source.source)}.`, rule: 'slayer-monster-drop',
+        allOf: [id, skillRef('Slayer', slayerLevel, env)] });
+    }
+    return id;
   };
   const ordinaryItemChoice = (scope, name, env) => {
     const sources = selectOrdinarySources(name, env);
@@ -423,13 +562,16 @@ export function createHowCapture({ state, memberId, definitions, byKey, complete
     const entries = [];
     for (const name of env.access.monsters) {
       const gate = env.monsterGate?.(name) ?? null;
+      const slayerLevel = gate ? null : env.slayerMonsterLevel?.(name) ?? null;
+      const needsSlayer = Number.isFinite(slayerLevel) && slayerLevel > 1;
       for (const place of env.access.locations.get(`Monster:${name}`) ?? []) {
         const entityId = facts.get(`entity:Monster:${name}:${place}`);
         if (!entityId) continue;
-        entries.push({ name, place, gate, own: env.ownLocation(place), manual: place === 'Manually Added*', entityId });
+        entries.push({ name, place, gate, slayerLevel: needsSlayer ? slayerLevel : null, own: env.ownLocation(place), manual: place === 'Manually Added*', entityId });
       }
     }
     entries.sort((a, b) => Number(Boolean(a.gate)) - Number(Boolean(b.gate))
+      || Number(Boolean(a.slayerLevel)) - Number(Boolean(b.slayerLevel))
       || Number(b.own) - Number(a.own)
       || Number(a.manual) - Number(b.manual)
       || a.name.localeCompare(b.name)
@@ -437,11 +579,17 @@ export function createHowCapture({ state, memberId, definitions, byKey, complete
     const limited = entries.slice(0, 32);
     return limited.map(entry => {
       const subject = `Monster:${entry.name}:${entry.place}`;
-      if (!entry.gate) return { subject, id: entry.entityId, gated: false };
+      if (!entry.gate && !entry.slayerLevel) return { subject, id: entry.entityId, gated: false };
       if (!allowWrap) return { subject, id: entry.entityId, gated: true };
-      const wrapped = put(`gated-monster-seed:${entry.name}:${entry.place}`, { kind: 'placement', label: `Reach ${clean(entry.name)}.`,
-        allOf: [entry.entityId, gap(entry.gate, `The picker can't show this ${entry.gate.replaceAll('-', ' ')} step yet.`)] });
-      return wrapped ? { subject, id: wrapped, gated: true } : null;
+      if (entry.gate) {
+        const wrapped = put(`gated-monster-seed:${entry.name}:${entry.place}`, { kind: 'placement', label: `Reach ${clean(entry.name)}.`,
+          allOf: [entry.entityId, gap(entry.gate, `The picker can't show this ${entry.gate.replaceAll('-', ' ')} step yet.`)] });
+        return wrapped ? { subject, id: wrapped, gated: true } : null;
+      }
+      const wrapped = put(`slayer-monster-seed:${entry.name}:${entry.place}:${entry.slayerLevel}`, { kind: 'requirement', field: 'Placements',
+        label: `Reach ${clean(entry.name)} (Slayer ${entry.slayerLevel}).`, rule: 'slayer-monster-requirement',
+        allOf: [entry.entityId, skillRef('Slayer', entry.slayerLevel, env)] });
+      return wrapped ? { subject, id: wrapped, gated: false } : null;
     }).filter(Boolean);
   };
   const rangedGearCandidates = (startPassive, env) => {

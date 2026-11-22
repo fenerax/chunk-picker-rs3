@@ -531,15 +531,14 @@ test('innate melee, Ranged, Prayer and Combat training seeds prove real witnesse
   assert.match(labels(highBowProof), /recorded Ranged level is 20/);
   graph(highBowProof);
 
-  // Slayer-gated monster alone preserves the honest slayer-level gap for melee, Prayer drops, and Ranged gear drops.
+  // Slayer-level monsters prove cleanly (level 1 needs no Slayer step; higher levels require Slayer skill evidence or report boosts).
   const gatedDefs = makeDefs();
   gatedDefs.slayerMonsters = { Goblin: 1 };
   const gatedEngine = createTaskEngine(gatedDefs);
   for (const name of ['Need Attack', 'Need Prayer']) {
     const gatedProof = gatedEngine.how(caveState(['12850']), 'one', taskId('Quest', name));
     assert.equal(gatedProof.availability, 'available', name);
-    assert.equal(gatedProof.proofStatus, 'partial', name);
-    assert.ok(gatedProof.gaps.some(gap => gap.kind === 'slayer-level'), `${name}: ${JSON.stringify(gatedProof.gaps)}`);
+    assert.equal(gatedProof.proofStatus, 'complete', `${name}: ${JSON.stringify(gatedProof.gaps)}`);
     graph(gatedProof);
   }
   const gatedRangedDefs = makeDefs();
@@ -549,9 +548,35 @@ test('innate melee, Ranged, Prayer and Combat training seeds prove real witnesse
   gatedRangedDefs.slayerMonsters = { Goblin: 1 };
   const gatedRangedProof = createTaskEngine(gatedRangedDefs).how(caveState(['12850']), 'one', taskId('Quest', 'Need Ranged'));
   assert.equal(gatedRangedProof.availability, 'available');
-  assert.equal(gatedRangedProof.proofStatus, 'partial');
-  assert.ok(gatedRangedProof.gaps.some(gap => gap.kind === 'slayer-level'), JSON.stringify(gatedRangedProof.gaps));
+  assert.equal(gatedRangedProof.proofStatus, 'complete', JSON.stringify(gatedRangedProof.gaps));
   graph(gatedRangedProof);
+
+  const highSlayerDefs = makeDefs();
+  highSlayerDefs.slayerMonsters = { Goblin: 50 };
+  highSlayerDefs.chunks['12850'].NPC = { Jacquelyn: 1 };
+  highSlayerDefs.challenges.Slayer = { 'Receive a slayer assignment from Jacquelyn': { Level: 1, Primary: true, NPCs: ['Jacquelyn'] } };
+  const highSlayerState = caveState(['12850']);
+  highSlayerState.rules['content.f2p'] = false;
+  for (const name of ['Need Attack', 'Need Prayer']) {
+    const proof = createTaskEngine(highSlayerDefs).how(highSlayerState, 'one', taskId('Quest', name));
+    assert.equal(proof.availability, 'available', name);
+    assert.equal(proof.proofStatus, 'complete', `${name}: ${JSON.stringify(proof.gaps)}`);
+    assert.match(labels(proof), /train Slayer to 50/);
+    graph(proof);
+  }
+
+  const boostedSlayerDefs = makeDefs();
+  boostedSlayerDefs.slayerMonsters = { Goblin: 5 };
+  boostedSlayerDefs.chunks['12850'].Spawn['Wild pie'] = 1;
+  boostedSlayerDefs.codeItems.boostItems = { Slayer: { 'Wild pie': 5 } };
+  const boostedSlayerState = caveState(['12850']);
+  boostedSlayerState.rules['content.f2p'] = false;
+  boostedSlayerState.taskRules = { Boosting: true };
+  const boostedSlayerProof = createTaskEngine(boostedSlayerDefs).how(boostedSlayerState, 'one', taskId('Quest', 'Need Attack'));
+  assert.equal(boostedSlayerProof.availability, 'available');
+  assert.equal(boostedSlayerProof.proofStatus, 'partial');
+  assert.ok(boostedSlayerProof.gaps.some(gap => gap.kind === 'boosts'), JSON.stringify(boostedSlayerProof.gaps));
+  graph(boostedSlayerProof);
 
   // Partner-only monster and bones preserve partner-duo gaps; Combat prefers an own Magic seed over partner Attack.
   const duoDefs = makeDefs();
@@ -774,4 +799,130 @@ test('NPC and object placements in connected approaches bind entity-entrance are
   assert.match(labels(fallbackProof), /Enter Sanctum via Guide at Colony/);
   assert.ok(Object.values(fallbackProof.nodes).some(node => node.kind === 'placement' && node.subjectId === 'Guide' && node.location === '101'));
   graph(fallbackProof);
+});
+
+test('Slayer tasks, XP-reward passive levels, and Slayer unlock gates prove concrete witnesses', () => {
+  const defs = {
+    chunks: {
+      100: {
+        Nickname: 'Meadow',
+        NPC: { Jacquelyn: 1, Kuradal: 1, Morvran: 1, 'Portmaster Kags': 1 },
+        Shop: { 'Slayer Rewards': 1 },
+        Monster: { Gargoyle: 1, 'Ice strykewyrm': 1 },
+        Spawn: { 'Black mask (10)': 1, Earmuffs: 1, 'Face mask': 1, 'Nose peg': 1, 'Spiny helmet': 1 },
+      },
+    },
+    slayerMonsters: { Gargoyle: 75, 'Ice strykewyrm': 93 },
+    challenges: {
+      Quest: {
+        'Intro quest': { Chunks: ['100'], XpReward: { Crafting: 500 } },
+        'Bonus quest': { Chunks: ['100'], XpReward: { Crafting: 1000 } },
+        'Smoking Kills Complete the quest': { Chunks: ['100'] },
+        "Plague's End Complete the quest": { Chunks: ['100'] },
+        'The Jack of Spades 3': { Chunks: ['100'] },
+      },
+      Slayer: {
+        'Receive a slayer assignment from Jacquelyn': { Level: 1, Primary: true, NPCs: ['Jacquelyn'] },
+        'Receive a slayer assignment from Kuradal': { Level: 75, NPCs: ['Kuradal'], Tasks: { 'Intro quest': 'Quest' } },
+      },
+      Extra: {
+        'Need XP Crafting': { Skills: { Crafting: 10 } },
+        'Kill a gargoyle': { Monsters: ['Gargoyle'] },
+        'Learn how to deliver killing blows quicker from a Slayer Master': { Shops: ['Slayer Rewards'], Category: ['Permanent Unlockables'] },
+        'Learn how to craft a slayer helmet': { Shops: ['Slayer Rewards'], Category: ['Permanent Unlockables'], Tasks: { 'Smoking Kills Complete the quest': 'Quest' } },
+        "Unlock the use of ferocious rings in Morvran's dungeon": { Shops: ['Slayer Rewards'], Category: ['Permanent Unlockables'] },
+        'Learn how to how to move souls in the Sunken Pyramid': { Shops: ['Slayer Rewards'], Category: ['Permanent Unlockables'] },
+        'Learn how to how to attach a bonecrusher to your tool belt': { Shops: ['Slayer Rewards'], Category: ['Permanent Unlockables'] },
+      },
+    },
+  };
+  const engine = createTaskEngine(defs, { cacheWalking: false, retainedTaskCorrections: false });
+  const baseState = () => {
+    const s = caveState(['100']);
+    s.rules['content.f2p'] = false;
+    s.members[0].completedTasks = [taskId('Quest', 'Intro quest')];
+    return s;
+  };
+
+  // Slayer tasks prove cleanly without slayer-assignments gap; quest prerequisites require personal completion.
+  const slayerProof = engine.how(baseState(), 'one', taskId('Slayer', 'Receive a slayer assignment from Kuradal'));
+  assert.equal(slayerProof.availability, 'available');
+  assert.equal(slayerProof.proofStatus, 'complete', JSON.stringify(slayerProof.gaps));
+  assert.match(labels(slayerProof), /recorded completing Intro quest/);
+  assert.match(labels(slayerProof), /train Slayer to 75/);
+  graph(slayerProof);
+
+  // XP rewards sum concrete contributing quests to prove passive skill levels.
+  const xpProof = engine.how(baseState(), 'one', taskId('Extra', 'Need XP Crafting'));
+  assert.equal(xpProof.availability, 'available');
+  assert.equal(xpProof.proofStatus, 'complete', JSON.stringify(xpProof.gaps));
+  assert.ok(Object.values(xpProof.nodes).some(node => node.rule === 'xp-rewards' && node.skill === 'Crafting' && node.required === 10));
+  assert.match(labels(xpProof), /Intro quest/);
+  assert.match(labels(xpProof), /Bonus quest/);
+  graph(xpProof);
+
+  // Slayer-level monster requirements prove Slayer skill level.
+  const gargoyleProof = engine.how(baseState(), 'one', taskId('Extra', 'Kill a gargoyle'));
+  assert.equal(gargoyleProof.availability, 'available');
+  assert.equal(gargoyleProof.proofStatus, 'complete', JSON.stringify(gargoyleProof.gaps));
+  assert.match(labels(gargoyleProof), /train Slayer to 75/);
+  graph(gargoyleProof);
+
+  // Slayer unlock gates prove monsters, item alternatives (charged black mask), area entrances, and Future Slayer unlocks bypass.
+  for (const [name, pattern] of [
+    ['Learn how to deliver killing blows quicker from a Slayer Master', /Find Gargoyle at Meadow/],
+    ['Learn how to craft a slayer helmet', /Black mask \(10\)/],
+    ["Unlock the use of ferocious rings in Morvran's dungeon", /Find Morvran at Meadow/],
+    ['Learn how to how to move souls in the Sunken Pyramid', /train Slayer to 99/],
+  ]) {
+    const proof = engine.how(baseState(), 'one', taskId('Extra', name));
+    assert.equal(proof.availability, 'available', name);
+    assert.equal(proof.proofStatus, 'complete', `${name}: ${JSON.stringify(proof.gaps)}`);
+    assert.match(labels(proof), pattern, name);
+    graph(proof);
+  }
+
+  const bypassState = baseState();
+  bypassState.taskRules = { 'Future Slayer unlocks': true };
+  const bypassProof = engine.how(bypassState, 'one', taskId('Extra', 'Learn how to how to attach a bonecrusher to your tool belt'));
+  assert.equal(bypassProof.availability, 'available');
+  assert.equal(bypassProof.proofStatus, 'complete', JSON.stringify(bypassProof.gaps));
+  assert.ok(Object.values(bypassProof.nodes).some(node => node.rule === 'slayer-unlock-bypass'));
+  graph(bypassProof);
+
+  // Slayer lock records personal Slayer level without falling back to xp-contributors.
+  const lockDefs = {
+    chunks: { 100: { Nickname: 'Meadow', Monster: { Gargoyle: 1 } } },
+    slayerMonsters: { Gargoyle: 75 },
+    challenges: { Extra: { 'Kill a gargoyle': { Monsters: ['Gargoyle'] } } },
+  };
+  const lockState = caveState(['100']);
+  lockState.rules['content.f2p'] = false;
+  lockState.members[0].slayerLock = { level: 75, monster: 'Abyssal demons' };
+  const lockProof = createTaskEngine(lockDefs, { cacheWalking: false, retainedTaskCorrections: false })
+    .how(lockState, 'one', taskId('Extra', 'Kill a gargoyle'));
+  assert.equal(lockProof.availability, 'available');
+  assert.equal(lockProof.proofStatus, 'complete', JSON.stringify(lockProof.gaps));
+  assert.ok(Object.values(lockProof.nodes).some(node => node.rule === 'slayer-lock-level'));
+  graph(lockProof);
+
+  // Slayer tasks with an alternative Quest dependency only cite a personally completed quest, never an uncompleted available one.
+  const altQuestDefs = {
+    chunks: { 100: { Nickname: 'Meadow', NPC: { Kuradal: 1 } } },
+    codeItems: { tasksPlus: { 'AnyQuest[+]': ['Quest A', 'Quest B'] } },
+    challenges: {
+      Quest: { 'Quest A': { Chunks: ['100'] }, 'Quest B': { Chunks: ['100'] } },
+      Slayer: { 'Receive a slayer assignment from Kuradal': { Level: 1, NPCs: ['Kuradal'], Tasks: { 'AnyQuest[+]': 'Quest' } } },
+    },
+  };
+  const altQuestState = caveState(['100']);
+  altQuestState.rules['content.f2p'] = false;
+  altQuestState.members[0].completedTasks = [taskId('Quest', 'Quest B')];
+  const altQuestProof = createTaskEngine(altQuestDefs, { cacheWalking: false, retainedTaskCorrections: false })
+    .how(altQuestState, 'one', taskId('Slayer', 'Receive a slayer assignment from Kuradal'));
+  assert.equal(altQuestProof.availability, 'available');
+  assert.equal(altQuestProof.proofStatus, 'complete', JSON.stringify(altQuestProof.gaps));
+  assert.match(labels(altQuestProof), /recorded completing Quest B/);
+  assert.doesNotMatch(labels(altQuestProof), /Quest A/);
+  graph(altQuestProof);
 });
