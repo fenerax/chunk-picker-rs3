@@ -89,6 +89,27 @@ test('established solos freeze to Past maps on move, require fresh review after 
   assert.equal(f.registry.getCharacter(owner.character.id).placement.pickerId, owner.picker.id);
 });
 
+test('retiring an established solo clears viewer memberships and capabilities referencing the retired picker', async t => {
+  const h = await fixture(t), f = h.f;
+  const dest = await f.registry.firstLogin('google', 'dest-owner');
+  const mover = await f.registry.firstLogin('google', 'solo-mover');
+  const viewer = await f.registry.firstLogin('google', 'solo-viewer');
+  await f.registry.attachMembership(viewer.account.id, { pickerId: mover.picker.id, role: 'viewer', memberId: null });
+  await f.registry.setCapability({ kind: 'overlay-capability', hash: 'a'.repeat(64), pickerId: mover.picker.id, accountId: viewer.account.id, memberId: null });
+  const invite = await f.registry.createGroupInvite(dest.account.id, dest.picker.id);
+  const review = await f.service.review(invite.secret, mover.account.id);
+  assert.equal(review.characters[0].eligible, true); assert.equal(review.characters[0].sourceMode, 'solo');
+  const moved = await f.service.accept(invite.secret, mover.account.id, { characterId: mover.character.id }, review.review.revision);
+  assert.equal(moved.message, 'Joined group');
+  assert.equal(f.registry.getPicker(mover.picker.id).lifecycle, 'retired');
+  assert.equal(f.registry.getAccount(viewer.account.id).memberships.some(m => m.pickerId === mover.picker.id), false);
+  assert.equal(f.registry.resolveCapability('overlay-capability', 'a'.repeat(64)), null);
+  assert.equal(f.registry.getCharacter(viewer.character.id).placement.pickerId, viewer.picker.id);
+  await h.restart();
+  assert.equal(h.f.registry.getCharacter(mover.character.id).placement.pickerId, dest.picker.id);
+  assert.equal(h.f.registry.getAccount(viewer.account.id).memberships.some(m => m.pickerId === mover.picker.id), false);
+});
+
 test('admission copies reviewed geography and rules while preserving existing private progress', async t => {
   const { f } = await fixture(t), owner = await f.registry.firstLogin('google', 'owner'), player = await f.registry.firstLogin('google', 'player');
   const initial = createGroupState([{ id: 'owner', name: 'Owner', unlocked: ['12341'], blacklisted: ['12342'],

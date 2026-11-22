@@ -250,8 +250,11 @@ export function createGroupInvites({ read, save, version, versionPastMaps = vers
         if (source.seats.length === 1) {
           source.lifecycle = 'retired'; source.ownerCharacterId = null; source.seats = [];
           for (const other of doc.groupInvites) if (other.pickerId === source.id && other.status === 'pending') terminal(doc, other, 'revoked');
-          a.memberships = a.memberships.filter(m => m.pickerId !== source.id || m.memberId !== t.source.memberId);
-          if (a.defaultPickerId === source.id) a.defaultPickerId = null;
+          for (const account of doc.accounts) {
+            account.memberships = account.memberships.filter(m => m.pickerId !== source.id);
+            if (account.defaultPickerId === source.id) account.defaultPickerId = null;
+          }
+          doc.capabilities = doc.capabilities.filter(k => k.pickerId !== source.id);
         } else {
           if (source.ownerCharacterId === c.id) fail('Complete Group ownership handover before moving the designated owner character.');
           source.seats = source.seats.filter(s => s.characterId !== c.id);
@@ -259,8 +262,8 @@ export function createGroupInvites({ read, save, version, versionPastMaps = vers
           for (const h of doc.handovers ?? []) if (h.status === 'pending' && (h.toCharacterId === c.id || h.fromCharacterId === c.id)) {
             h.status = 'cancelled'; h.resolvedAt = stamp();
           }
+          doc.capabilities = doc.capabilities.filter(k => k.pickerId !== source.id || k.memberId !== t.source.memberId);
         }
-        doc.capabilities = doc.capabilities.filter(k => k.pickerId !== source.id || k.memberId !== t.source.memberId);
       }
       c.placement = { pickerId: p.id, memberId: t.memberId };
       p.reservations = p.reservations.filter(r => r.inviteId !== i.id); p.seats.push({ memberId: t.memberId, characterId: c.id });
