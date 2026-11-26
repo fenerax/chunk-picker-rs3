@@ -207,7 +207,9 @@
           "issues": [
             363,
             364,
-            365
+            365,
+            379,
+            380
           ],
           "note": "The multi-group load harness is ready; verifying the ~100-group envelope and beta runtime limits, outside-tester walkthrough, real-phone check (G6), timed off-site restore drill and live alert verification remain before opening. Wider sign-up waits for a separate decision."
         },
@@ -741,9 +743,6 @@
           "why": "Small tidy-up.",
           "size": "S",
           "status": "maybe",
-          "issues": [
-            376
-          ],
           "note": "Part of the Settings rework."
         },
         {

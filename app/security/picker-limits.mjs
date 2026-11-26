@@ -4,6 +4,7 @@ import path from 'node:path';
 
 // Conservative admission bounds. EN6 capacity measurements can replace these
 // defaults without changing accounting or the disabled-mode request path.
+export const DEFAULT_MAX_OPEN_CONTEXTS = 7;
 export const MP7_DEFAULTS = Object.freeze({
   maxOutstandingJobsPerPicker: 4, maxWaitersPerJob: 64,
   expensivePerAccount: 600, expensivePerPicker: 600, expensiveGlobal: 1200,
@@ -26,6 +27,33 @@ export function pickerLimitOptions(options = {}) {
   const config = Object.fromEntries(Object.entries(MP7_DEFAULTS).map(([key, fallback]) => [key, options[key] ?? fallback]));
   for (const [key, value] of Object.entries(config)) if (!Number.isSafeInteger(value) || value < 1) throw new TypeError(`${key} must be a positive integer.`);
   return Object.freeze(config);
+}
+
+/** Return non-fatal operator warnings when multi-picker caps outgrow single-duo defaults. */
+export function multiPickerRuntimeWarnings(options = {}) {
+  const config = pickerLimitOptions(options);
+  const maxOpenContexts = options.maxOpenContexts ?? DEFAULT_MAX_OPEN_CONTEXTS;
+  if (!Number.isSafeInteger(maxOpenContexts) || maxOpenContexts < 1) throw new TypeError('Invalid picker residency limits.');
+  const betaPickerCap = options.betaPickerCap;
+  const warnings = [];
+  if (Number.isSafeInteger(betaPickerCap) && betaPickerCap > maxOpenContexts) {
+    warnings.push(Object.freeze({
+      code: 'beta-cap-exceeds-residency',
+      betaPickerCap,
+      maxOpenContexts,
+      message: `multiPicker.betaPickerCap (${betaPickerCap}) exceeds maxOpenContexts (${maxOpenContexts}); more than ${Math.max(0, maxOpenContexts - 1)} concurrent owned groups will evict and cold-reopen. Raise maxOpenContexts for multi-group beta hosting (note that each invited login first provisions a solo picker).`,
+    }));
+  }
+  const betaSized = (Number.isSafeInteger(betaPickerCap) && betaPickerCap > DEFAULT_MAX_OPEN_CONTEXTS) || maxOpenContexts > DEFAULT_MAX_OPEN_CONTEXTS;
+  if (betaSized && (config.coldStartsGlobal <= MP7_DEFAULTS.coldStartsGlobal || config.streamsGlobal <= MP7_DEFAULTS.streamsGlobal)) {
+    warnings.push(Object.freeze({
+      code: 'beta-defaults-tight',
+      coldStartsGlobal: config.coldStartsGlobal,
+      streamsGlobal: config.streamsGlobal,
+      message: `Multi-group beta configuration still uses tight global defaults (coldStartsGlobal=${config.coldStartsGlobal}, streamsGlobal=${config.streamsGlobal}). Review streamsGlobal, coldStartsGlobal, pluginRequestsGlobal and coldOpenAdmission in release configuration (see docs/linux-operator.md).`,
+    }));
+  }
+  return Object.freeze(warnings);
 }
 const hash = value => createHash('sha256').update(value).digest('hex');
 // Second segment of a plugin key quota row (`keys:<scope>:...`); `keys:global` falls back to the service.

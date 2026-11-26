@@ -337,3 +337,15 @@ test('refused character deletion preserves key quotas; operator retirement relea
   await retire(b, 'account');
   assert.equal((await create(await f.login('103'))).status, 201);
 });
+
+test('server emits runtime warnings when betaPickerCap exceeds maxOpenContexts and stays silent once raised', async t => {
+  const warnings = [];
+  const tight = await fixture(t, { betaPickerCap: 25, onRuntimeWarning: warning => warnings.push(warning) });
+  assert.deepEqual(warnings.map(w => w.code), ['beta-cap-exceeds-residency', 'beta-defaults-tight']);
+  assert.deepEqual(tight.app().getRuntimeWarnings().map(w => w.code), ['beta-cap-exceeds-residency', 'beta-defaults-tight']);
+
+  const cleanWarnings = [];
+  const sized = await fixture(t, { betaPickerCap: 25, maxOpenContexts: 32, coldStartsGlobal: 4, streamsGlobal: 256, onRuntimeWarning: warning => cleanWarnings.push(warning) });
+  assert.deepEqual(cleanWarnings, []);
+  assert.deepEqual(sized.app().getRuntimeWarnings(), []);
+});

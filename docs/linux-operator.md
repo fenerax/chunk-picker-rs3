@@ -671,6 +671,30 @@ restored registry, including on interrupted retries. Reissue links afterward;
 restored logins use the existing relink-code procedure. This does not change
 the credential-bearing legacy single-store backup format.
 
+#### Multi-picker runtime limits for beta
+
+Compiled defaults in `app/picker-router.mjs` and `app/security/picker-limits.mjs`
+are sized for single-duo development rather than multi-group beta hosting:
+
+| `multiPicker` key | Compiled default | Beta trial profile (`docs/perf/beta-load-trial.md`) | Notes |
+| --- | --- | --- | --- |
+| `maxOpenContexts` | `7` (6 owned + legacy) | `128` | Active groups above `maxOpenContexts - 1` evict idle contexts and cold-reopen. Size to available RAM (~78–257 MiB per resident context; see `docs/perf/picker-footprint.md`). |
+| `streamsGlobal` | `64` | `512` | Total live SSE connections across all logins/groups. |
+| `coldStartsGlobal` | `1` | `4` | Concurrent cold picker opens; `1` serializes every cold open globally. |
+| `pluginRequestsGlobal` | `128` | `256` | Global companion-plugin requests per 1-second window. |
+| `coldOpenAdmission` | `{ maxPending: 64, perAccount: 2, deadlineMs: 2000 }` | `{ maxPending: 256, perAccount: 2, deadlineMs: 30000 }` | Queue depth and wait deadline for cold opens. |
+| `maxCalculators` | `2` | host-sized (~1 GiB each) | Shared foreground/background calculator worker cap. |
+| `betaPickerCap` | unset | Wave 1: e.g. `40–60` (for ~5–10 groups) | Counts **pickers**, not groups. Because every invited login first provisions a solo picker before joining a group, 10 multi-player groups can use 30–50+ pickers (including retired/pending solos until deleted). |
+
+`scripts/linux/runtime.mjs` forwards `config.multiPicker` from the pinned release
+configuration into `app/server.mjs`. At startup, `app/server.mjs` emits a
+non-fatal `[multi-picker]` warning on stderr (and exposes `getRuntimeWarnings()`)
+whenever `betaPickerCap` exceeds `maxOpenContexts`, or when a beta-sized
+configuration (`betaPickerCap > 7` or `maxOpenContexts > 7`) still leaves
+`coldStartsGlobal` at `1` or `streamsGlobal` at or below `64`. Verify the chosen
+settings against the host's RAM budget and `docs/perf/beta-load-trial.md` before
+expanding past Wave 1.
+
 The default single-duo configuration and backup format are unchanged. To operate
 MP4's opt-in service, put identical `multiPicker` roots in the pinned release
 configuration and `RS3_OPERATOR_CONFIG`: `registryDir`, `pickerRoot` and

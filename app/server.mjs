@@ -14,7 +14,7 @@ import { checkStoreInitialization } from './storage/initialization.mjs';
 import { createGuestMode, isGuestRoute } from './guest.mjs';
 import { prepareOwnedServingRelease, verifyOwnedServingConfiguration, verifyOwnedRuntimeRelease, selectOwnedServingPicker } from './storage/owned-serving.mjs';
 import { createPinnedOwnedMigration } from './owned-preparation.mjs';
-import { createPickerLimits } from './security/picker-limits.mjs';
+import { createPickerLimits, multiPickerRuntimeWarnings } from './security/picker-limits.mjs';
 import { createPickerRouter } from './picker-router.mjs';
 import { reconcileTombstones, backupDeletionDisclosure } from './storage/tombstones.mjs';
 import { openRegistry } from './storage/registry.mjs';
@@ -180,6 +180,13 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
   // MP7: one enabled-mode budget for the full server lifetime.
   if (multiPicker) admissionMode(multiPicker);
   const pickerLimits = multiPicker ? createPickerLimits(multiPicker) : undefined;
+  const runtimeWarnings = multiPicker ? multiPickerRuntimeWarnings(multiPicker) : [];
+  if (runtimeWarnings.length) {
+    const notifyWarning = typeof multiPicker.onRuntimeWarning === 'function'
+      ? multiPicker.onRuntimeWarning
+      : warning => process.stderr.write(`[multi-picker] ${warning.message}\n`);
+    for (const warning of runtimeWarnings) notifyWarning(warning);
+  }
   const limits = createRateLimits(rateLimits);
   const admitStream = createStreamLimits(rateLimits);
   if (typeof host !== 'string' || !host.trim()) throw new TypeError('host must be nonempty.');
@@ -586,6 +593,7 @@ export async function createServer({ dataDir, host = '127.0.0.1', port = 8788,
   const handle = {
     server, store: context.store, world: indexedWorld, dataset,
     getStartupTimingMs: () => ({ ...startupTimingMs }),
+    getRuntimeWarnings: () => runtimeWarnings.map(warning => ({ ...warning })),
     activate: async checkpoint => { const result = await context.activate(checkpoint); await timings.resume(); return result; },
     freeze: async options => { const result = await context.freeze(options); await timings.pause(); await deepProfiles.stop(); return result; },
     address: () => server.address(), loopbackAddress: () => loopbackServer?.address() ?? null,

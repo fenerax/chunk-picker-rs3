@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
 import { Readable, Writable } from 'node:stream';
 import { createHook } from 'node:async_hooks';
-import { createPickerLimits, pickerLimitOptions, MP7_DEFAULTS } from '../app/security/picker-limits.mjs';
+import { createPickerLimits, pickerLimitOptions, multiPickerRuntimeWarnings, MP7_DEFAULTS, DEFAULT_MAX_OPEN_CONTEXTS } from '../app/security/picker-limits.mjs';
 import { createPickerRouter } from '../app/picker-router.mjs';
 const accountIds = { same: 'same-account', other: 'other', third: 'third', two: 'two', three: 'three' };
 
@@ -223,4 +223,24 @@ test('restarted legacy keys retain issuer quotas and old ambiguous keys charge e
   limits = createPickerLimits({ pluginKeysPerAccount: 1 }); await limits.initialize(registry);
   refused(() => limits.reserveKey({ accountId: ids[1] }, B, 'one'));
   const allowed = limits.reserveKey({ accountId: ids[0] }, 'legacy', 'one'); allowed.finish();
+});
+
+test('multiPickerRuntimeWarnings stays silent for defaults and warns when beta caps outgrow single-duo limits', () => {
+  assert.equal(DEFAULT_MAX_OPEN_CONTEXTS, 7);
+  assert.deepEqual(multiPickerRuntimeWarnings({}), []);
+  assert.deepEqual(multiPickerRuntimeWarnings({ betaPickerCap: 7 }), []);
+  assert.deepEqual(multiPickerRuntimeWarnings({ betaPickerCap: 50, maxOpenContexts: 64, coldStartsGlobal: 4, streamsGlobal: 512 }), []);
+
+  const exceedsDefault = multiPickerRuntimeWarnings({ betaPickerCap: 25 });
+  assert.deepEqual(exceedsDefault.map(w => w.code), ['beta-cap-exceeds-residency', 'beta-defaults-tight']);
+  assert.match(exceedsDefault[0].message, /betaPickerCap \(25\) exceeds maxOpenContexts \(7\)/);
+  assert.match(exceedsDefault[1].message, /coldStartsGlobal=1, streamsGlobal=64/);
+
+  const raisedResidencyOnly = multiPickerRuntimeWarnings({ maxOpenContexts: 64 });
+  assert.deepEqual(raisedResidencyOnly.map(w => w.code), ['beta-defaults-tight']);
+
+  const raisedLimitsSmallResidency = multiPickerRuntimeWarnings({ betaPickerCap: 30, maxOpenContexts: 16, coldStartsGlobal: 4, streamsGlobal: 256 });
+  assert.deepEqual(raisedLimitsSmallResidency.map(w => w.code), ['beta-cap-exceeds-residency']);
+
+  for (const bad of [0, -1, 1.5, '10']) assert.throws(() => multiPickerRuntimeWarnings({ maxOpenContexts: bad }), TypeError);
 });

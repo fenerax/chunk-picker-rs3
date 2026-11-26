@@ -15,6 +15,7 @@ import { createGroupDepartureHandler } from './group-departure-http.mjs';
 import { checkBodyWith } from './security/json.mjs';
 import { createPickerDeletion } from './picker-router-deletion.mjs';
 import { requestContext, checkRequestOrigin } from './security/request.mjs';
+import { DEFAULT_MAX_OPEN_CONTEXTS } from './security/picker-limits.mjs';
 import { reconcileTombstones, backupDeletionDisclosure } from './storage/tombstones.mjs';
 import { storeWriteBlocked } from './storage/snapshot.mjs';
 
@@ -25,7 +26,7 @@ const retry = () => Object.assign(httpError(503, 'The picker is unavailable. Ret
 /** The only residency and HTTP selection boundary. IDs from requests are checks,
  * never inputs to acquisition, registry path lookup or capability registration. */
 export function createPickerRouter({ registry, legacy, openContext, publicOrigin, requestContextFor = requestContext,
-  pickerLimits, onAdmission, admissionClock, importBodyClock, onImportBodyChunk, coldOpenAdmission, unauthenticated = () => {}, backupRetentionMs, maxOpenContexts = 7, idleCloseMs = 10 * 60 * 1000, maxConcurrentImports = 1 }) {
+  pickerLimits, onAdmission, admissionClock, importBodyClock, onImportBodyChunk, coldOpenAdmission, unauthenticated = () => {}, backupRetentionMs, maxOpenContexts = DEFAULT_MAX_OPEN_CONTEXTS, idleCloseMs = 10 * 60 * 1000, maxConcurrentImports = 1 }) {
   if (!Number.isSafeInteger(maxOpenContexts) || maxOpenContexts < 1 || !Number.isSafeInteger(idleCloseMs) || idleCloseMs < 1) throw new TypeError('Invalid picker residency limits.');
   if (!Number.isSafeInteger(maxConcurrentImports) || maxConcurrentImports < 1) throw new TypeError('Invalid picker import limit.');
   const admissionBounds = Object.freeze({ ...COLD_OPEN_ADMISSION, ...coldOpenAdmission });
