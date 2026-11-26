@@ -118,7 +118,7 @@ export function createScreenContext() {
   c.syncViewCache = () => {
     if (!c.viewSession) return;
     const session = c.viewSession;
-    c.viewCache.configure([c.dataset?.id, c.dataset?.digest, globalThis.location?.pathname, session.pickerId, session.accountId ?? session.account?.id, session.kind, session.actor?.kind, session.actor?.inviteId, session.capabilities, c.sessionMember, c.sessionAdmin, c.sessionReadOnly, c.memberId, c.sandbox?.signature?.()]);
+    c.viewCache.configure([c.dataset?.id ?? session.datasetId ?? null, c.dataset?.digest ?? session.datasetDigest ?? null, globalThis.location?.pathname, session.pickerId, session.accountId ?? session.account?.id, session.characterId ?? null, session.kind, session.actor?.kind, session.actor?.inviteId, session.capabilities, c.sessionMember, c.sessionAdmin, c.sessionReadOnly, c.memberId, c.sandbox?.signature?.()]);
   };
   c.owners = (selectedDataset.gameDefaults?.members ?? []).map(({ id, name, mapId }) => ({ id, name, ...(mapId ? { mapId } : {}) }));
   c.taskRequest = 0;

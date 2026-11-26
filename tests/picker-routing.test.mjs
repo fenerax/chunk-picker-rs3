@@ -97,6 +97,7 @@ test('signed-in defaults start empty, reuse member/revision IDs, mutate, complet
   const f = await fixture(t), a = await f.login('101'), b = await f.login('102');
   const ids = [await f.picker('101'), await f.picker('102')]; assert.notEqual(...ids);
   for (const cookie of [a, b]) {
+    assert.equal((await f.send('/api/session', cookie)).json().stateRevision, 0);
     const state = (await f.send('/api/state', cookie)).json().state;
     assert.deepEqual(state.members.map(m => m.id), ['owner']); assert.deepEqual(state.members[0].unlocked, []);
     assert.deepEqual(state.members[0].completedTasks, []); assert.deepEqual(state.tasks, []);
@@ -110,6 +111,7 @@ test('signed-in defaults start empty, reuse member/revision IDs, mutate, complet
   }
   await f.restart();
   for (const [cookie, text] of [[a, 'Player 1'], [b, 'Player 2']]) {
+    assert.equal((await f.send('/api/session', cookie)).json().stateRevision, 3);
     const response = await f.send('/api/state', cookie); assert.equal(response.status, 200, response.text);
     const state = response.json().state; assert.equal(state.revision, 3); assert.equal(state.members[0].notes['12341'], text);
     assert.deepEqual(state.members[0].completedTasks, ['rs3:task:synthetic']); assert.equal(state.tasks[0].label, text);

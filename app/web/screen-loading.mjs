@@ -2,12 +2,21 @@ import { requestError } from './live-swap-client.mjs';
 
 // Main-screen loading; shared values and callbacks live in the explicit screen context.
 export function createScreenLoading(c) {
+  const startupIdentity = () => ({
+    accountId: c.viewSession?.accountId ?? c.viewSession?.account?.id ?? null,
+    characterId: c.viewSession?.characterId ?? null,
+    pickerId: c.viewSession?.pickerId ?? null,
+    datasetId: c.dataset?.id ?? c.viewSession?.datasetId ?? null,
+    datasetDigest: c.dataset?.digest ?? c.viewSession?.datasetDigest ?? null,
+    memberId: c.memberId ?? null,
+  });
   function rememberStartupView(value) {
+    if (c.panelContext?.pickerSession?.stopped) return;
     if (!c.state || value.memberId !== c.memberId || value.stateRevision !== c.state.revision || c.sandbox.active) return;
     const ids = new Set(value.presentation?.tasks?.map(row => row.id) ?? []);
     const tasks = value.tasks.filter(row => ids.has(row.id)).slice(0, 60).map(({ id, label, category }) => ({ id, label, category }));
     c.viewCache.remember('startup', 'shell', c.state.revision, {
-      memberId: c.memberId, revision: c.state.revision, tasks,
+      ...startupIdentity(), revision: c.state.revision, tasks,
       unlocked: c.member().unlocked.length, pool: c.statePools[c.memberId]?.eligible.length ?? 0,
     });
   }
@@ -21,11 +30,22 @@ export function createScreenLoading(c) {
     }));
   }
   async function paintStartupView() {
+    if (c.panelContext?.pickerSession?.stopped) return;
     const token = c.viewCache.token();
     await c.viewCache.hydrate();
-    if (!c.viewCache.current(token) || c.state) return;
-    const saved = c.viewCache.peek('startup', 'shell', Number.MAX_SAFE_INTEGER)?.value;
+    if (c.panelContext?.pickerSession?.stopped || !c.viewCache.current(token) || c.state) return;
+    const expectedRevision = Number.isSafeInteger(c.viewSession?.stateRevision) ? c.viewSession.stateRevision : undefined;
+    if (c.viewSession?.multiPicker && expectedRevision === undefined) return;
+    const entry = expectedRevision !== undefined
+      ? c.viewCache.peek('startup', 'shell', expectedRevision, { exact: true })
+      : c.viewCache.peek('startup', 'shell', Number.MAX_SAFE_INTEGER);
+    const saved = entry?.value;
     if (!saved || saved.memberId !== c.memberId) return;
+    if (expectedRevision !== undefined && saved.revision !== expectedRevision) return;
+    const active = startupIdentity();
+    for (const key of ['accountId', 'characterId', 'pickerId', 'datasetId', 'datasetDigest']) {
+      if ((active[key] ?? null) !== (saved[key] ?? null)) return;
+    }
     c.startupSnapshot = { value: saved, memberId: c.memberId, token };
     const status = c.$('task-engine-status');
     status.setAttribute('role', 'status'); status.setAttribute('aria-live', 'polite');

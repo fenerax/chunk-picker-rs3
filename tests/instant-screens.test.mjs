@@ -4,6 +4,7 @@ import { createViewCache, replaceView } from '../app/web/browser-state.mjs';
 import { appendTaskHow } from '../app/web/task-how.mjs';
 import { appendTaskWhy } from '../app/web/task-why.mjs';
 import { createScreenLoading } from '../app/web/screen-loading.mjs';
+import { createScreenContext } from '../app/web/screen-context.mjs';
 import { projectTaskState } from '../app/web/command-state.mjs';
 const deferred = () => { let resolve, reject; const promise = new Promise((yes, no) => { resolve = yes; reject = no; }); return { promise, resolve, reject }; };
 const flush = () => new Promise(resolve => setImmediate(resolve));
@@ -162,4 +163,95 @@ test('returning to a member waits for queued invalidations before reading Indexe
   const cache = configured({ storage }); cache.remember('view', 'old', 7, {}); await cache.flushed();
   cache.configure(['another-member']); cache.configure(['dataset', 'picker', 'actor', 'member', 'write']);
   await cache.hydrate(); assert.equal(cache.peek('view', 'old', 7), undefined);
+});
+
+test('exact peek matches only the current revision and rejects older or newer entries', () => {
+  const cache = configured();
+  cache.remember('startup', 'shell', 7, { revision: 7 });
+  assert.equal(cache.peek('startup', 'shell', 7, { exact: true })?.revision, 7);
+  assert.equal(cache.peek('startup', 'shell', 8, { exact: true }), undefined);
+  assert.equal(cache.peek('startup', 'shell', 6, { exact: true }), undefined);
+});
+
+test('multi-picker startup cache requires exact revision, matching identity tuple and an active session', async () => {
+  const gate = deferred();
+  const accountA = 'account-a', accountB = 'account-b';
+  const characterA = 'c_' + 'a'.repeat(32), characterB = 'c_' + 'b'.repeat(32);
+  const pickerA = 'p_' + 'a'.repeat(32), pickerB = 'p_' + 'b'.repeat(32);
+  const baseSession = { multiPicker: true, accountId: accountA, characterId: characterA, pickerId: pickerA, datasetId: 'open-f2p', datasetDigest: 'digest-1', stateRevision: 7 };
+  const makeContext = ({ storage = null, session = baseSession, stopped = false } = {}) => {
+    const cache = createViewCache({ storage });
+    cache.configure([session.datasetId, session.datasetDigest, session.pickerId, session.accountId, session.characterId, 'member']);
+    const nodes = new Map(['task-engine-status', 'map-counts', 'active-tasks'].map(id => [id, new Node('div')]));
+    const c = {
+      viewCache: cache, viewSession: { ...session }, dataset: { id: session.datasetId, digest: session.datasetDigest },
+      memberId: 'member', sandbox: { active: false }, statePools: { member: { eligible: [{ id: '1' }] } },
+      member: () => ({ unlocked: ['1', '2'] }), panelContext: { pickerSession: { stopped } },
+      $: id => nodes.get(id), plain: String, el: (tag, label) => Object.assign(new Node(tag), { textContent: label ?? '' }), perfMark() {},
+    };
+    createScreenLoading(c);
+    return { c, cache, nodes };
+  };
+
+  let persisted;
+  const storage = { read: async () => persisted, write: async value => { persisted = structuredClone(value); } };
+  const writer = makeContext({ storage });
+  writer.c.state = { revision: 7 };
+  writer.c.rememberStartupView({ memberId: 'member', stateRevision: 7, tasks: [task], presentation: { tasks: [task] } });
+  await writer.cache.flushed();
+
+  const exact = makeContext({ storage });
+  await exact.c.paintStartupView();
+  assert.match(text(exact.nodes.get('active-tasks')), /Synthetic goal/);
+
+  for (const stateRevision of [8, 6, undefined]) {
+    const mismatch = makeContext({ storage, session: { ...baseSession, stateRevision } });
+    await mismatch.c.paintStartupView();
+    assert.equal(mismatch.nodes.get('active-tasks').children.length, 0, `expected refusal for revision ${stateRevision}`);
+  }
+
+  for (const [field, value] of [['accountId', accountB], ['characterId', characterB], ['characterId', null], ['pickerId', pickerB], ['datasetId', 'duo-legacy'], ['datasetDigest', 'digest-2']]) {
+    const mismatch = makeContext({ session: { ...baseSession, [field]: value } });
+    mismatch.cache.remember('startup', 'shell', 7, { ...baseSession, memberId: 'member', revision: 7, tasks: [task], unlocked: 2, pool: 1 });
+    await mismatch.c.paintStartupView();
+    assert.equal(mismatch.nodes.get('active-tasks').children.length, 0, `expected refusal when ${field} mismatches`);
+  }
+
+  const stopping = makeContext({ storage: { read: () => gate.promise, write: async () => {} } });
+  const painting = stopping.c.paintStartupView();
+  stopping.c.panelContext.pickerSession.stopped = true;
+  gate.resolve(persisted);
+  await painting;
+  assert.equal(stopping.nodes.get('active-tasks').children.length, 0);
+  const stoppedWriter = makeContext({ stopped: true });
+  stoppedWriter.c.state = { revision: 7 };
+  stoppedWriter.c.rememberStartupView({ memberId: 'member', stateRevision: 7, tasks: [task], presentation: { tasks: [task] } });
+  assert.equal(stoppedWriter.cache.stats().entries, 0);
+});
+
+test('screen-context syncViewCache isolates characters in the same picker and dataset digest fallback', () => {
+  const c = createScreenContext();
+  const accountA = 'account-a', pickerA = 'p_' + 'a'.repeat(32);
+  const characterA = 'c_' + 'a'.repeat(32), characterB = 'c_' + 'b'.repeat(32);
+  c.memberId = 'owner';
+  c.viewSession = { accountId: accountA, pickerId: pickerA, characterId: characterA, kind: 'account', datasetId: 'open-f2p', datasetDigest: 'd1' };
+  c.syncViewCache();
+  const firstToken = c.viewCache.token();
+  c.viewCache.remember('startup', 'shell', 4, { memberId: 'owner', revision: 4, tasks: [task] });
+  assert.ok(c.viewCache.peek('startup', 'shell', 4, { exact: true }));
+
+  c.viewSession = { ...c.viewSession, characterId: characterB };
+  c.syncViewCache();
+  assert.equal(c.viewCache.current(firstToken), false);
+  assert.equal(c.viewCache.peek('startup', 'shell', 4, { exact: true }), undefined);
+
+  c.dataset = undefined;
+  c.viewSession = { ...c.viewSession, datasetDigest: 'd1' };
+  c.syncViewCache();
+  const fallbackToken = c.viewCache.token();
+  c.viewCache.remember('startup', 'shell', 4, { memberId: 'owner', revision: 4, tasks: [task] });
+  c.viewSession = { ...c.viewSession, datasetDigest: 'd2' };
+  c.syncViewCache();
+  assert.equal(c.viewCache.current(fallbackToken), false);
+  assert.equal(c.viewCache.peek('startup', 'shell', 4, { exact: true }), undefined);
 });

@@ -4592,6 +4592,19 @@ test('instant screens: authoritative hydration keeps the cached first paint unti
   assert.equal(h.run('startupSnapshot'), undefined); assert.ok(!h.find('span', 'Cached startup goal'), 'fresh empty results remove the old answer');
 });
 
+test('instant screens: authoritative hydration discards a startup snapshot from an older or newer revision', async () => {
+  const h = harness();
+  for (const cachedRevision of [7, 9]) {
+    h.run(`startupSnapshot={token:viewCache.token(),memberId:'actor1',value:{revision:${cachedRevision},tasks:[{id:'builtin:startup',label:'Cached startup goal',category:'Extra'}]}}; result=undefined;`);
+    const next = h.snapshot(); next.revision = 8; h.adopt(next);
+    assert.equal(h.run('startupSnapshot'), undefined, `revision ${cachedRevision} must be cleared when state is at 8`);
+    assert.ok(!h.find('span', 'Cached startup goal'), `revision ${cachedRevision} must not paint over revision 8`);
+  }
+  h.run("startupSnapshot={token:viewCache.token(),memberId:'actor1',value:{revision:8,tasks:[{id:'builtin:startup',label:'Cached startup goal',category:'Extra'}]}}; result=undefined;");
+  const same = h.snapshot(); same.revision = 8; h.adopt(same);
+  assert.ok(h.find('span', 'Cached startup goal'), 'matching revision stays visible until fresh tasks arrive');
+});
+
 test('instant screens: two roll choices remain usable while task calculations are pending', async () => {
   const h = harness(), calculation = deferred();
   h.run("member().preferences={newTasks:true,cinematicRoll:false}; statePools.actor1={eligible:[{id:'12341'},{id:'12342'}]}");

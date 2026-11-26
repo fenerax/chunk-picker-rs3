@@ -72,10 +72,10 @@ export function createViewCache({ storage = indexedViewStorage(), maxBytes = 8 *
     }
     if (durable) persist();
   }
-  function peek(view, key, revision) {
+  function peek(view, key, revision, { exact: exactOnly = false } = {}) {
     if (!scope) return;
     const exact = entries.get(id(view, key, revision));
-    const row = exact ?? [...entries.values()].reverse().find(row => row.view === view && row.key === key && row.revision <= revision);
+    const row = exact ?? (exactOnly ? undefined : [...entries.values()].reverse().find(row => row.view === view && row.key === key && row.revision <= revision));
     // Always provisional, even on the exact revision, until a live read validates it.
     return row ? { value: row.value, revision: row.revision, updating: true } : undefined;
   }

@@ -484,7 +484,8 @@ export function createScreenTasks(c) {
     // its calculator is still pending. Keep filtering usable in this interval.
     if (typeof c.startupSnapshot !== 'undefined' && c.startupSnapshot) {
       const saved = c.startupSnapshot;
-      if (!c.result && saved.memberId === c.memberId && c.viewCache.current(saved.token)) {
+      const revisionOk = !c.state || (saved.value?.revision === undefined ? !c.viewSession?.multiPicker : saved.value.revision === c.state.revision);
+      if (!c.result && !c.panelContext?.pickerSession?.stopped && saved.memberId === c.memberId && revisionOk && c.viewCache.current(saved.token)) {
         c.renderStartupTasks(saved.value); c.taskRenderDone = Promise.resolve(true); return;
       }
       c.startupSnapshot = undefined;
